@@ -2,7 +2,7 @@
 
 > **用途**：约定「前端 + 库表先行、后端分模块并行」的协作方式，减少接口漂移与联调返工。  
 > **适用对象**：全员（前端负责人、各后端模块负责人、联调/答辩）  
-> **版本**：v1.0 | 2026-05  
+> **版本**：v1.2 | 2026-05  
 > **配套**：[FRONTEND_API_MAP.md](./FRONTEND_API_MAP.md) · [API.md](./API.md) · [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) · [MICROSERVICES.md](./MICROSERVICES.md) · [PROGRESS.md](./PROGRESS.md)
 
 ---
@@ -173,13 +173,83 @@ VITE_USE_MOCK=false
 
 ## 六、Git 与分支约定
 
+> **仓库**：https://github.com/Forven-Z/NST · 默认分支 **`main`**
+
+### 6.1 定稿策略
+
+**原则**：**人人可提交到 `main`**，但 **`main` 必须始终是「可运行版本」**。
+
+| 情况 | 做法 |
+|------|------|
+| 改动小、本地已验证 **`main` 仍可运行** | 直接在 `main` 上 commit + push |
+| 半成品、大功能、可能搞挂联调 | 先 **`feature/*` 分支**开发，完善后 **自行合并进 `main`** 再 push |
+| 合并前不确定 | 默认走 feature，宁可多一步分支，不要推坏 `main` |
+
+**「可运行」最低标准**（合并进 `main` 前自查）：
+
+- 相关微服务能启动；经 Gateway `:9000` 能访问本次改动涉及接口  
+- 未破坏已有能力：至少跑通与本模块相关的 `scripts/r-*-acceptance.ps1`（或 PR/合并说明里写清暂时影响范围）  
+- 若改 `schema.sql` / `API.md`：文档与脚本已同步，组员 `git pull` 后按 [RUNBOOK.md](./RUNBOOK.md) 能复现  
+
+**禁止**：`git push --force` 到 `main`；在 `main` 上留「编译不过 / 起不来服务」的提交。
+
+### 6.2 分支命名
+
+| 类型 | 格式 | 示例 |
+|------|------|------|
+| 功能 | `feature/{模块}-{简述}` | `feature/his-disposal`、`feature/frontend-lis-pages` |
+| 修复 | `fix/{模块}-{简述}` | `fix/gateway-jwt-registrar` |
+| 文档 | `docs/{简述}` | `docs/api-registrar-window` |
+
+### 6.3 直推 `main`（小改动）
+
+```bash
+git checkout main
+git pull origin main
+# 开发、本地验证可运行
+git add .
+git commit -m "feat(his): 窗口挂号接口"
+git push origin main
+```
+
+### 6.4 先 feature、再合并 `main`（大改动 / 半成品）
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b feature/his-disposal
+
+# 在分支上多次 commit、可 push 到远程备份
+git push -u origin feature/his-disposal
+
+# 本地验证通过后，合并进 main（任选一种）
+git checkout main
+git pull origin main
+git merge feature/his-disposal    # 或 rebase 后再 merge，组内统一即可
+git push origin main
+
+# 可选：删除已合并的远程分支
+git push origin --delete feature/his-disposal
+```
+
+也可在 GitHub 上开 **Pull Request** 自审后再 Merge（非必须，但 diff 更清晰）。
+
+**首次参与**：`git clone https://github.com/Forven-Z/NST.git` → 由仓库管理员在 **Settings → Collaborators** 添加协作者后才有 push 权限。
+
+### 6.5 提交规范
+
 | 项 | 约定 |
 |----|------|
-| 分支命名 | `feature/{模块}-{简述}`，例：`feature/his-disposal`、`feature/frontend-lis-pages` |
-| 提交粒度 | 一个 PR 对应一个可描述的能力（如「检验科队列页 + Mock」） |
-| PR 描述 | 列出影响的 API 路径、是否改表、如何验收 |
-| 合并前 | 本地 Gateway 联调或跑对应 `scripts/r-*-acceptance.ps1` |
-| 禁止 |  force push `main`；未评审直接改 `schema.sql` 核心字段 |
+| 提交粒度 | 一次 merge 对应一个可描述的能力 |
+| commit 前缀（建议） | `feat:` / `fix:` / `docs:` / `chore:` + 模块名 |
+| 合并说明 | 影响的 API、是否改表、跑了哪条验收脚本 |
+| 改契约/改表 | 先改 `API.md` / `DATABASE_DESIGN.md` / `schema.sql`（见 §五） |
+
+### 6.6 推坏 `main` 时
+
+1. 第一时间在群里说明  
+2. 优先 **revert 出问题的那次 commit**，恢复可运行  
+3. 修复在 **feature 分支**完成后再合入  
 
 ---
 
@@ -296,3 +366,5 @@ VITE_USE_MOCK=false
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | v1.0 | 2026-05 | 首版：前端+库表先行、后端分模块并行、Mock/变更/联调约定 |
+| v1.1 | 2026-05 | §六 扩充：main 稳定线 + feature 分支 + PR 合并流程（Forven-Z/NST） |
+| v1.2 | 2026-05 | §六 修订：人人可推 main（须可运行）；半成品走 feature 后自行合并 |
