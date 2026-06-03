@@ -180,7 +180,7 @@ VITE_USE_MOCK=false
 
 ## 六、Git 与分支约定
 
-> **仓库**：[https://github.com/Forven-Z/NST](https://github.com/Forven-Z/NST) · 默认分支 `**main`**
+> **仓库**：`https://github.com/<你的用户名>/NST` · 默认分支 `**main`**
 
 ### 6.1 规则
 
@@ -200,7 +200,7 @@ VITE_USE_MOCK=false
 ### 6.3 克隆与认证
 
 ```bash
-git clone https://github.com/Forven-Z/NST.git
+git clone https://github.com/<你的用户名>/NST.git
 cd NST
 ```
 
