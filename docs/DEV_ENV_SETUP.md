@@ -118,7 +118,7 @@ git --version
 
 ```powershell
 cd C:\Users\你的用户名\Desktop
-git clone https://github.com/<你的用户名>/NST.git
+git clone https://github.com/Forven-Z/NST.git
 cd NST
 ```
 
