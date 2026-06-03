@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="welcome card">
+    <view class="hello">您好，{{profile.realName || '患者'}}</view>
+    <view class="muted">病历号：{{medicalRecordNo || '—'}}</view>
+  </view>
+
+  <view class="menu-grid">
+    <view class="menu-item" bindtap="goRegister">
+      <view class="menu-icon register">挂</view>
+      <view class="menu-text">在线挂号</view>
+      <view class="menu-desc">选排班 · 预约门诊</view>
+    </view>
+    <view class="menu-item" bindtap="goBills">
+      <view class="menu-icon bills">缴</view>
+      <view class="menu-text">待缴费用</view>
+      <view class="menu-desc">挂号费 · 检验费</view>
+    </view>
+    <view class="menu-item" bindtap="goMedicalRecord">
+      <view class="menu-icon record">历</view>
+      <view class="menu-text">电子病历</view>
+      <view class="menu-desc">查看就诊记录</view>
+    </view>
+    <view class="menu-item" bindtap="goProfile">
+      <view class="menu-icon profile">我</view>
+      <view class="menu-text">个人档案</view>
+      <view class="menu-desc">完善基本信息</view>
+    </view>
+  </view>
+</view>

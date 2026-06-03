@@ -1,0 +1,90 @@
+# 智慧云脑诊疗平台 — Gateway 路由示例
+# 复制到 hospital-gateway/src/main/resources/application.yml 的 spring.cloud.gateway.routes 段
+# 或放入 Nacos 配置中心（Data ID: hospital-gateway.yaml）
+#
+# 前提：各服务已注册 Nacos，spring.application.name 与下方 uri 一致
+# 对外 Base URL：http://localhost:9000/api/v1/...
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        # --- 平台 ---
+        - id: hospital-auth
+          uri: lb://hospital-auth
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - StripPrefix=0
+
+        # --- HIS：患者 / 门诊 / 收费 / 药房 ---
+        - id: hospital-his-patient
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/patient/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-doctor
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/doctor/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-registrar
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/registrar/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-pharmacy
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/pharmacy/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-wechat-callback
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/callback/wechat/**
+          filters:
+            - StripPrefix=0
+
+        # --- LIS / PACS（P2 起逐步启用前端路径）---
+        - id: hospital-lis
+          uri: lb://hospital-lis
+          predicates:
+            - Path=/api/v1/lis/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-pacs
+          uri: lb://hospital-pacs
+          predicates:
+            - Path=/api/v1/pacs/**
+          filters:
+            - StripPrefix=0
+
+        # --- 管理 ---
+        - id: hospital-management
+          uri: lb://hospital-management
+          predicates:
+            - Path=/api/v1/admin/**
+          filters:
+            - StripPrefix=0
+
+        # --- AI（P4+，可 STUB）---
+        - id: hospital-ai-bridge
+          uri: lb://hospital-ai-bridge
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            - StripPrefix=0
+
+# 注意：
+# 1. /internal/** 不得配置到 Gateway（仅服务间 Feign / 内网 HTTP）
+# 2. hospital-ai (Python :8000) 不经 Gateway
+# 3. 网关 JWT 白名单见 API.md §2.2（登录、支付回调、health）

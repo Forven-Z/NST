@@ -1,0 +1,43 @@
+.link {
+  color: #1677ff;
+  font-size: 26rpx;
+}
+
+.bill-item.selected {
+  border: 2rpx solid #1677ff;
+}
+
+.bill-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.biz-type {
+  margin-top: 8rpx;
+}
+
+.pay-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 32rpx calc(20rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  box-shadow: 0 -4rpx 24rpx rgba(15, 23, 42, 0.08);
+}
+
+.pay-total {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pay-btn {
+  min-width: 220rpx;
+}
+
+.container {
+  padding-bottom: 180rpx;
+}

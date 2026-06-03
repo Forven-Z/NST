@@ -1,0 +1,19 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/register/register",
+    "pages/bills/bills",
+    "pages/profile/profile",
+    "pages/medical-record/medical-record"
+  ],
+  "window": {
+    "navigationBarTitleText": "智慧云脑诊疗",
+    "navigationBarBackgroundColor": "#1677ff",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f7fa",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

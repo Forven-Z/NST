@@ -1,0 +1,104 @@
+# 智慧云脑诊疗平台 — 本地基础设施（Docker · 可选，团队不用）
+# 团队定稿：Windows 本机安装，见 DEV_ENV_SETUP.md §六
+# 若个人使用：在 docs/infra 目录执行  docker compose up -d
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: hospital-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      POSTGRES_DB: ${POSTGRES_DB:-hospital}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - hospital_pg_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-hospital}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: hospital-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9002"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "${MINIO_API_PORT:-9001}:9000"
+      - "${MINIO_CONSOLE_PORT:-9002}:9002"
+    volumes:
+      - hospital_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-17T19-35-56Z
+    container_name: hospital-minio-init
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/hospital-imaging;
+      mc mb --ignore-existing local/hospital-reports;
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: hospital-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      SPRING_DATASOURCE_PLATFORM: ""
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "${NACOS_PORT:-8848}:8848"
+      - "${NACOS_GRPC_PORT:-9848}:9848"
+    volumes:
+      - hospital_nacos_data:/home/nacos/data
+      - hospital_nacos_logs:/home/nacos/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: hospital-redis
+    restart: unless-stopped
+    profiles:
+      - optional
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - hospital_redis_data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  hospital_pg_data:
+  hospital_minio_data:
+  hospital_nacos_data:
+  hospital_nacos_logs:
+  hospital_redis_data:

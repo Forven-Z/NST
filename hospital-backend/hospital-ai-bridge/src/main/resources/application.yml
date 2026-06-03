@@ -1,0 +1,12 @@
+server:
+  port: 9106
+
+spring:
+  application:
+    name: hospital-ai-bridge
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}

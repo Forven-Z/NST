@@ -1,0 +1,19 @@
+.field {
+  margin-bottom: 24rpx;
+}
+
+.label {
+  font-size: 26rpx;
+  color: #6b7280;
+  margin-bottom: 8rpx;
+}
+
+.input, .picker {
+  background: #f9fafb;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+}
+
+.logout-btn {
+  margin-top: 24rpx;
+}

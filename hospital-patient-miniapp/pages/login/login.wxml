@@ -1,0 +1,21 @@
+<view class="login-page">
+  <view class="hero">
+    <view class="logo">云脑</view>
+    <view class="title">智慧云脑诊疗平台</view>
+    <view class="subtitle">患者端 · 在线挂号 · 模拟支付</view>
+  </view>
+
+  <view class="card form-card">
+    <view class="label">昵称（开发期 mock 微信登录）</view>
+    <input
+      class="input"
+      placeholder="请输入昵称"
+      value="{{nickName}}"
+      bindinput="onNickInput"
+    />
+    <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">
+      微信一键登录
+    </button>
+    <view class="tip">开发工具请勾选「不校验合法域名」；后端需 Gateway :9000</view>
+  </view>
+</view>

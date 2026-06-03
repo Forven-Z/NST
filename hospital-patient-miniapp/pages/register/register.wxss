@@ -1,0 +1,14 @@
+.doctor-name {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.fee-row {
+  margin-top: 20rpx;
+}
+
+.mini-btn {
+  padding: 0 28rpx !important;
+  line-height: 64rpx !important;
+  height: 64rpx !important;
+}

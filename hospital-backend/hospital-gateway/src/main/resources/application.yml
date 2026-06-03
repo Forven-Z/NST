@@ -1,0 +1,117 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: hospital-gateway
+  cloud:
+    nacos:
+      discovery:
+        # Nacos 注册中心地址，部署时通过环境变量或配置中心覆盖
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # --- 平台 ---
+        - id: hospital-auth
+          uri: lb://hospital-auth
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - StripPrefix=0
+
+        # --- HIS：患者 / 门诊 / 收费 / 药房 ---
+        - id: hospital-his-patient
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/patient/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-doctor
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/doctor/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-registrar
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/registrar/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-pharmacy
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/pharmacy/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-his-wechat-callback
+          uri: lb://hospital-his
+          predicates:
+            - Path=/api/v1/callback/wechat/**
+          filters:
+            - StripPrefix=0
+
+        # --- LIS / PACS（P2 起逐步启用）---
+        - id: hospital-lis
+          uri: lb://hospital-lis
+          predicates:
+            - Path=/api/v1/lis/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-pacs
+          uri: lb://hospital-pacs
+          predicates:
+            - Path=/api/v1/pacs/**
+          filters:
+            - StripPrefix=0
+
+        # --- 管理 ---
+        - id: hospital-management
+          uri: lb://hospital-management
+          predicates:
+            - Path=/api/v1/admin/**
+          filters:
+            - StripPrefix=0
+
+        # --- AI（P4+，可 STUB）---
+        - id: hospital-ai-bridge
+          uri: lb://hospital-ai-bridge
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            - StripPrefix=0
+
+hospital:
+  gateway:
+    jwt:
+      secret: ${JWT_SECRET:hospital-dev-secret-key-change-in-production-min-32-chars!!}
+    whitelist:
+      - path: /api/v1/auth/staff/login
+        methods: [POST]
+      - path: /api/v1/auth/token/refresh
+        methods: [POST]
+      - path: /api/v1/auth/health
+        methods: [GET]
+      - path: /api/v1/lis/health
+        methods: [GET]
+      - path: /api/v1/pacs/health
+        methods: [GET]
+      - path: /api/v1/admin/health
+        methods: [GET]
+      - path: /api/v1/ai/health
+        methods: [GET]
+      - path: /api/v1/patient/auth/wechat
+        methods: [POST]
+      - path: /api/v1/callback/wechat/pay
+        methods: [POST]

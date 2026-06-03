@@ -1,0 +1,55 @@
+.welcome {
+  background: linear-gradient(135deg, #1677ff, #4096ff);
+  color: #fff;
+}
+
+.welcome .muted {
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 8rpx;
+}
+
+.hello {
+  font-size: 36rpx;
+  font-weight: 600;
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24rpx;
+}
+
+.menu-item {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 4rpx 24rpx rgba(15, 23, 42, 0.06);
+}
+
+.menu-icon {
+  width: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  border-radius: 16rpx;
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-bottom: 16rpx;
+}
+
+.menu-icon.register { background: #1677ff; }
+.menu-icon.bills { background: #f59e0b; }
+.menu-icon.record { background: #10b981; }
+.menu-icon.profile { background: #6366f1; }
+
+.menu-text {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.menu-desc {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #9ca3af;
+}

@@ -1,0 +1,46 @@
+# MinIO AIStor license（每人本机申请，禁止入库）
+minio.license
+**/minio.license
+
+# 本地环境
+.env
+*.env.local
+!.env.example
+!**/.env.example
+
+# Java / Maven
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# Node / 前端
+**/node_modules/
+**/dist/
+**/dist-ssr/
+*.local
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+
+# IDE / 系统
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 日志与临时
+logs/
+work/
+*.log
+
+# 测试 / 覆盖率
+**/coverage/
+**/.pytest_cache/

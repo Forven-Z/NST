@@ -1,0 +1,33 @@
+<view class="container">
+  <view class="card">
+    <view class="card-title">今日可挂号源</view>
+    <view class="muted">默认内科（deptId=1），支付后进入医生候诊队列</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">加载中...</view>
+  <view wx:elif="{{schedules.length === 0}}" class="empty">暂无可用排班</view>
+
+  <view wx:else>
+    <view class="card" wx:for="{{schedules}}" wx:key="schedulingId">
+      <view class="row-between">
+        <view>
+          <view class="doctor-name">{{item.doctorName}}</view>
+          <view class="muted">{{item.deptName}} · {{item.levelName}}</view>
+        </view>
+        <view class="tag">余 {{item.remainQuota}}</view>
+      </view>
+      <view class="row-between fee-row">
+        <view class="price">¥{{item.registFee}}</view>
+        <button
+          class="btn-primary mini-btn"
+          size="mini"
+          loading="{{submitting}}"
+          data-index="{{index}}"
+          bindtap="onRegister"
+        >
+          立即挂号
+        </button>
+      </view>
+    </view>
+  </view>
+</view>
