@@ -36,7 +36,7 @@
 
 ```cmd
 cd /d C:\Users\你的用户名\Desktop
-git clone https://github.com/Forven-Z/NST.git
+git clone https://github.com/<你的用户名>/NST.git
 cd NST
 ```
 
