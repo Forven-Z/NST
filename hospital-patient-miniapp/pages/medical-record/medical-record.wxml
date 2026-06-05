@@ -1,35 +1,15 @@
 <view class="container">
-  <view class="card">
-    <view class="card-title">电子病历查询</view>
-    <view class="muted">输入挂号单号（registerId），医生保存病历后可查看</view>
-    <view class="query-row">
-      <input
-        class="input"
-        type="number"
-        placeholder="挂号单号"
-        value="{{registerId}}"
-        bindinput="onRegisterInput"
-      />
-      <button class="btn-primary query-btn" loading="{{loading}}" bindtap="onQuery">查询</button>
-    </view>
+  <view class="card" wx:if="{{!record}}">
+    <view class="card-title">电子病历</view>
+    <view class="muted">从「挂号记录」进入可自动带入单号；或手动输入</view>
+    <input class="input" placeholder="挂号单号 registerId" value="{{registerId}}" bindinput="onRegisterInput" />
+    <button class="btn-primary" loading="{{loading}}" bindtap="onQuery">查询</button>
   </view>
 
   <view class="card" wx:if="{{record}}">
-    <view class="record-block">
-      <view class="block-title">主诉</view>
-      <view>{{record.readme || '—'}}</view>
-    </view>
-    <view class="record-block">
-      <view class="block-title">现病史</view>
-      <view>{{record.present || '—'}}</view>
-    </view>
-    <view class="record-block">
-      <view class="block-title">初步诊断</view>
-      <view>{{record.diagnosis || '—'}}</view>
-    </view>
-    <view class="record-block">
-      <view class="block-title">处理意见</view>
-      <view>{{record.cure || '—'}}</view>
-    </view>
+    <view class="card-title">病历 · 单号 {{registerId}}</view>
+    <view class="field"><text class="k">主诉</text>{{record.readme || '—'}}</view>
+    <view class="field"><text class="k">诊断</text>{{record.diagnosis || '—'}}</view>
+    <view class="field"><text class="k">处理</text>{{record.cure || '—'}}</view>
   </view>
 </view>

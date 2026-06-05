@@ -1,11 +1,23 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { callPatient, createInspectionOrder, createPrescription, fetchDoctorQueue, fetchInspectionResult, fetchMedicalRecord, saveMedicalRecord } from '../../api/doctor'
+import {
+  callPatient,
+  createCheckOrder,
+  createInspectionOrder,
+  createPrescription,
+  fetchDoctorQueue,
+  fetchInspectionResult,
+  fetchMedicalRecord,
+  finishVisit,
+  saveMedicalRecord,
+} from '../../api/doctor'
+import AiDiagnosisBar from '../../components/doctor/AiDiagnosisBar.vue'
 
 const loading = ref(false)
 const saving = ref(false)
 const callingId = ref(null)
+const finishingId = ref(null)
 const queue = ref([])
 const visitStateFilter = ref('all')
 const currentRegisterId = ref(null)
@@ -27,13 +39,8 @@ const recordForm = reactive({
 const orderingInspection = ref(false)
 const inspectionResult = ref(null)
 const lastInspectionId = ref(null)
-
-/** seed: INS-BLOOD 血常规 */
-const DEFAULT_INSPECTION_ITEM_ID = 2
-/** seed: 阿莫西林 */
-const DEFAULT_DRUG_ID = 1
-
 const orderingPrescription = ref(false)
+const orderingCheck = ref(false)
 const lastPrescription = ref(null)
 
 const visitStateMap = {
@@ -125,21 +132,18 @@ async function onSaveRecord() {
 }
 
 async function onOrderInspection() {
-  if (!currentRegisterId.value) {
-    ElMessage.warning('请先选择接诊中的患者')
-    return
-  }
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
   orderingInspection.value = true
   inspectionResult.value = null
   try {
     const res = await createInspectionOrder({
       registerId: currentRegisterId.value,
-      medicalTechnologyId: DEFAULT_INSPECTION_ITEM_ID,
-      purpose: 'Routine blood test',
-      bodyPart: 'Blood',
+      medicalTechnologyId: 2,
+      purpose: '感染/贫血筛查',
+      bodyPart: '血液',
     })
     lastInspectionId.value = res.data?.inspectionRequestId
-    ElMessage.success(`已开立检验：${res.data?.itemName}，请患者缴费`)
+    ElMessage.success(`已开立检验：${res.data?.itemName}，请患者至收费处缴费后至检验科采血`)
   } catch (err) {
     ElMessage.error(err.message || '开检验失败')
   } finally {
@@ -147,24 +151,40 @@ async function onOrderInspection() {
   }
 }
 
-async function onOrderPrescription() {
-  if (!currentRegisterId.value) {
-    ElMessage.warning('请先选择接诊中的患者')
-    return
+async function onOrderCheck() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
+  orderingCheck.value = true
+  try {
+    const res = await createCheckOrder({
+      registerId: currentRegisterId.value,
+      medicalTechnologyId: 1,
+      purpose: '排除颅内病变',
+      bodyPart: '头部',
+      fromAi: false,
+    })
+    ElMessage.success(`已开立检查：${res.data?.itemName || '头部 CT'}，请患者缴费后至放射科登记`)
+  } catch (err) {
+    ElMessage.error(err.message || '开检查失败')
+  } finally {
+    orderingCheck.value = false
   }
+}
+
+async function onOrderPrescription() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
   orderingPrescription.value = true
   try {
     const res = await createPrescription({
       registerId: currentRegisterId.value,
-      remark: 'Outpatient prescription',
+      remark: '门诊处方',
       items: [{
-        drugId: DEFAULT_DRUG_ID,
+        drugId: 1,
         quantity: 2,
-        usageMethod: 'oral',
+        usageMethod: '口服',
         dosage: '0.5g',
         frequency: 'tid',
         days: 7,
-        entrust: 'after meal',
+        entrust: '饭后服用',
       }],
     })
     lastPrescription.value = res.data
@@ -177,16 +197,31 @@ async function onOrderPrescription() {
 }
 
 async function onFetchInspectionResult() {
-  if (!lastInspectionId.value) {
-    ElMessage.info('请先开立检验')
-    return
-  }
+  if (!lastInspectionId.value) return ElMessage.info('请先开立检验并完成缴费、检验科出报告')
   try {
     const res = await fetchInspectionResult(lastInspectionId.value)
     inspectionResult.value = res.data
     ElMessage.success('已获取检验结果')
   } catch (err) {
     ElMessage.error(err.message || '暂无检验结果')
+  } finally {
+    /* noop */
+  }
+}
+
+async function onFinishVisit() {
+  if (!currentRegisterId.value) return
+  finishingId.value = currentRegisterId.value
+  try {
+    await finishVisit(currentRegisterId.value)
+    ElMessage.success('看诊已结束')
+    currentRegisterId.value = null
+    currentPatient.value = null
+    await loadQueue()
+  } catch (err) {
+    ElMessage.error(err.message || '操作失败')
+  } finally {
+    finishingId.value = null
   }
 }
 
@@ -199,6 +234,15 @@ function formatGender(gender) {
 
 <template>
   <div class="workspace">
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      class="flow-tip"
+      title="门诊流程"
+      description="患者挂号并缴费 → 医生叫号接诊 → 书写病历/开单 → 患者再次缴费 → 检验/检查/药房/处置 → 结束看诊"
+    />
+
     <el-card shadow="never" class="section-card">
       <template #header>
         <div class="card-header">
@@ -218,16 +262,17 @@ function formatGender(gender) {
         v-loading="loading"
         :data="queue"
         highlight-current-row
-        empty-text="暂无候诊患者（需患者完成挂号并模拟支付）"
+        empty-text="暂无候诊患者（Mock 演示：王小明 MR202606040001 已挂号待叫号）"
         @row-click="onSelectRow"
       >
-        <el-table-column prop="medicalRecordNo" label="病历号" width="140" />
+        <el-table-column prop="medicalRecordNo" label="病历号" width="150" />
         <el-table-column prop="patientName" label="姓名" width="100" />
         <el-table-column label="性别" width="70">
           <template #default="{ row }">{{ formatGender(row.gender) }}</template>
         </el-table-column>
         <el-table-column prop="age" label="年龄" width="70" />
         <el-table-column prop="registLevelName" label="号别" width="90" />
+        <el-table-column prop="noonLabel" label="午别" width="72" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="visitStateMap[row.visitState]?.type || 'info'" size="small">
@@ -259,81 +304,74 @@ function formatGender(gender) {
             电子病历
             <template v-if="currentPatient">
               — {{ currentPatient.patientName }}（{{ currentPatient.medicalRecordNo }}）
+              · {{ currentPatient.registLevelName }}
             </template>
           </span>
           <div class="header-actions">
-            <el-button
-              :disabled="!currentRegisterId"
-              :loading="orderingPrescription"
-              @click="onOrderPrescription"
-            >
-              开阿莫西林
+            <el-button :disabled="!currentRegisterId" :loading="orderingCheck" @click="onOrderCheck">
+              开检查（头部 CT）
             </el-button>
-            <el-button
-              :disabled="!currentRegisterId"
-              :loading="orderingInspection"
-              @click="onOrderInspection"
-            >
-              开血常规
+            <el-button :disabled="!currentRegisterId" :loading="orderingInspection" @click="onOrderInspection">
+              开检验（血常规）
             </el-button>
-            <el-button
-              :disabled="!lastInspectionId"
-              @click="onFetchInspectionResult"
-            >
+            <el-button :disabled="!currentRegisterId" :loading="orderingPrescription" @click="onOrderPrescription">
+              开处方（阿莫西林）
+            </el-button>
+            <el-button :disabled="!lastInspectionId" @click="onFetchInspectionResult">
               查看检验结果
             </el-button>
-            <el-button
-              type="primary"
-              :loading="saving"
-              :disabled="!currentRegisterId"
-              @click="onSaveRecord"
-            >
+            <el-button type="primary" :loading="saving" :disabled="!currentRegisterId" @click="onSaveRecord">
               保存病历
+            </el-button>
+            <el-button
+              type="success"
+              :loading="finishingId === currentRegisterId"
+              :disabled="!currentRegisterId"
+              @click="onFinishVisit"
+            >
+              结束看诊
             </el-button>
           </div>
         </div>
       </template>
 
+      <AiDiagnosisBar :register-id="currentRegisterId" :disabled="!currentRegisterId" />
+
       <el-form v-if="currentRegisterId" label-position="top" class="record-form">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="主诉">
-              <el-input v-model="recordForm.readme" type="textarea" :rows="2" placeholder="头痛三天..." />
+            <el-form-item label="主诉" required>
+              <el-input v-model="recordForm.readme" type="textarea" :rows="2" placeholder="如：头痛 3 天，加重 1 天" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="现病史">
-              <el-input v-model="recordForm.present" type="textarea" :rows="2" />
+              <el-input v-model="recordForm.present" type="textarea" :rows="2" placeholder="起病情况、伴随症状、既往治疗" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="既往史 / 个人史">
+              <el-input v-model="recordForm.history" placeholder="高血压、糖尿病等慢性病史" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="过敏史">
-              <el-input v-model="recordForm.allergy" placeholder="青霉素过敏" />
+              <el-input v-model="recordForm.allergy" placeholder="无则填「无」；青霉素过敏等须醒目标注" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="体格检查">
-              <el-input v-model="recordForm.physique" placeholder="T 36.5℃..." />
+              <el-input v-model="recordForm.physique" placeholder="T、P、R、BP，重点阳性体征" />
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="初步诊断">
-              <el-input v-model="recordForm.diagnosis" type="textarea" :rows="2" />
+              <el-input v-model="recordForm.diagnosis" placeholder="如：头痛待查" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="处理意见">
-              <el-input v-model="recordForm.cure" type="textarea" :rows="2" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="检查建议">
-              <el-input v-model="recordForm.checkAdvice" placeholder="头部 CT" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="检验建议">
-              <el-input v-model="recordForm.inspectionAdvice" />
+              <el-input v-model="recordForm.cure" type="textarea" :rows="2" placeholder="进一步检查、用药、随访建议" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -343,8 +381,8 @@ function formatGender(gender) {
           :closable="false"
           show-icon
           :title="`处方 ${lastPrescription.prescriptionNo}`"
-          :description="`金额 ¥${lastPrescription.totalAmount}，状态：待缴费`"
-          class="inspection-result"
+          :description="`金额 ¥${lastPrescription.totalAmount}，状态：待患者缴费`"
+          class="result-alert"
         />
         <el-alert
           v-if="inspectionResult"
@@ -353,10 +391,10 @@ function formatGender(gender) {
           show-icon
           :title="`检验结果：${inspectionResult.itemName}`"
           :description="inspectionResult.resultText"
-          class="inspection-result"
+          class="result-alert"
         />
       </el-form>
-      <el-empty v-else description="请从队列中选择「接诊中」患者，或先叫号" />
+      <el-empty v-else description="从队列选择「接诊中」患者，或对「已挂号」患者点击叫号" />
     </el-card>
   </div>
 </template>
@@ -366,6 +404,10 @@ function formatGender(gender) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.flow-tip {
+  border-radius: 8px;
 }
 
 .section-card {
@@ -381,6 +423,7 @@ function formatGender(gender) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .header-actions {
@@ -389,7 +432,7 @@ function formatGender(gender) {
   flex-wrap: wrap;
 }
 
-.inspection-result {
+.result-alert {
   margin-top: 12px;
 }
 

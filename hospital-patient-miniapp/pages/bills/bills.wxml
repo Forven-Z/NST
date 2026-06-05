@@ -1,22 +1,35 @@
-<view class="container">
-  <view class="card">
+<view class="container bills-page">
+  <view class="page-tabs card">
+    <view
+      class="page-tab {{pageTab === 'pending' ? 'active' : ''}}"
+      data-tab="pending"
+      bindtap="onSwitchPageTab"
+    >待缴</view>
+    <view
+      class="page-tab {{pageTab === 'paid' ? 'active' : ''}}"
+      data-tab="paid"
+      bindtap="onSwitchPageTab"
+    >已缴</view>
+  </view>
+
+  <view class="card" wx:if="{{pageTab === 'pending'}}">
     <view class="row-between">
-      <view class="card-title">待缴费用</view>
-      <view class="link" bindtap="onSelectAll">
-        {{selectedIds.length === bills.length && bills.length ? '取消全选' : '全选'}}
+      <view class="card-title">{{scopeTitle}}</view>
+      <view class="link" bindtap="onSelectAll" wx:if="{{bills.length}}">
+        {{selectedIds.length === bills.length ? '取消全选' : '全选'}}
       </view>
     </view>
     <view class="muted">开发期模拟支付，无需真实微信支付</view>
   </view>
 
-  <view wx:if="{{loading}}" class="empty">加载中...</view>
-  <view wx:elif="{{bills.length === 0}}" class="empty">暂无待缴账单</view>
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
 
-  <view wx:else>
+  <block wx:if="{{pageTab === 'pending' && !loading}}">
+    <view wx:if="{{!bills.length}}" class="empty">暂无待缴账单</view>
     <view
-      class="card bill-item {{item.checked ? 'selected' : ''}}"
       wx:for="{{bills}}"
       wx:key="id"
+      class="card bill-item {{item.checked ? 'selected' : ''}}"
       data-id="{{item.id}}"
       bindtap="onToggleBill"
     >
@@ -27,15 +40,26 @@
         </view>
         <view class="price">¥{{item.amount}}</view>
       </view>
-      <view class="muted biz-type">{{item.bizType}}</view>
+      <view class="tag">{{item.bizTypeLabel}}</view>
     </view>
-  </view>
+    <view class="pay-bar" wx:if="{{bills.length}}">
+      <view>
+        <view class="muted">已选 {{selectedIds.length}} 项</view>
+        <view class="pay-total">合计 <text class="price">¥{{totalAmount}}</text></view>
+      </view>
+      <button class="btn-primary pay-btn" loading="{{paying}}" bindtap="onPay">模拟支付</button>
+    </view>
+  </block>
 
-  <view class="pay-bar" wx:if="{{bills.length}}">
-    <view>
-      <view class="muted">已选 {{selectedIds.length}} 项</view>
-      <view class="pay-total">合计 <text class="price">¥{{totalAmount}}</text></view>
+  <block wx:if="{{pageTab === 'paid' && !loading}}">
+    <view wx:if="{{!payments.length}}" class="empty">暂无缴费记录</view>
+    <view wx:for="{{payments}}" wx:key="paymentId" class="card paid-item">
+      <view class="row-between">
+        <view class="bill-title">{{item.summary}}</view>
+        <view class="price">¥{{item.amount}}</view>
+      </view>
+      <view class="muted">支付单号 {{item.paymentNo}}</view>
+      <view class="muted">{{item.paidAt}} · {{item.channel}}</view>
     </view>
-    <button class="btn-primary pay-btn" loading="{{paying}}" bindtap="onPay">模拟支付</button>
-  </view>
+  </block>
 </view>

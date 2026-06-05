@@ -172,4 +172,122 @@ public class RegisterRepository {
                 })
                 .list();
     }
+
+    public List<Map<String, Object>> findByOwnerPatientId(Long ownerPatientId, Integer visitState, int offset, int limit) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        WHERE r.delmark = 0
+                          AND (
+                              r.patient_id = :ownerId
+                              OR r.patient_id IN (
+                                  SELECT member_patient_id FROM patient_family_link
+                                  WHERE owner_patient_id = :ownerId AND delmark = 0
+                              )
+                          )
+                          AND (CAST(:visitState AS INTEGER) IS NULL OR r.visit_state = CAST(:visitState AS INTEGER))
+                        ORDER BY r.create_time DESC
+                        LIMIT :limit OFFSET :offset
+                        """)
+                .param("ownerId", ownerPatientId)
+                .param("visitState", visitState)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query((rs, rowNum) -> mapRegisterRow(rs))
+                .list();
+    }
+
+    public Optional<Map<String, Object>> findDetailForOwner(Long registerId, Long ownerPatientId) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        WHERE r.id = :id AND r.delmark = 0
+                          AND (
+                              r.patient_id = :ownerId
+                              OR r.patient_id IN (
+                                  SELECT member_patient_id FROM patient_family_link
+                                  WHERE owner_patient_id = :ownerId AND delmark = 0
+                              )
+                          )
+                        """)
+                .param("id", registerId)
+                .param("ownerId", ownerPatientId)
+                .query((rs, rowNum) -> mapRegisterRow(rs))
+                .optional();
+    }
+
+    private Map<String, Object> mapRegisterRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("registerId", rs.getLong("register_id"));
+        row.put("patientId", rs.getLong("patient_id"));
+        row.put("visitState", rs.getInt("visit_state"));
+        row.put("workDate", rs.getObject("visit_date", LocalDate.class));
+        row.put("noonType", rs.getInt("noon_type"));
+        row.put("noonLabel", rs.getInt("noon_type") == 1 ? "上午" : "下午");
+        row.put("registFee", rs.getBigDecimal("regist_fee"));
+        row.put("registTime", rs.getObject("regist_time", OffsetDateTime.class));
+        row.put("deptName", rs.getString("dept_name"));
+        row.put("doctorName", rs.getString("doctor_name"));
+        row.put("registLevelName", rs.getString("regist_level_name"));
+        row.put("patientName", rs.getString("patient_name"));
+        row.put("medicalRecordNo", rs.getString("medical_record_no"));
+        return row;
+    }
+
+    public List<Map<String, Object>> findByPatientId(Long patientId, Integer visitState, int offset, int limit) {
+        return findByOwnerPatientId(patientId, visitState, offset, limit);
+    }
+
+    public Optional<Map<String, Object>> findDetailByIdAndPatientId(Long registerId, Long patientId) {
+        return findDetailForOwner(registerId, patientId);
+    }
+
+    public int countAheadInQueue(Long registerId) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*)::int
+                        FROM register cur
+                        JOIN register other ON other.delmark = 0
+                            AND other.visit_date = cur.visit_date
+                            AND other.dept_id = cur.dept_id
+                            AND other.employee_id = cur.employee_id
+                            AND other.noon_type = cur.noon_type
+                            AND other.visit_state = 1
+                            AND other.create_time < cur.create_time
+                        WHERE cur.id = :registerId AND cur.delmark = 0
+                        """)
+                .param("registerId", registerId)
+                .query(Integer.class)
+                .single();
+        return count != null ? count : 0;
+    }
 }

@@ -120,4 +120,33 @@ public class PatientRepository {
                 .query(Long.class)
                 .optional();
     }
+
+    public Optional<Long> findPatientIdByIdCard(String idCard) {
+        if (idCard == null || idCard.isBlank()) {
+            return Optional.empty();
+        }
+        return jdbcClient.sql("""
+                        SELECT id FROM patient WHERE id_card = :idCard AND delmark = 0
+                        """)
+                .param("idCard", idCard)
+                .query(Long.class)
+                .optional();
+    }
+
+    public long insertFamilyPatient(String medicalRecordNo, String realName, Integer gender,
+                                    String idCard, String phone) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcClient.sql("""
+                        INSERT INTO patient (medical_record_no, real_name, gender, id_card, phone, need_medical_book)
+                        VALUES (:medicalRecordNo, :realName, :gender, :idCard, :phone, FALSE)
+                        """)
+                .param("medicalRecordNo", medicalRecordNo)
+                .param("realName", realName)
+                .param("gender", gender != null ? gender : 0)
+                .param("idCard", idCard)
+                .param("phone", phone)
+                .update(keyHolder, "id");
+        Number key = keyHolder.getKey();
+        return key != null ? key.longValue() : 0L;
+    }
 }

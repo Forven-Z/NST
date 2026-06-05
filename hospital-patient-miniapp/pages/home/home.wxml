@@ -1,29 +1,63 @@
-<view class="container">
+<view class="home-page">
   <view class="welcome card">
-    <view class="hello">您好，{{profile.realName || '患者'}}</view>
-    <view class="muted">病历号：{{medicalRecordNo || '—'}}</view>
+    <view class="welcome-row row-between">
+      <view class="welcome-left">
+        <view class="welcome-title">您好，{{ownerName}}</view>
+        <view class="welcome-sub muted">账号病历号 {{ownerMedicalRecordNo}}</view>
+      </view>
+      <view class="member-switch" bindtap="onSwitchMember">
+        <text class="member-switch-label">就诊人</text>
+        <text class="member-switch-name">{{activeMemberName}}</text>
+        <text class="member-arrow">▼</text>
+      </view>
+    </view>
   </view>
 
-  <view class="menu-grid">
-    <view class="menu-item" bindtap="goRegister">
-      <view class="menu-icon register">挂</view>
-      <view class="menu-text">在线挂号</view>
-      <view class="menu-desc">选排班 · 预约门诊</view>
+  <view class="trip card" wx:if="{{trip}}">
+    <view class="trip-head row-between">
+      <view class="trip-label">当前就医</view>
+      <view class="trip-tag">{{trip.stateLabel}}</view>
     </view>
-    <view class="menu-item" bindtap="goBills">
-      <view class="menu-icon bills">缴</view>
-      <view class="menu-text">待缴费用</view>
-      <view class="menu-desc">挂号费 · 检验费</view>
+    <view class="trip-main">{{trip.deptName}} · {{trip.doctorName}}</view>
+    <view class="trip-sub muted">{{trip.levelName}} · {{trip.workDate}} {{trip.noonLabel}}</view>
+    <view class="trip-sub-hint" wx:if="{{trip.subHint}}">{{trip.subHint}}</view>
+    <button class="btn-primary trip-btn" bindtap="onTripAction">{{trip.actionText}}</button>
+  </view>
+
+  <view class="trip card empty-trip" wx:else>
+    <view class="trip-label">当前就医</view>
+    <view class="muted">该就诊人暂无进行中的挂号</view>
+    <button class="btn-primary trip-btn" bindtap="goRegister">去挂号</button>
+  </view>
+
+  <view class="service-panel">
+    <view class="tab-bar">
+      <view
+        wx:for="{{tabs}}"
+        wx:key="key"
+        class="tab-item {{activeTab === item.key ? 'active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="onTabChange"
+      >
+        {{item.label}}
+      </view>
     </view>
-    <view class="menu-item" bindtap="goMedicalRecord">
-      <view class="menu-icon record">历</view>
-      <view class="menu-text">电子病历</view>
-      <view class="menu-desc">查看就诊记录</view>
+    <view class="service-grid">
+      <view
+        wx:for="{{gridItems}}"
+        wx:key="id"
+        class="service-cell"
+        data-id="{{item.id}}"
+        bindtap="onGridTap"
+      >
+        <view class="service-icon">{{item.icon}}</view>
+        <view class="service-name">{{item.name}}</view>
+      </view>
     </view>
-    <view class="menu-item" bindtap="goProfile">
-      <view class="menu-icon profile">我</view>
-      <view class="menu-text">个人档案</view>
-      <view class="menu-desc">完善基本信息</view>
-    </view>
+  </view>
+
+  <view class="tip card">
+    <view class="tip-title">就医提示</view>
+    <view class="tip-text muted">初诊建议挂普通号；挂号后请先缴费再到院候诊。检验检查需医生开单缴费后执行，报告在「检查」Tab 查询；费用可在「我的费用」查看待缴与已缴。</view>
   </view>
 </view>

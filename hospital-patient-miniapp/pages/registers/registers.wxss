@@ -1,0 +1,25 @@
+.filter-row {
+  display: flex;
+  gap: 24rpx;
+}
+
+.filter {
+  font-size: 28rpx;
+  color: #64748b;
+}
+
+.filter.active {
+  color: #1677ff;
+  font-weight: 600;
+}
+
+.actions {
+  margin-top: 16rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.actions button {
+  margin: 0 !important;
+}

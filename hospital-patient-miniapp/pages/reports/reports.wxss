@@ -1,0 +1,34 @@
+.tab-row {
+  display: flex;
+  gap: 16rpx;
+  padding: 20rpx 24rpx;
+}
+
+.tab-chip {
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 26rpx;
+}
+
+.tab-chip.active {
+  background: #1677ff;
+  color: #fff;
+}
+
+.report-name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.summary {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.report-row:active {
+  opacity: 0.85;
+}

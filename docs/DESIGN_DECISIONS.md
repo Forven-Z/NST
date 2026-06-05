@@ -2,7 +2,7 @@
 
 > **文档性质**：已拍板的技术与实现选择；编码与评审以本文为准。  
 > **文档索引**：[README.md](./README.md)  
-> **版本**：v1.4 | 2026-05  
+> **版本**：v1.5 | 2026-06
 > **状态图例**：**已定稿** | **待定（P4+）**
 
 ---
@@ -25,6 +25,7 @@
 | ADR-012 | P1 字典数据 | **已定稿** | **P1 即启 management** 或提供 `seed-dict.sql` |
 | ADR-013 | 建表脚本 | **已定稿** | **P0.5 优先** 产出 `docs/sql/schema.sql` |
 | ADR-014 | 项目命名 | **已定稿** | 仓库 **NST** = Nexus Smart Treatment |
+| ADR-015 | AI 辅助开检查/检验/处置 | **已定稿** | **方案 A** `diagnosis/suggest` 分支 + **方案 B** ai-draft 三步（与处方对称） |
 
 ---
 
@@ -158,7 +159,61 @@
 
 ---
 
-## 四、修订记录
+## 四、ADR-015 AI 辅助开检查/检验/处置（已定稿）
+
+### 4.1 定稿结论
+
+| 环节 | 方案 | 接口 |
+|------|------|------|
+| **是否开单**（分支判断） | **方案 A** | `POST /api/v1/ai/diagnosis/suggest` → `needCheck` / `needInspection` / `needDisposal` |
+| **开什么单**（草稿→确认） | **方案 B** | 与处方对称：`POST …/ai-draft` → `PUT …/ai-draft/{id}` → `POST …/ai-draft/{id}/confirm` |
+| 适用类型 | 检查、检验、处置 | 前缀见 `API.md` §5.3～5.5 |
+| 处方 | 已有 | `API.md` §5.6 ai-draft 三步 |
+
+**原则**（与 `BUSINESS_FLOW.md` 补-24、补-25 一致）：
+
+- AI 只产出 **建议 / 草稿**；**医生可改、须确认后提交** 方为「已开立」。
+- **禁止** ai-bridge 或 LLM **直接写** `check_request` / `inspection_request` / `disposal_request` 为已开立。
+- 确认提交后由 **hospital-his** 落库并 Feign 通知 lis/pacs（ADR-003）；处置仅在 his（ADR-006）。
+
+### 4.2 调用链（定稿）
+
+```text
+PC 医生
+  → Gateway :9000
+  → hospital-his
+       ├─ POST /doctor/check-requests/ai-draft 等
+       │     → Feign hospital-ai-bridge（Spring AI 结构化 JSON）
+       │     → his 写 ai_*_draft
+       ├─ PUT  …/ai-draft/{draftId}   （医生编辑，仅 his）
+       └─ POST …/ai-draft/{draftId}/confirm → 正式申请单 + bill（fromAi=true）
+
+分支入口（可选、先于草稿）：
+  → POST /api/v1/ai/diagnosis/suggest（Gateway → ai-bridge）
+  → 前端据 needCheck/needInspection/needDisposal 展示「AI 生成××草稿」按钮
+```
+
+### 4.3 分工（实现期）
+
+| 角色 | 职责 |
+|------|------|
+| **lml** | `hospital-ai-bridge`：`diagnosis/suggest`、生成草稿 JSON 的 Spring AI Prompt |
+| **zcl** | `API.md` 契约、his 草稿 CRUD + confirm、医生 PC 交互 |
+| **lzr** | 缴费后 lis/pacs 队列（不改开单） |
+| **wsh** | CNN 影像报告（**开单之后** 的检查环节，非本 ADR） |
+
+### 4.4 数据表（P4 前可 STUB）
+
+与 `ai_prescription_draft` 对称，his 侧新增草稿表（实现时二选一）：
+
+- 分表：`ai_check_draft` / `ai_inspection_draft` / `ai_disposal_draft`，或
+- 统一 `ai_clinical_draft`（`draft_type` = CHECK | INSPECTION | DISPOSAL）
+
+`draft_content` 存 §5.3.2 的 `items[]` + `aiReason` JSONB。
+
+---
+
+## 五、修订记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -167,3 +222,4 @@
 | v1.2 | 2026-05 | **ADR-014** 项目命名：CloudBrain-Hospital + 本地简称 NST（东软培训） |
 | v1.3 | 2026-05 | **ADR-014 修订**：GitHub 仓库定名 NTS（Neural Treatment System） |
 | v1.4 | 2026-05 | **ADR-014 修订**：仓库定名 **NST**（Nexus Smart Treatment） |
+| v1.5 | 2026-06 | **ADR-015** AI 辅助开单：diagnosis/suggest + ai-draft 三步 |

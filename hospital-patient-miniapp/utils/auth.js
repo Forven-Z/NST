@@ -1,4 +1,6 @@
-const { API_BASE } = require('../config')
+const { API_BASE, USE_MOCK } = require('../config')
+const mockStore = require('../mock/store')
+const patientContext = require('./patient-context')
 
 const TOKEN_KEY = 'accessToken'
 
@@ -16,9 +18,23 @@ function clearSession() {
   wx.removeStorageSync(TOKEN_KEY)
   wx.removeStorageSync('patientId')
   wx.removeStorageSync('medicalRecordNo')
+  patientContext.clearActiveMember()
 }
 
 function wechatLogin(nickName) {
+  if (USE_MOCK) {
+    return mockStore.login(nickName).then((res) => {
+      const data = res.data || {}
+      setSession(data)
+      mockStore.setProfileFromLogin(data)
+      patientContext.setOwnerFromLogin({
+        patientId: data.patientId,
+        realName: nickName || '微信用户',
+        medicalRecordNo: data.medicalRecordNo,
+      })
+      return data
+    })
+  }
   return new Promise((resolve, reject) => {
     wx.login({
       success(loginRes) {

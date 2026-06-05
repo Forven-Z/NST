@@ -19,4 +19,6 @@ public class CreateRegisterRequest {
     private Long registLevelId;
 
     private Long settleCategoryId;
+    /** 为家属挂号时传就诊人 patientId；缺省为本人 */
+    private Long memberPatientId;
 }

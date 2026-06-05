@@ -1,0 +1,25 @@
+<view class="mine-page">
+  <view class="profile-header">
+    <view class="avatar">{{avatarLetter}}</view>
+    <view class="profile-info">
+      <view class="profile-name">{{userName}}</view>
+      <view class="profile-phone">{{phoneMasked}}</view>
+      <view class="profile-mrn">病历号 {{medicalRecordNo}}</view>
+    </view>
+  </view>
+
+  <view class="panel menu-panel">
+    <view
+      wx:for="{{menus}}"
+      wx:key="id"
+      class="menu-row"
+      data-url="{{item.url}}"
+      bindtap="onMenuTap"
+    >
+      <text>{{item.name}}</text>
+      <text class="arrow">›</text>
+    </view>
+  </view>
+
+  <button class="btn-ghost logout" bindtap="onLogout">退出登录</button>
+</view>

@@ -1,14 +1,79 @@
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  font-size: 26rpx;
+  color: #94a3b8;
+}
+
+.steps .on {
+  color: #1677ff;
+  font-weight: 600;
+}
+
+.sep {
+  color: #cbd5e1;
+}
+
+.dept-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.dept-item {
+  padding: 24rpx;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 12rpx;
+  border: 2rpx solid #e2e8f0;
+}
+
+.member-scroll,
+.date-scroll {
+  white-space: nowrap;
+}
+
+.member-chip,
+.date-chip,
+.noon-chip,
+.level-chip {
+  display: inline-block;
+  padding: 12rpx 24rpx;
+  margin-right: 12rpx;
+  margin-bottom: 12rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  font-size: 24rpx;
+}
+
+.member-chip.active,
+.date-chip.active,
+.noon-chip.active,
+.level-chip.active {
+  background: #dbeafe;
+  color: #1677ff;
+}
+
+.noon-row,
+.level-row {
+  margin: 16rpx 0;
+}
+
 .doctor-name {
-  font-size: 32rpx;
+  font-size: 30rpx;
   font-weight: 600;
 }
 
 .fee-row {
-  margin-top: 20rpx;
+  margin-top: 16rpx;
+}
+
+.link {
+  color: #1677ff;
+  font-size: 26rpx;
 }
 
 .mini-btn {
-  padding: 0 28rpx !important;
-  line-height: 64rpx !important;
-  height: 64rpx !important;
+  margin: 0 !important;
 }

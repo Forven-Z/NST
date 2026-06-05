@@ -321,26 +321,83 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 ---
 
-## 九、模块认领表（模板）
+## 九、模块认领与六人分工
 
-> 复制到 `PROGRESS.md` 或飞书/Notion；**认领后填姓名**。
+> **ADR-015**（AI 辅助开单）：`DESIGN_DECISIONS.md` · 契约 `API.md` §5.3～5.5、§7.4。  
+> 认领后同步 [PROGRESS.md](./PROGRESS.md)「负责人」列。
 
-
-| 模块                   | 端口   | 负责人 | 状态  | 验收脚本                          |
-| -------------------- | ---- | --- | --- | ----------------------------- |
-| hospital-gateway     | 9000 |     |     | —                             |
-| hospital-auth        | 9101 |     |     | —                             |
-| hospital-his         | 9102 |     |     | r-min, r-pharmacy, r-reversal |
-| hospital-lis         | 9103 |     |     | r-lis                         |
-| hospital-pacs        | 9104 |     |     | r-pacs                        |
-| hospital-management  | 9105 |     |     | r-modules-smoke               |
-| hospital-ai-bridge   | 9106 |     |     | r-modules-smoke               |
-| hospital-ai (Python) | 8000 |     |     | P4                            |
-| PC 前端                | —    |     |     | 人工 + 联调清单                     |
-| 患者小程序                | —    |     |     | 人工 + 联调清单                     |
+### 9.1 模块认领表
 
 
----
+| 模块 | 端口 | 负责人 | 状态 | 验收脚本 |
+|------|------|--------|------|----------|
+| `hospital-common` | —（jar） | **zcl** | ✅ | 随各 `r-*` |
+| `hospital-gateway` | 9000 | **zcl** | ✅ | r-min 依赖 |
+| `hospital-auth` | 9101 | **zcl** | ✅ | r-min A1/A2 |
+| `hospital-his` | 9102 | **zcl** | ✅ | r-min, r-pharmacy, r-reversal |
+| `hospital-lis` | 9103 | **lzr** | ✅ | r-lis |
+| `hospital-pacs` | 9104 | **lzr** | 🟨 | r-pacs（upload 待完善） |
+| `hospital-management` | 9105 | **lzr** | 🟨 | r-modules-smoke；**P5 排班必做** |
+| `hospital-ai-bridge` | 9106 | **lml** | 🟨 | r-modules-smoke → r-full |
+| `hospital-ai`（Python CNN） | 8000 | **wsh** | ⬜ | P4 / r-full |
+| PC 前端 `hospital-frontend/` | — | **zcl** | 🟨 | RUNBOOK §十二 |
+| 患者小程序 | — | **zcl** | ✅ | r-min B/C/D |
+| 契约 / SQL / 架构文档 | — | **zcl** | 持续 | 评审 |
+| 测试与验收 | — | **zty** | 持续 | 全部 `r-*` |
+
+### 9.2 AI 辅助开单（ADR-015 · 已定稿）
+
+| 步骤 | 方案 | 接口 | 主负责人 |
+|------|------|------|----------|
+| 1. 是否开检查/检验/处置 | **A** 分支判断 | `POST /ai/diagnosis/suggest` | **lml**（bridge） |
+| 2. 生成草稿 | **B** 三步之① | `POST /doctor/*-requests/ai-draft` | **lml** 生成 JSON；**zcl** his 落草稿 |
+| 3. 医生编辑 | **B** 三步之② | `PUT /doctor/*-requests/ai-draft/{id}` | **zcl** |
+| 4. 确认已开立 | **B** 三步之③ | `POST /doctor/*-requests/ai-draft/{id}/confirm` | **zcl**（写单 + bill + Feign） |
+| 5. 处方（同模式） | **B** | `/prescriptions/ai-draft/**` | **lml** + **zcl** |
+
+`*` = `check` | `inspection` | `disposal`。缴费后执行：**lzr**（lis/pacs）；处置执行：**zcl**（his）。
+
+### 9.3 各人任务摘要
+
+#### zcl — 架构 + 前端 + HIS/平台
+
+- **平台**：gateway 路由/JWT、auth、common；新前缀 PR 统一 Review。
+- **his**：门诊/患者/registrar/pharmacy/**处置**；PENDING 补全（窗口挂号收费、确诊、finish、patient 列表等）；**§5.3～5.5 ai-draft 实现**。
+- **前端**：PC 全角色（含 **处置科 `/disposal/**`**、检验/检查/管理员）；小程序；Mock；**医生工作台 AI 诊断 + 草稿 UI**。
+- **文档**：`API.md`、`FRONTEND_API_MAP.md`、`schema.sql` 变更。
+
+#### lzr — LIS + PACS + 管理
+
+- **lis / pacs**：队列、结果、Feign 联调；**MinIO** + 影像 upload；pacs 调 **wsh** CNN 异步链。
+- **management**：字典 CRUD；**P5 排班 CRUD + Timefold**（必做）。
+- **不改** his / ai-bridge 代码。
+
+#### lml — Spring AI（大模型）
+
+- `diagnosis/suggest`、检查/检验/处置/处方 **草稿 JSON 生成**（供 his Feign）。
+- `assistant/stream`（SSE）、小程序 `triage/chat`；RAG（pgvector）；**P5** `/ai/scheduling/suggest`（配合 lzr Timefold）。
+- **不**直接写业务申请单表。
+
+#### wsh — CNN 影像
+
+- `hospital-ai/` FastAPI：训练、推理 job、MinIO 结果；与 **lzr** pacs callback 联调。
+- **不负责** LLM 开单（归 lml）。
+
+#### zty — 测试
+
+- 维护用例表、缺陷台账；跑通 `r-min`～`r-reversal`、**r-full**（P4 牵头扩展）。
+- 里程碑签字；PR 前冒烟（改哪模块跑哪脚本）；**ADR-015** 场景：suggest → 草稿 → 改 → 确认 → 缴费 → 医技/处置。
+
+### 9.4 后端边界（固定）
+
+```text
+zcl  = auth + gateway + common + hospital-his（含处置）
+lzr  = hospital-lis + hospital-pacs + hospital-management
+lml  = hospital-ai-bridge（Java Spring AI）
+wsh  = hospital-ai（Python CNN，内网）
+```
+
+跨模块：**Feign + API 契约**；改契约 **zcl 先改文档** → 全员 Ack → 再编码。
 
 ## 十、当前实现与 PENDING 摘要（2026-05）
 
@@ -358,16 +415,18 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 ### 10.2 文档有、后端 PENDING（前端可 Mock）
 
 
-| 能力                 | 典型 API                                            | 建议负责模块             |
-| ------------------ | ------------------------------------------------- | ------------------ |
-| 窗口挂号/收费            | `POST /registrar/registers`、`POST /charge/settle` | his · registrar    |
-| 门诊确诊               | `POST .../medical-record/confirm`                 | his · outpatient   |
-| 结束看诊               | `POST /doctor/.../finish`                         | his · outpatient   |
-| 处置全流程              | `/disposal-requests/**`、处置科 execute/result        | his + 处置子模块或 his   |
-| 药库入库/交易记录          | `/admin/drugs` CRUD、发退药流水                         | management + his   |
-| 排班 CRUD / Timefold | `/admin/schedules/**`                             | management         |
-| AI SSE / CNN       | `/ai/**`、`hospital-ai`                            | ai-bridge + Python |
-| 患者退款/支付记录列表        | `GET /patient/refunds`、`GET /patient/payments`    | his · patient      |
+| 能力 | 典型 API | 负责人 |
+|------|----------|--------|
+| 窗口挂号/收费 | `POST /registrar/registers`、`POST /registrar/charges` | zcl · his |
+| 门诊确诊 / 结束看诊 | `POST .../medical-record/confirm`、`POST .../finish` | zcl · his |
+| **处置全流程（必做）** | `/disposal-requests/**`、处置科 execute/result | zcl · his |
+| **AI 分支诊断** | `POST /ai/diagnosis/suggest` | lml · ai-bridge |
+| **AI 检查/检验/处置草稿** | `POST/PUT/confirm …/ai-draft/**` | lml 生成 + zcl · his |
+| AI 处方草稿 | `/prescriptions/ai-draft/**` | lml + zcl |
+| 字典/排班 CRUD、Timefold | `/admin/**`、`/admin/scheduling/**` | lzr · management（P5 必做） |
+| MinIO + CNN 链路 | `/pacs/imaging/upload`、`hospital-ai` jobs | lzr + wsh |
+| 患者缴费/退款列表 | `GET /patient/payments`、`GET /patient/refunds` | zcl · his |
+| AI SSE / RAG | `/ai/assistant/stream`、`/ai/rag/**` | lml |
 
 
 前端做这些页面时，在 `FRONTEND_API_MAP.md` 标 **PENDING** 并启用 Mock。
@@ -389,8 +448,9 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 ## 十二、修订记录
 
 
-| 日期      | 说明               |
-| ------- | ---------------- |
+| 日期 | 说明 |
+|------|------|
+| 2026-06 | §九 六人分工定稿；ADR-015 AI 开单（suggest + ai-draft 三步） |
 | 2026-05 | 首版及后续协作/Git 约定迭代 |
 
 

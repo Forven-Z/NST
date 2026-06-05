@@ -1,0 +1,28 @@
+.tip-card {
+  background: linear-gradient(135deg, #eff6ff, #fff);
+}
+
+.disease-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.disease-row:last-child {
+  border-bottom: none;
+}
+
+.disease-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 6rpx;
+}
+
+.dept-tag {
+  color: #1677ff;
+  font-size: 26rpx;
+  flex-shrink: 0;
+  margin-left: 16rpx;
+}

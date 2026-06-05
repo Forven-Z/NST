@@ -2,15 +2,17 @@ const { getAccessToken, clearSession } = require('./utils/auth')
 
 App({
   globalData: {
-    patientId: null,
+    ownerPatientId: null,
+    activeMemberPatientId: null,
     medicalRecordNo: '',
   },
 
   onLaunch() {
     const token = getAccessToken()
     if (token) {
-      this.globalData.patientId = wx.getStorageSync('patientId') || null
+      this.globalData.ownerPatientId = wx.getStorageSync('patientId') || null
       this.globalData.medicalRecordNo = wx.getStorageSync('medicalRecordNo') || ''
+      this.globalData.activeMemberPatientId = wx.getStorageSync('activeMemberPatientId') || this.globalData.ownerPatientId
     } else {
       clearSession()
     }
