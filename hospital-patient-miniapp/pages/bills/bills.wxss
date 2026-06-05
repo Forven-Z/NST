@@ -1,3 +1,29 @@
+.page-tabs {
+  display: flex;
+  flex-direction: row;
+  padding: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.page-tab {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx 0;
+  font-size: 28rpx;
+  color: #64748b;
+  border-radius: 12rpx;
+}
+
+.page-tab.active {
+  background: #1677ff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.paid-item {
+  margin-bottom: 16rpx;
+}
+
 .link {
   color: #1677ff;
   font-size: 26rpx;

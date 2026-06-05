@@ -27,7 +27,7 @@ public class RegisterCancelService {
         if (!context.isPatient()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "需要患者身份");
         }
-        registerRepository.findByIdAndPatientId(registerId, context.getPatientId())
+        registerRepository.findDetailForOwner(registerId, context.getPatientId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
         Map<String, Object> register = registerRepository.findByIdForUpdate(registerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));

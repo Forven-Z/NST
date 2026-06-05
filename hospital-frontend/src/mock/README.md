@@ -1,49 +1,48 @@
-# 前端 Mock 数据说明
+# Mock 数据
 
-> 协作规范见 [docs/TEAM_COLLABORATION.md](../../docs/TEAM_COLLABORATION.md) §3.4
+当 `VITE_USE_MOCK=true` 时，**全角色界面**走本地 Mock（结构与 `API.md` 的 `Result<T>` 一致）。
 
-## 启用方式
+| 模块 | 文件 | 接口 |
+|------|------|------|
+| 状态中心 | `store.js` | 挂号/账单/队列/处方/医技申请统一内存状态 |
+| 字典 | `dict.js` | 科室、医生、排班、号别、药品、医技项目 |
+| 医生 | `doctor.js` | 候诊队列、叫号、病历、开单 |
+| 收费员 | `registrar.js` | 窗口挂号、收费、退费、待缴查询 |
+| 检验 | `lis.js` | 检验队列、执行、结果 |
+| 检查 | `pacs.js` | 检查队列、执行、结果 |
+| 处置 | `disposal.js` | 处置队列（后端 PENDING 时也走 store） |
+| 药房 | `pharmacy.js` | 待发药、发药、退药 |
+| 管理 | `admin.js` | 字典只读、排班只读 |
+| AI | `ai.js` | diagnosis/suggest、检查/检验/处置 ai-draft |
+| 登录 | `auth.js` | 7 个开发账号 |
 
-在 `hospital-frontend/.env.development` 中设置：
+## 演示数据（预置）
 
-```env
-VITE_USE_MOCK=true
-```
+| 病历号 | 场景 |
+|--------|------|
+| MR202606040001 | 王小明 · 已挂号待叫号（普通号） |
+| MR202606040002 | 李小红 · 接诊中 · 待发药处方 |
+| MR202606040003 | 赵大爷 · 已缴费血常规 + 头部 CT 待执行 |
 
-关闭 Mock、联调真实 Gateway：
+## 门诊链路（Mock 行为）
 
-```env
-VITE_USE_MOCK=false
-VITE_API_BASE=http://127.0.0.1:9000/api/v1
-```
+1. **挂号** → 生成待缴挂号费账单，`visitState=0`
+2. **收费** → 挂号费入账后 `visitState=1`；医技/处方缴费后进入对应科室队列（`status=20`）
+3. **叫号** → `visitState=2`，可写病历、开单
+4. **开单** → 生成待缴账单 + 申请（`status=10`）
+5. **医技** → 执行 → 录入结果（`status=40`），医生可查看检验结果
+6. **药房** → 已缴费处方发药
+7. **退费** → 已支付且未执行项目可窗口退费
 
-## 目录约定
+## 门诊排班常识（Mock 依据）
 
-| 文件 | 模块 |
-|------|------|
-| `doctor.js` | 门诊医生 |
-| `lis.js` | 检验科 |
-| `pacs.js` | 检查科 |
-| `disposal.js` | 处置科（PENDING API） |
-| `registrar.js` | 挂号收费 |
-| `pharmacy.js` | 药房 |
-| `admin.js` | 管理端 |
+见上文 `dict.js` 注释及下表（公开资料归纳）：
 
-## 返回格式
+| 要点 | 说明 | 参考 |
+|------|------|------|
+| 普通门诊 | 各科室每个开诊半天均有普通号；住院/主治医师轮流 | [医科院肿瘤医院](https://www.cicams.ac.cn/dzb/navigation/guke/jian/6891.html) |
+| 专家门诊 | 副主任医师及以上；固定时段、号源有限 | [脑医汇](https://www.brainmed.com/info/detail?id=21200) |
+| 开诊时段 | 上午 08:00–12:00、下午 13:00–17:00 | 各院门诊公告 |
+| 周末 | 周六常仅上午；周日多数无日常门诊 | 各院周六日出诊公告 |
 
-必须与后端一致：
-
-```json
-{
-  "code": 200,
-  "message": "success",
-  "success": true,
-  "data": { }
-}
-```
-
-字段名以 [docs/API.md](../../docs/API.md) 为准。
-
-## PENDING 标记
-
-后端未实现的接口在 [docs/FRONTEND_API_MAP.md](../../docs/FRONTEND_API_MAP.md) 标 **PENDING**；实现并验收通过后改为 **DONE**，删除或禁用对应 Mock。
+Mock 字段名须与 `API.md` 一致（如 `registerId` 而非 `id`）。

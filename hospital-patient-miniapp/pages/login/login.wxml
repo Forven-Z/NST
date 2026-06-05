@@ -16,6 +16,6 @@
     <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">
       微信一键登录
     </button>
-    <view class="tip">开发工具请勾选「不校验合法域名」；后端需 Gateway :9000</view>
+    <view class="tip">Mock 模式无需后端；控制台「游客模式 / webapi_getwxaasyncsecinfo」为工具环境提示，可忽略。建议详情里改用测试 AppID。</view>
   </view>
 </view>

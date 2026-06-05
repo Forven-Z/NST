@@ -8,7 +8,7 @@ Page({
 
   onLoad() {
     if (getAccessToken()) {
-      wx.reLaunch({ url: '/pages/home/home' })
+      wx.switchTab({ url: '/pages/home/home' })
     }
   },
 
@@ -22,11 +22,11 @@ Page({
     try {
       const data = await wechatLogin(this.data.nickName.trim() || '微信用户')
       const app = getApp()
-      app.globalData.patientId = data.patientId
+      app.globalData.ownerPatientId = data.patientId
       app.globalData.medicalRecordNo = data.medicalRecordNo || ''
       wx.showToast({ title: '登录成功', icon: 'success' })
-      setTimeout(() => {
-        wx.reLaunch({ url: '/pages/home/home' })
+      setTimeout(function () {
+        wx.switchTab({ url: '/pages/home/home' })
       }, 400)
     } catch (err) {
       wx.showModal({

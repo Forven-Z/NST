@@ -1,29 +1,104 @@
 import request from './request'
+import { useMock } from '../utils/mock'
+import {
+  mockCallPatient,
+  mockCreateCheckOrder,
+  mockCreateDisposalOrder,
+  mockCreateInspectionOrder,
+  mockCreatePrescription,
+  mockDoctorQueue,
+  mockFetchInspectionResult,
+  mockFetchMedicalRecord,
+  mockFinishVisit,
+  mockSaveMedicalRecord,
+} from '../mock/doctor'
+import {
+  mockClinicalAiDraft,
+  mockConfirmAiDraft,
+  mockDiagnosisSuggest,
+} from '../mock/ai'
 
 export function fetchDoctorQueue(params) {
+  if (useMock()) return mockDoctorQueue(params)
   return request.get('/doctor/queues', { params })
 }
 
 export function callPatient(registerId) {
+  if (useMock()) return mockCallPatient(registerId)
   return request.post(`/doctor/call/${registerId}`)
 }
 
+export function finishVisit(registerId) {
+  if (useMock()) return mockFinishVisit(registerId)
+  return request.post(`/doctor/registers/${registerId}/finish`)
+}
+
 export function fetchMedicalRecord(registerId) {
+  if (useMock()) return mockFetchMedicalRecord(registerId)
   return request.get(`/doctor/medical-records/${registerId}`)
 }
 
 export function saveMedicalRecord(registerId, data) {
+  if (useMock()) return mockSaveMedicalRecord(registerId, data)
   return request.put(`/doctor/medical-records/${registerId}`, data)
 }
 
 export function createInspectionOrder(data) {
+  if (useMock()) return mockCreateInspectionOrder(data)
   return request.post('/doctor/inspection-requests', data)
 }
 
+export function createCheckOrder(data) {
+  if (useMock()) return mockCreateCheckOrder(data)
+  return request.post('/doctor/check-requests', data)
+}
+
+export function createDisposalOrder(data) {
+  if (useMock()) return mockCreateDisposalOrder(data)
+  return request.post('/doctor/disposal-requests', data)
+}
+
 export function fetchInspectionResult(inspectionRequestId) {
+  if (useMock()) return mockFetchInspectionResult(inspectionRequestId)
   return request.get(`/doctor/inspection-requests/${inspectionRequestId}/result`)
 }
 
 export function createPrescription(data) {
+  if (useMock()) return mockCreatePrescription(data)
   return request.post('/doctor/prescriptions', data)
+}
+
+export function fetchDiagnosisSuggest(data) {
+  if (useMock()) return mockDiagnosisSuggest(data.registerId)
+  return request.post('/ai/diagnosis/suggest', data)
+}
+
+export function createCheckAiDraft(data) {
+  if (useMock()) return mockClinicalAiDraft('CHECK', data.registerId)
+  return request.post('/doctor/check-requests/ai-draft', data)
+}
+
+export function createInspectionAiDraft(data) {
+  if (useMock()) return mockClinicalAiDraft('INSPECTION', data.registerId)
+  return request.post('/doctor/inspection-requests/ai-draft', data)
+}
+
+export function createDisposalAiDraft(data) {
+  if (useMock()) return mockClinicalAiDraft('DISPOSAL', data.registerId)
+  return request.post('/doctor/disposal-requests/ai-draft', data)
+}
+
+export function confirmCheckAiDraft(draftId) {
+  if (useMock()) return mockConfirmAiDraft('CHECK', draftId)
+  return request.post(`/doctor/check-requests/ai-draft/${draftId}/confirm`)
+}
+
+export function confirmInspectionAiDraft(draftId) {
+  if (useMock()) return mockConfirmAiDraft('INSPECTION', draftId)
+  return request.post(`/doctor/inspection-requests/ai-draft/${draftId}/confirm`)
+}
+
+export function confirmDisposalAiDraft(draftId) {
+  if (useMock()) return mockConfirmAiDraft('DISPOSAL', draftId)
+  return request.post(`/doctor/disposal-requests/ai-draft/${draftId}/confirm`)
 }

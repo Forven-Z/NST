@@ -9,22 +9,28 @@
 
 ## 一、患者微信小程序 `hospital-patient-miniapp/`
 
-| 页面（建议路径） | 阶段 | Method | API 路径 | 服务 |
-|------------------|------|--------|----------|------|
+| 页面 | 阶段 | Method | API 路径 | 服务 |
+|------|------|--------|----------|------|
 | 登录 | P1 | POST | `/patient/auth/wechat` | his |
-| 完善档案 | P1 | GET | `/patient/profile` | his |
-| 完善档案 | P1 | PUT | `/patient/profile` | his |
-| 挂号-选排班 | P1 | GET | `/patient/schedules` | his |
-| 挂号-提交 | P1 | POST | `/patient/registers` | his |
+| 个人档案 | P1 | GET/PUT | `/patient/profile` | his |
+| 首页 | P1 | — | Tab + 四分类服务宫格 | — |
+| 按科室挂号 | P1 | GET/POST | `/patient/departments`、`/schedules`、`/registers` | his |
+| 按疾病挂号 | P1 | — | 本地导诊 → 科室挂号 | — |
+| 报告查询 | P1/P2 | GET | `/patient/reports`（Mock；后端待实现） | his |
+| 消息中心 | P2 | GET | `/patient/messages`（Mock；后端待实现） | his |
+| 就诊人 | P1 | GET/POST | `/patient/family-members` | his |
 | 待缴列表 | P1 | GET | `/patient/bills` | his |
 | 支付（模拟） | P1 | POST | `/patient/payments` | his |
 | 支付状态 | P1 | GET | `/patient/payments/{id}/status` | his |
-| 我的挂号 | P1 | GET | `/patient/registers` | his |
-| 电子病历 | P1 | GET | `/patient/medical-records` | his |
-| 病历详情 | P1 | GET | `/patient/medical-records/{registerId}` | his |
+| 挂号记录 | P1 | GET | `/patient/registers` | his |
+| 挂号详情/排队 | P1 | GET | `/patient/registers/{id}`、`/queue-status` | his |
+| 退号 | P1 | POST | `/patient/registers/{id}/cancel` | his |
+| 电子病历 | P1 | GET | `/patient/medical-records/{registerId}` | his |
 | 医嘱进度 | P2 | GET | `/patient/registers/{registerId}/orders` | his |
-| 影像上传 | P3/P4 | POST | **`/pacs/imaging/upload`** | **pacs**（非 `/patient/imaging/upload`） |
+| 影像上传 | P3/P4 | POST | **`/pacs/imaging/upload`** | **pacs** |
 | AI 问诊 | P4 | POST/SSE | `/ai/triage/chat` | ai-bridge |
+
+**Mock**：`config.js` → `USE_MOCK: true` 时可离线演示；联调改为 `false` 并启动 Gateway。
 
 **请求封装**：`utils/request.js` 统一加 `Authorization: Bearer {patientToken}`。
 
@@ -47,12 +53,18 @@
 | 患者队列 | P1 | GET | `/doctor/queues` | his |
 | 叫号 | P1 | POST | `/doctor/call/{registerId}` | his |
 | 病历编辑 | P1 | GET/PUT | `/doctor/medical-records/{registerId}` | his |
-| 开立检查 | P3 | POST | `/doctor/check-requests` 或 `/pacs/requests` | his → pacs |
-| 开立检验 | P2 | POST | `/doctor/inspection-requests` 或 **`/lis/requests`** | his → lis |
-| 开立处置 | P3 | POST | `/doctor/disposal-requests` | his |
-| 开立处方 | P3 | POST | `/doctor/prescriptions` | his |
+| **AI 智能诊断（分支）** | P4 | POST | `/ai/diagnosis/suggest` | ai-bridge |
+| **AI 检查草稿** | P4 | POST/PUT/confirm | `/doctor/check-requests/ai-draft/**` | his → ai-bridge |
+| **AI 检验草稿** | P4 | POST/PUT/confirm | `/doctor/inspection-requests/ai-draft/**` | his → ai-bridge |
+| **AI 处置草稿** | P4 | POST/PUT/confirm | `/doctor/disposal-requests/ai-draft/**` | his → ai-bridge |
+| 手工开立检查 | P3 | POST | `/doctor/check-requests` | his → pacs |
+| 手工开立检验 | P2 | POST | `/doctor/inspection-requests` 或 **`/lis/requests`** | his → lis |
+| 手工开立处置 | P3 | POST | `/doctor/disposal-requests` | his |
+| 开立处方（含 AI 草稿） | P3/P4 | POST/PUT/confirm | `/doctor/prescriptions/ai-draft/**`, `/prescriptions` | his → ai-bridge |
 | 查看医技结果 | P2+ | GET | `/doctor/registers/{id}/results` | his |
 | AI 助理（7:3 右侧） | P4 | SSE | `/ai/assistant/stream` | ai-bridge |
+
+> **AI 开单 UI 顺序**（ADR-015）：病历保存 → 「AI 智能诊断」(`diagnosis/suggest`) → 据 `needCheck` 等展示「生成检查/检验/处置草稿」→ 编辑 → 确认提交 → 待缴。
 
 ### 2.3 挂号收费员 `REGISTRAR`
 
@@ -112,3 +124,4 @@ Gateway 可双路由；**新页面请用新路径**。
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | v1.0 | 2026-05 | 小程序 + PC 角色菜单与 API 对照 |
+| v1.1 | 2026-06 | ADR-015：AI 诊断分支 + 检查/检验/处置 ai-draft 三步 |

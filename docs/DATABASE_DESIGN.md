@@ -5,7 +5,7 @@
 > **数据库**：PostgreSQL 15+（业务库 `hospital`）；向量扩展见 **§十**。  
 > **状态枚举**：§1.5；与 `BUSINESS_FLOW.md` §八、【态】及 `PROJECT_REQUIREMENTS.md` §2.4 一致。  
 > **微服务表写归属**：§1.4（与 [MICROSERVICES.md](./MICROSERVICES.md) §二 一致）  
-> **版本**：v1.3 | 2026-05
+> **版本**：v1.14 | 2026-06
 
 ---
 
@@ -17,10 +17,11 @@
 |------|------|
 | 表名、字段名 | 小写 + 下划线（`snake_case`） |
 | 主键 | `id`，类型 `BIGSERIAL` |
+| 业务标识 | 单据类表 **`prescription`**、**`bill`**、**`payment_record`**、**`refund_record`** **不设**独立 `*_no` 字段；列表展示、API 关联、`bill.biz_id` 指向的目标均使用各表 **`id`**（§7.1、§八）。仍保留 **`patient.medical_record_no`**、**`employee.emp_no`**、**`imaging_study.study_no`**、**`ai_chat_session.session_no`** 等档案/外部编号字段 |
 | 时间 | `TIMESTAMPTZ`（带时区） |
 | 金额 | `NUMERIC(10,2)`，单位：元 |
-| 逻辑删除 | `delmark`：`0` 有效，`1` 删除（与参考需求一致） |
-| 审计字段 | 业务表统一：`create_time`、`update_time`；部分表含 `create_by`、`update_by`（员工 `employee.id`） |
+| 逻辑删除 | `delmark`：`0` 有效，`1` 删除（与参考需求一致）。**例外**：`scheduling` 不用 `delmark`，作废见 `publish_status=2`（§1.5） |
+| 审计字段 | 单据/档案类表默认含 `create_time`、`update_time`；部分表含 `create_by`、`update_by`（员工 `employee.id`）。**例外**：`prescription_item` 不含 `create_time`（见 §7.2）；`prescription` 开立/发药时间见 §7.1 约定（无 `order_time` / `dispense_time`） |
 | 字段表格式 | 各表字段表含 **业务说明** 列，描述该字段在门诊流程中的含义与用途（对齐教学 PPT 写法） |
 | 空值列缩写 | 表中「空」列：`N` = NOT NULL，`Y` = 可空 |
 
@@ -143,6 +144,49 @@
 | `COMPLETED` | 可查看报告 |
 | `FAILED` | 失败 |
 
+#### `scheduling_publish_status` — 排班发布状态（`scheduling.publish_status`）
+
+| 值 | 含义 | 患者端可挂号列表 |
+|----|------|------------------|
+| 0 | 草稿 | 否 |
+| 1 | 已发布 | 是（且须 `work_date` ≥ 服务器当前日期、有剩余号源） |
+| 2 | 已取消 | 否 |
+
+> 取消排班：将 `publish_status` 置为 **2**，**不使用** `delmark`。已有 `register` 引用时 **禁止物理删除**，仅取消；`used_quota=0` 且无挂号引用时管理端可选物理删除（实现约定）。
+
+#### `medical_record_status` — 病历状态（`medical_record.status`）
+
+| 值 | 含义 | 患者小程序 |
+|----|------|------------|
+| 0 | 书写中 | **不可见** |
+| 1 | 已保存 | **不可见** |
+| 2 | 已确诊提交 | **可见**（电子病历等仅 `status = 2`） |
+
+> 医生保存(1)与确诊提交(2)区分书写进度；**患者端定稿：仅 2**。
+
+#### `sys_user_status` — 登录账号状态（`sys_user.status`）
+
+| 值 | 含义 |
+|----|------|
+| 1 | 启用（可登录） |
+| 0 | 禁用 |
+
+#### `ai_prescription_draft_status` — AI 处方草稿（`ai_prescription_draft.status`）
+
+| 值 | 含义 |
+|----|------|
+| 0 | 草稿 |
+| 1 | 已提交（已写入正式 `prescription`） |
+| 9 | 已废弃 |
+
+#### `refund_status` — 退款流水（`refund_record.status`）
+
+| 值 | 含义 |
+|----|------|
+| 0 | 处理中 |
+| 1 | 退款成功 |
+| 2 | 退款失败 |
+
 ---
 
 ## 二、ER 关系概要
@@ -157,13 +201,15 @@ patient ──1:N── register ──1:1── medical_record
    └──1:1── patient_wechat
 
 employee ──FK── department
+scheduling ──FK── employee, regist_level（出诊科室经 employee.dept_id 推导，无跨科会诊排班）
 register ──FK── department, employee(医生), regist_level, settle_category
 
 medical_technology ──FK── check_request / inspection_request / disposal_request
 disease ──N:M── medical_record (medical_record_disease)
 ```
 
-> ER 大图占位：`docs/images/er-diagram.png`（可根据本文绘制）。
+> ER 大图占位：`docs/images/er-diagram.png`（可根据本文绘制）。  
+> **业务单号**：处方与费用/支付/退款以各表 **`id`** 标识；`bill.biz_id` → 对应业务表 **`id`**（`register` / `*_request` / `prescription`）。排班出诊科室经 **`employee.dept_id`** 推导，`scheduling` 不存 `dept_id`。
 
 ---
 
@@ -220,7 +266,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | emp_no | VARCHAR(32) | N | — | UK | 工号；员工院内唯一标识，可与登录名对应。 |
 | real_name | VARCHAR(64) | N | — | — | 员工真实姓名；界面展示与处方/病历署名。 |
 | gender | SMALLINT | Y | NULL | — | 性别；1 男 2 女。 |
-| dept_id | BIGINT | N | — | — | FK → department(id)；所属科室；决定数据权限与排班归属。 |
+| dept_id | BIGINT | N | — | — | FK → department(id)；员工所属科室；权限与 **`scheduling` 出诊科室推导**（经本字段 JOIN，排班表不重复存科室）。 |
 | title | VARCHAR(32) | Y | NULL | — | 职称；如主治医师、主管药师。 |
 | role_type | VARCHAR(32) | N | — | IX | 岗位角色；决定 PC 登录后菜单与 API 权限（门诊医生、检查医生、药师等）。 |
 | phone | VARCHAR(20) | Y | NULL | — | 联系电话；人事与内部联系用。 |
@@ -237,19 +283,23 @@ disease ──N:M── medical_record (medical_record_disease)
 | 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
 |--------|----------|----|--------|-----|------|
 | id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
-| dept_id | BIGINT | N | — | — | FK → department(id)；所属科室；决定数据权限与排班归属。 |
-| employee_id | BIGINT | N | — | — | FK → employee(id)；出诊医生；该排班时段由该医生接诊。 |
+| employee_id | BIGINT | N | — | — | FK → employee(id)；出诊医生；该排班时段由该医生接诊。出诊科室 **不单独存**，经 `employee.dept_id` 查询（无跨科会诊排班；不考虑员工调科历史）。 |
 | regist_level_id | BIGINT | N | — | — | FK → regist_level(id)；号别；决定挂号费与专家/普通队列。 |
 | work_date | DATE | N | — | IX | 出诊日期；患者选号与线上挂号依据。 |
 | noon_type | SMALLINT | N | — | — | 午别：1 上午 2 下午 3 晚上；午别；1 上午 2 下午 3 晚上。 |
 | total_quota | INTEGER | N | 0 | — | 总号源数；该排班时段可挂号的总名额。 |
 | used_quota | INTEGER | N | 0 | — | 已挂数量；挂号成功后递增，用于号源控制。 |
-| publish_status | SMALLINT | N | 0 | — | 0 草稿 1 已发布；发布状态；0 草稿（患者不可见）1 已发布（可挂号）。 |
-| delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
+| publish_status | SMALLINT | N | 0 | IX | 发布状态，见 §1.5 `scheduling_publish_status`：**0 草稿**、**1 已发布**（可挂号）、**2 已取消**（作废，替代逻辑删除）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
 
-**建议索引**：`IX (work_date, dept_id, employee_id, noon_type)`。
+**建议索引**：`IX (work_date, employee_id, noon_type)`、`IX (publish_status, work_date)`。
+
+**建议唯一约束**：同一医生、同一午别、同一号别、同一出诊日，在 **非已取消** 状态下仅一条排班——PostgreSQL 部分唯一索引示例：`UNIQUE (work_date, employee_id, noon_type, regist_level_id) WHERE publish_status <> 2`。
+
+**按科室查排班（患者挂号）**：`scheduling` JOIN `employee` ON `employee_id`，`publish_status = 1`，`work_date` ≥ 当前日期，过滤 `employee.dept_id`。
+
+**管理端**：可按日期范围查询含 **已取消(2)** 的历史排班；取消操作即 `publish_status := 2`。
 
 ---
 
@@ -259,9 +309,11 @@ disease ──N:M── medical_record (medical_record_disease)
 |--------|----------|----|--------|-----|------|
 | id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
 | drug_code | VARCHAR(32) | N | — | UK | 药品编码快照；开立时复制，防止字典改码影响历史处方。 |
-| drug_name | VARCHAR(128) | N | — | IX | 药品名称快照；药房发药核对用。 |
-| specification | VARCHAR(64) | Y | NULL | — | 规格快照；与字典一致，历史处方不受字典变更影响。 |
-| unit | VARCHAR(16) | Y | NULL | — | 单位（盒、支）；计价/发药单位；如盒、支、瓶。 |
+| drug_name | VARCHAR(128) | N | — | IX | 药品名称；药房发药、处方开立下拉展示。 |
+| drug_format | VARCHAR(255) | Y | NULL | — | 药品规格；如 0.5g×24片、100ml/瓶（对齐参考需求 `drug_format`）。 |
+| drug_dosage | VARCHAR(64) | Y | NULL | — | 药剂类型/剂型；如片剂、胶囊、注射剂、口服液。 |
+| drug_type | VARCHAR(64) | Y | NULL | IX | 药品类型/品种类别；如处方药、非处方药、抗生素、中成药；可用于筛选与权限。 |
+| unit | VARCHAR(16) | Y | NULL | — | 计价/发药单位；如盒、支、瓶。 |
 | retail_price | NUMERIC(10,2) | N | — | — | 零售价【补-22】；零售单价（元）；开立处方时快照至明细，改价不影响历史处方。 |
 | manufacturer | VARCHAR(128) | Y | NULL | — | 生产厂家；药品溯源与库房管理。 |
 | stock_qty | INTEGER | Y | 0 | — | 库存数量（简化，一期单库）；当前库存数量；发药扣减、退药回增（一期简化单库）。 |
@@ -350,7 +402,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | password_hash | VARCHAR(128) | N | — | — | BCrypt 等哈希，非明文；密码哈希值；BCrypt 等算法，禁止存明文密码。 |
 | employee_id | BIGINT | Y | NULL | — | FK → employee(id), UK；关联员工档案；管理员账号可为空。 |
 | user_type | VARCHAR(16) | N | — | — | `STAFF` / `ADMIN`；用户类型；STAFF 医护、ADMIN 系统管理员。 |
-| status | SMALLINT | N | 1 | — | 1 启用 0 禁用；病历状态；0 书写中 1 已保存 2 已确诊提交（患者端可见范围依此控制）。 |
+| status | SMALLINT | N | 1 | — | 账号状态，见 §1.5 `sys_user_status`：**1 启用**、**0 禁用**（与病历 `medical_record.status` 无关）。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
@@ -366,7 +418,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
 | patient_id | BIGINT | N | — | — | FK → patient(id), IX；关联患者主表；一条微信绑定对应一名患者。 |
 | scheduling_id | BIGINT | Y | NULL | — | FK → scheduling(id)；关联排班记录；线上/按排班挂号时使用。 |
-| dept_id | BIGINT | N | — | — | FK → department(id)；所属科室；决定数据权限与排班归属。 |
+| dept_id | BIGINT | N | — | — | FK → department(id)；**当次挂号科室**（快照）。有 `scheduling_id` 时写入应对齐 `scheduling → employee.dept_id`；窗口无排班时由操作员选择。 |
 | employee_id | BIGINT | Y | NULL | — | FK → employee(id)；关联员工档案；管理员账号可为空。 |
 | regist_level_id | BIGINT | N | — | — | FK → regist_level(id)；号别；决定挂号费与专家/普通队列。 |
 | settle_category_id | BIGINT | Y | NULL | — | FK → settle_category(id)；当次挂号结算类别；计费规则快照。 |
@@ -383,7 +435,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
 
-**业务说明**：状态进入 **已挂号(1)** 前，须存在对应 `bill`（`biz_type=REGISTER`）且已支付成功。
+**业务说明**：状态进入 **已挂号(1)** 前，须存在对应 `bill`（`biz_type=REGISTER`）且已支付成功。按排班挂号时 `employee_id`、`regist_level_id`、`visit_date`、`noon_type` 应与所选 `scheduling` 一致。
 
 ---
 
@@ -405,7 +457,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | cure | TEXT | Y | NULL | — | 处理意见；治疗原则与随访建议。 |
 | check_advice | TEXT | Y | NULL | — | 检查建议；拟开检查项目的文字说明（可与申请单并存）。 |
 | inspection_advice | TEXT | Y | NULL | — | 检验建议；拟开检验项目的文字说明。 |
-| status | SMALLINT | N | 0 | — | 病历状态；0 书写中 1 已保存 2 已确诊提交（患者端可见范围依此控制）。 |
+| status | SMALLINT | N | 0 | — | 病历状态，见 §1.5 `medical_record_status`：**0 书写中**、**1 已保存**、**2 已确诊提交**；**患者小程序仅可读 `status=2`**。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
@@ -469,27 +521,25 @@ disease ──N:M── medical_record (medical_record_disease)
 
 ## 七、E 组 — 处方
 
-> **业务定位**：记录药品处方的执行信息，连接门诊医嘱（开立）与药房发药、按单收费；头表 `prescription` 对应老师 PPT 的 **PrescID / Status**，明细表 `prescription_item` 对应 **DrugCode、用法用量、数量** 等。
+> **业务定位**：记录药品处方的执行信息，连接门诊医嘱（开立）与药房发药、按单收费；头表 `prescription` 以 **`id`** 作为处方业务标识（对应老师 PPT **PrescID**），明细表 `prescription_item` 对应 **DrugCode、用法用量、数量** 等。
 
 ### 7.1 `prescription` — 处方主表
 
 | 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
 |--------|----------|----|--------|-----|------|
-| id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
+| id | BIGSERIAL | N | — | PK | 主键；**兼作处方业务 ID**（对应 PrescID）；药房、待缴单 `bill.biz_id`、发药查询均使用本字段。 |
 | register_id | BIGINT | N | — | — | 关联当次挂号；药品类医嘱归属本次就诊（等同老师 OrderID→RegID）。 |
 | patient_id | BIGINT | N | — | — | 患者 ID；冗余便于按患者查处方，须与 register.patient_id 一致。 |
 | doctor_id | BIGINT | N | — | — | FK → employee(id)；开立医生；门诊医生确认提交后写入，用于审计。 |
-| prescription_no | VARCHAR(32) | N | — | UK | 处方号；单张处方的业务流水号，药房与患者查询用。 |
 | total_amount | NUMERIC(10,2) | N | 0 | — | 处方合计金额（元）；明细行 amount 汇总，生成待缴单依据。 |
 | status | SMALLINT | N | 10 | IX | 处方流转状态；10 已开立 20 已缴费 30 已发药 40 已退药 50 已退费，见 §1.5。 |
-| order_time | TIMESTAMPTZ | Y | NULL | — | 处方开立时间；医生确认提交后 status=10（已开立）。 |
 | pharmacist_id | BIGINT | Y | NULL | — | FK → employee(id)；发药药师；发药核对通过时写入。 |
-| dispense_time | TIMESTAMPTZ | Y | NULL | — | 发药时间；处方 status 变为已发药时记录。 |
 | ai_draft_id | BIGINT | Y | NULL | — | FK → ai_prescription_draft(id)；来源 AI 草稿 ID；追溯 AI 辅助开立链路（补-25）。 |
-| remark | VARCHAR(256) | Y | NULL | — | 处方备注；整单级补充说明。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
-| create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
-| update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
+| create_time | TIMESTAMPTZ | N | NOW() | — | 处方创建时间（医生确认提交 INSERT 时写入）；待缴列表按开立时间排序可用本字段。 |
+| update_time | TIMESTAMPTZ | N | NOW() | — | 最后更新时间；发药等状态变更时刷新。 |
+
+> **时间约定**：不设单独的 `order_time` / `dispense_time`；**开立**以 `create_time`（提交 INSERT）为准，**发药**以 `status=30` + `pharmacist_id` + `update_time` 为准。
 
 ---
 
@@ -504,7 +554,9 @@ disease ──N:M── medical_record (medical_record_disease)
 | drug_id | BIGINT | N | — | FK → drug_info(id) | 药品字典 ID；关联 drug_info 维护价目与库存。 |
 | drug_code | VARCHAR(32) | N | — | — | 药品编码快照；开立时从 drug_info 复制，防止字典改码影响历史处方。 |
 | drug_name | VARCHAR(128) | N | — | — | 药品名称快照；药房发药时核对药品实体。 |
-| specification | VARCHAR(64) | Y | NULL | — | 规格快照；与字典一致，历史处方不受字典变更影响。 |
+| drug_format | VARCHAR(255) | Y | NULL | — | 规格快照；开立时从 `drug_info.drug_format` 复制。 |
+| drug_dosage | VARCHAR(64) | Y | NULL | — | 剂型快照；开立时从 `drug_info.drug_dosage` 复制。 |
+| drug_type | VARCHAR(64) | Y | NULL | — | 药品类型快照；开立时从 `drug_info.drug_type` 复制。 |
 | unit_price | NUMERIC(10,2) | N | — | — | 单价快照（元）；开立时从 drug_info.retail_price 复制。 |
 | quantity | NUMERIC(10,2) | N | — | — | 发药数量；本次处方该药品的总发放量。 |
 | amount | NUMERIC(10,2) | N | — | — | 行金额（元）；unit_price × quantity，汇总入 prescription.total_amount。 |
@@ -514,7 +566,8 @@ disease ──N:M── medical_record (medical_record_disease)
 | days | INTEGER | Y | NULL | — | 用药天数；疗程长度。 |
 | entrust | VARCHAR(256) | Y | NULL | — | 医嘱嘱托；如饭后服用、忌酒等。 |
 | sort_no | INTEGER | Y | 0 | — | 明细行序号；处方内药品显示顺序。 |
-| create_time | TIMESTAMPTZ | N | NOW() | — | 明细行创建时间；与处方开立时间一致或略晚。 |
+
+> 明细行不设 `create_time`；开立时间以 **`prescription.create_time`** 为准。
 
 ---
 
@@ -529,7 +582,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | doctor_id | BIGINT | N | — | — | FK → employee(id)；开立医生；门诊医生确认提交后写入，用于审计。 |
 | draft_content | JSONB | N | — | — | AI 建议药品列表（JSON）；AI 生成的处方建议 JSON；未经医生确认前不可计费、不可发药。 |
 | doctor_edited_content | JSONB | Y | NULL | — | 医生修改后内容；医生修改后的草稿 JSON；确认提交后写入正式处方。 |
-| status | SMALLINT | N | 0 | — | 0 草稿 1 已提交 9 已废弃；病历状态；0 书写中 1 已保存 2 已确诊提交（患者端可见范围依此控制）。 |
+| status | SMALLINT | N | 0 | — | AI 草稿状态，见 §1.5 `ai_prescription_draft_status`：**0 草稿**、**1 已提交**、**9 已废弃**。 |
 | submit_time | TIMESTAMPTZ | Y | NULL | — | 提交时间；提交 AI 分析时间。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
@@ -538,19 +591,20 @@ disease ──N:M── medical_record (medical_record_disease)
 
 ## 八、F 组 — 收费支付（按单付 · 无余额）
 
+> **业务单号约定**：`bill`、`payment_record`、`refund_record` **不设** `bill_no` / `payment_no` / `refund_no`；关联与展示统一使用各表 **`id`**。微信等渠道的商户侧订单号由实现约定（如 `out_trade_no` 使用 `payment_record.id`）；渠道对账仍用 `third_party_trade_no` / `third_party_refund_no`。
+
 ### 8.1 `bill` — 待缴费用单
 
 | 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
 |--------|----------|----|--------|-----|------|
-| id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
-| bill_no | VARCHAR(32) | N | — | UK | 待缴单号；患者缴费、窗口收费查询用。 |
+| id | BIGSERIAL | N | — | PK | 主键；**兼作待缴单业务 ID**；`payment_bill.bill_id`、`bill.biz_id` 关联均使用本字段。 |
 | patient_id | BIGINT | N | — | — | FK → patient(id), IX；关联患者主表；一条微信绑定对应一名患者。 |
 | register_id | BIGINT | Y | NULL | — | FK → register(id), IX；关联当次挂号；医嘱归属本次就诊（等同老师 OrderID→RegID 关系）。 |
 | biz_type | VARCHAR(16) | N | — | IX | 业务类型；区分挂号费/检查/检验/处置/处方，见 §1.5。 |
 | biz_id | BIGINT | N | — | IX | 业务主键；指向 register 或各医嘱/处方表的 id。 |
 | bill_title | VARCHAR(128) | N | — | — | 展示标题，如「头部 CT」；待缴单标题；小程序与窗口展示，如「头部 CT」「处方药品费」。 |
 | amount | NUMERIC(10,2) | N | — | — | 应收金额；分摊金额（元）；该待缴单在本笔支付中结算的金额。 |
-| status | SMALLINT | N | 0 | IX | 病历状态；0 书写中 1 已保存 2 已确诊提交（患者端可见范围依此控制）。 |
+| status | SMALLINT | N | 0 | IX | 待缴单状态，见 §1.5 `bill_status`：**0 待支付**、**1 已支付**、**2 已退款**、**9 已作废**。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
 | paid_time | TIMESTAMPTZ | Y | NULL | — | 支付完成时间；bill.status 变为已支付时写入。 |
@@ -568,8 +622,7 @@ disease ──N:M── medical_record (medical_record_disease)
 
 | 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
 |--------|----------|----|--------|-----|------|
-| id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
-| payment_no | VARCHAR(32) | N | — | UK | 支付单号；一次支付行为的唯一标识。 |
+| id | BIGSERIAL | N | — | PK | 主键；**兼作支付流水业务 ID**；`payment_bill.payment_id`、`refund_record.payment_id` 均使用本字段。 |
 | patient_id | BIGINT | N | — | FK → patient(id), IX | 付款患者；与待缴单 patient_id 一致。 |
 | total_amount | NUMERIC(10,2) | N | — | — | 实付总金额（元）；一次支付可合并结算多张待缴单。 |
 | channel | VARCHAR(16) | N | — | — | 支付渠道；WECHAT/CASH/SCAN，见 §1.5 `payment_channel`。 |
@@ -603,14 +656,13 @@ disease ──N:M── medical_record (medical_record_disease)
 
 | 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
 |--------|----------|----|--------|-----|------|
-| id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
-| refund_no | VARCHAR(32) | N | — | UK | 退款单号；退号、退费等原路退回的业务标识。 |
+| id | BIGSERIAL | N | — | PK | 主键；**兼作退款流水业务 ID**。 |
 | payment_id | BIGINT | N | — | — | FK → payment_record(id), IX；原支付单；退款必须关联已成功的 payment_record。 |
 | bill_id | BIGINT | Y | NULL | — | FK → bill(id)；可选关联待缴单；指明退的是哪一笔费用。 |
 | patient_id | BIGINT | N | — | — | FK → patient(id)；关联患者主表；一条微信绑定对应一名患者。 |
 | refund_amount | NUMERIC(10,2) | N | — | — | 退款金额（元）；一般不大于原支付金额。 |
 | channel | VARCHAR(16) | N | — | — | 原路渠道；支付渠道；微信/现金/扫码，见 §1.5。 |
-| status | SMALLINT | N | 0 | — | 0 处理中 1 成功 2 失败；病历状态；0 书写中 1 已保存 2 已确诊提交（患者端可见范围依此控制）。 |
+| status | SMALLINT | N | 0 | — | 退款状态，见 §1.5 `refund_status`：**0 处理中**、**1 退款成功**、**2 退款失败**。 |
 | third_party_refund_no | VARCHAR(64) | Y | NULL | — | 微信退款单号；第三方退款单号；如微信退款 id。 |
 | operator_id | BIGINT | Y | NULL | — | FK → employee(id)；经办收费员；窗口收费时记录。 |
 | refund_time | TIMESTAMPTZ | Y | NULL | — | 退款成功时间；业务单进入已退费状态。 |
@@ -643,6 +695,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | 展示项 | 数据来源 |
 |--------|----------|
 | 待缴列表 | `bill` where `patient_id` = 当前用户 and `status` = 0 |
+| 单号/流水号 | 各表 **`id`**（无 `bill_no` / `payment_no` / `refund_no`；界面可格式化为「待缴 #123」等） |
 | 缴费记录 | `payment_record` + `payment_bill` → `bill` 标题 |
 | 退款记录 | `refund_record` |
 | 不展示 | `operator_id` 姓名以外的收费员内部备注、他人数据 |
@@ -651,9 +704,9 @@ disease ──N:M── medical_record (medical_record_disease)
 
 | 功能 | 数据范围 |
 |------|----------|
-| 患者收费查询 | 输入病历号 → 该患者全部 `bill`（本次就诊可筛 `register_id`） |
-| 收费结算 | 勾选 `bill` → 生成 `payment_record` + `payment_bill` |
-| 退费 | 关联原 `payment_id` / `bill_id` → `refund_record` |
+| 患者收费查询 | 输入病历号 → 该患者全部 `bill`（本次就诊可筛 `register_id`）；列表主键为 **`bill.id`** |
+| 收费结算 | 勾选 `bill` → 生成 `payment_record`（**`id`** 兼作支付流水号）+ `payment_bill` |
+| 退费 | 关联原 **`payment_id`** / **`bill_id`**（均为各表 `id`）→ `refund_record` |
 | 费用记录查询（泳道图） | 与上相同，缴费成功后供患者/收费员查询 |
 
 #### 8.5.4 医护端（仅状态，不看流水）
@@ -701,7 +754,7 @@ disease ──N:M── medical_record (medical_record_disease)
 
 | 角色 | `medical_record` | `*_request` 结果 | `prescription` | `imaging_study` / MinIO |
 |------|------------------|------------------|----------------|-------------------------|
-| 患者 | 本人 R（已保存/已确诊） | 本人 R（已出结果） | 本人 R（摘要） | 本人 R（授权检查） |
+| 患者 | 本人 R（**仅 `status=2` 已确诊提交**） | 本人 R（已出结果） | 本人 R（摘要） | 本人 R（授权检查） |
 | 门诊医生 | 接诊患者 R/W | 相关申请 R/W、结果 R | 开立 R/W | 相关 R |
 | 检查医生 | — | 本科室检查单 R/W | — | 本科室 R/W |
 | 检验医生 | — | 本科室检验单 R/W | — | — |
@@ -716,7 +769,7 @@ disease ──N:M── medical_record (medical_record_disease)
 
 | 约束 | 说明 |
 |------|------|
-| 患者隔离 | 患者 API 的 `patient_id` 取自 JWT/会话，禁止越权 `register_id` |
+| 患者隔离 | 患者 API 的 `patient_id` 取自 JWT/会话，禁止越权 `register_id`；**病历查询须 `medical_record.status = 2`** |
 | 医护范围 | 医技仅处理 **已缴费** 且归属本科室的申请单；门诊医生写病历须绑定 `register_id` |
 | 逻辑删除 | `delmark=1` 后患者端默认不可见，管理端是否可查由实现约定 |
 | 审计 | 病历保存、结果录入、发药等写操作记录操作人 ID 与时间 |
@@ -743,7 +796,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | register_id | BIGINT | N | — | — | FK → register(id), IX；关联当次挂号；医嘱归属本次就诊（等同老师 OrderID→RegID 关系）。 |
 | patient_id | BIGINT | N | — | — | FK → patient(id)；关联患者主表；一条微信绑定对应一名患者。 |
 | modality | VARCHAR(16) | Y | NULL | — | 如 `CT_HEAD`、`CT_LUNG`；影像类型/算法；如 CT_HEAD、CT_LUNG。 |
-| status | VARCHAR(16) | N | 'PENDING' | IX | 病历状态；0 书写中 1 已保存 2 已确诊提交（患者端可见范围依此控制）。 |
+| status | VARCHAR(16) | N | 'PENDING' | IX | 影像任务状态，见 §1.5 `imaging_study_status`：`PENDING` / `PROCESSING` / `COMPLETED` / `FAILED`。 |
 | source_bucket | VARCHAR(64) | Y | NULL | — | MinIO bucket；MinIO 原图存储桶名。 |
 | source_object_key | VARCHAR(512) | Y | NULL | — | 原图路径；MinIO 原图对象路径；患者或设备上传的 DICOM/图片。 |
 | result_bucket | VARCHAR(64) | Y | NULL | — | 结果图 bucket；MinIO 结果图存储桶名。 |
@@ -795,20 +848,20 @@ disease ──N:M── medical_record (medical_record_disease)
 | department | department | 一致 |
 | regist_level | regist_level | 一致 |
 | settle_category | settle_category | 一致 |
-| scheduling | scheduling | 一致 |
-| register | register | 增补 `channel`、支付关联 |
+| scheduling | scheduling | 无 `dept_id`（出诊科室经 `employee.dept_id`）；无 `delmark`，作废用 `publish_status=2` |
+| register | register | 增补 `channel`、支付关联；`dept_id` 为当次挂号科室快照 |
 | check_request | check_request | `status` 与老师【态】对齐 |
 | inspection_request | inspection_request | 同上 |
 | disposal_request | disposal_request | 同上 |
 | medical_technology | medical_technology | 增补 `tech_type` |
-| medical_record | medical_record | 一致 |
+| medical_record | medical_record | 增补 `status` 三态（§1.5）；**患者端仅 `status=2` 可见** |
 | medical_record_disease | medical_record_disease | 一致 |
 | disease | disease | 一致 |
-| prescription | **prescription + prescription_item** | 拆分为头/明细 |
-| drug_info | drug_info | 一致 |
+| prescription | **prescription + prescription_item** | 拆分为头/明细；无 `prescription_no` / `order_time` / `dispense_time` / 头表 `remark`；业务 ID 为 **`prescription.id`**；明细无 `create_time` |
+| drug_info | drug_info | 对齐参考：`drug_format`、`drug_dosage`、`drug_type`；增补 `manufacturer`、`stock_qty` 等 |
 | — | **patient** | 新增（原清单缺失） |
 | — | **patient_wechat, sys_user** | 新增（认证） |
-| — | **bill, payment_record, payment_bill, refund_record** | 新增（按单付） |
+| — | **bill, payment_record, payment_bill, refund_record** | 新增（按单付）；无 `bill_no` / `payment_no` / `refund_no`，业务 ID 为各表 **`id`** |
 | — | **ai_prescription_draft, imaging_study, ai_chat_session** | 新增（AI/影像） |
 
 ---
@@ -832,7 +885,18 @@ disease ──N:M── medical_record (medical_record_disease)
 | v1.1 | 2026-05 | 新增 §8.5 费用/支付流水可见范围与接口约束 |
 | v1.2 | 2026-05 | 新增 §8.6；全表字段 **业务说明** 列；`prescription_item` 增补 `drug_code`；修正向量 §十 引用与表名笔误 |
 | v1.3 | 2026-05 | 新增 §1.4 微服务与表写归属矩阵；**同步 `docs/sql/schema.sql`** |
+| v1.4 | 2026-06 | `scheduling` 移除 `dept_id`（出诊科室经 `employee.dept_id` 推导；无跨科会诊、不考虑员工调科历史）；§5.1 `register.dept_id` 业务说明同步 |
+| v1.5 | 2026-06 | `scheduling` 移除 `delmark`；`publish_status` 增 **2=已取消**（§1.5）；部分唯一索引与患者端查询规则 |
+| v1.6 | 2026-06 | `drug_info`：`specification` 改回 **`drug_format`**，增补 **`drug_dosage`**、**`drug_type`**；`prescription_item` 同步快照字段 |
+| v1.7 | 2026-06 | 患者病历可见 **定稿：`medical_record.status = 2` 仅此**；§1.5 增 `medical_record_status`；§8.6 同步 |
+| v1.8 | 2026-06 | `prescription` 移除 **`prescription_no`**；处方业务标识统一为 **`id`** |
+| v1.9 | 2026-06 | `prescription` 移除 **`order_time`**、**`dispense_time`**；开立/发药时间见 `create_time` / `update_time` 约定 |
+| v1.10 | 2026-06 | `prescription` 移除 **`remark`**（整单备注；药品级说明见 `prescription_item.entrust`） |
+| v1.11 | 2026-06 | 修正 **`sys_user` / `bill` / `ai_prescription_draft` / `refund_record` / `imaging_study`** 的 `status` 业务说明误贴；§1.5 增补对应枚举 |
+| v1.12 | 2026-06 | `prescription_item` 移除 **`create_time`**；开立时间以 `prescription.create_time` 为准 |
+| v1.13 | 2026-06 | 移除 **`bill_no`**、**`payment_no`**、**`refund_no`**；费用/支付/退款业务标识统一为各表 **`id`**（§八 约定） |
+| v1.14 | 2026-06 | **表结构定稿不再改动**；§1.1 业务标识、§2 ER 脚注、§8.5 展示字段、§11 对照与 v1.4～v1.13 表变更对齐；注明 `schema.sql` 滞后 |
 
 ---
 
-*后续建表脚本将基于本文档编写至 `docs/sql/schema.sql`，届时以脚本为准校验字段一致性。*
+*本文档 **v1.14** 为业务表设计权威说明（非建表脚本）。`docs/sql/schema.sql` 仍对应 **v1.3 及更早** 字段（如 `bill_no`、`prescription_no`、`scheduling.dept_id` 等），**后续建表脚本阶段将按本文重写**，届时以脚本为准校验字段一致性。*

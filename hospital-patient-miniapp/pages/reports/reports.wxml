@@ -1,0 +1,26 @@
+<view class="container">
+  <view class="tab-row card">
+    <view class="tab-chip {{tab === 'all' ? 'active' : ''}}" data-tab="all" bindtap="onTab">全部</view>
+    <view class="tab-chip {{tab === 'lab' ? 'active' : ''}}" data-tab="lab" bindtap="onTab">检验</view>
+    <view class="tab-chip {{tab === 'exam' ? 'active' : ''}}" data-tab="exam" bindtap="onTab">检查</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{!list.length}}" class="empty">暂无报告，完成检查后可在此查看</view>
+  <view wx:else>
+    <view
+      wx:for="{{list}}"
+      wx:key="id"
+      class="card report-row"
+      data-item="{{item}}"
+      bindtap="onDetail"
+    >
+      <view class="row-between">
+        <text class="report-name">{{item.reportName}}</text>
+        <text class="tag">{{item.typeLabel}}</text>
+      </view>
+      <view class="muted">{{item.patientName}} · {{item.reportTime}}</view>
+      <view class="summary">{{item.summary}}</view>
+    </view>
+  </view>
+</view>

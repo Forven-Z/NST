@@ -26,10 +26,15 @@ public class RegisterService {
     private final SchedulingRepository schedulingRepository;
     private final RegisterRepository registerRepository;
     private final BillRepository billRepository;
+    private final PatientFamilyService patientFamilyService;
 
     @Transactional
     public Map<String, Object> createRegister(CreateRegisterRequest request) {
-        Long patientId = AuthContextHolder.require().getPatientId();
+        Long ownerPatientId = AuthContextHolder.require().getPatientId();
+        Long patientId = request.getMemberPatientId() != null ? request.getMemberPatientId() : ownerPatientId;
+        if (!patientId.equals(ownerPatientId)) {
+            patientFamilyService.assertCanRegisterFor(patientId);
+        }
 
         Map<String, Object> scheduling = schedulingRepository.findByIdForUpdate(request.getSchedulingId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "排班不存在或已停诊"));

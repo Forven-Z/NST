@@ -1,0 +1,13 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">加载中...</view>
+  <view wx:elif="{{info}}" class="card queue-card">
+    <view class="queue-num">{{info.aheadCount}}</view>
+    <view class="queue-label">前面候诊人数</view>
+    <view class="hint">{{info.queueHint}}</view>
+    <view class="divider" />
+    <view class="muted">{{info.deptName}} · {{info.doctorName}}</view>
+    <view class="muted">{{info.workDate}} {{info.noonLabel}} · {{info.patientName}}</view>
+    <view class="tip muted">请提前到诊室候诊，过号需重新排队</view>
+  </view>
+  <view wx:else class="empty">请从挂号记录进入</view>
+</view>

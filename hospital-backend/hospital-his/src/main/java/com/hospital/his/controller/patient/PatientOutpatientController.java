@@ -9,6 +9,8 @@ import com.hospital.his.service.PaymentService;
 import com.hospital.his.service.RefundService;
 import com.hospital.his.service.RegisterCancelService;
 import com.hospital.his.service.RegisterService;
+import com.hospital.his.repository.DepartmentRepository;
+import com.hospital.his.service.PatientRegisterQueryService;
 import com.hospital.his.service.SchedulingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,31 @@ public class PatientOutpatientController {
     private final RefundService refundService;
     private final RegisterCancelService registerCancelService;
     private final com.hospital.his.service.DoctorMedicalRecordService doctorMedicalRecordService;
+    private final PatientRegisterQueryService patientRegisterQueryService;
+    private final DepartmentRepository departmentRepository;
+
+    @GetMapping("/departments")
+    public Result<Map<String, Object>> listDepartments() {
+        return Result.success(Map.of("list", departmentRepository.listOutpatientDepartments()));
+    }
+
+    @GetMapping("/registers")
+    public Result<Map<String, Object>> listRegisters(
+            @RequestParam(required = false) Integer visitState,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return Result.success(patientRegisterQueryService.listRegisters(visitState, page, pageSize));
+    }
+
+    @GetMapping("/registers/{registerId}")
+    public Result<Map<String, Object>> getRegister(@PathVariable Long registerId) {
+        return Result.success(patientRegisterQueryService.getRegister(registerId));
+    }
+
+    @GetMapping("/registers/{registerId}/queue-status")
+    public Result<Map<String, Object>> queueStatus(@PathVariable Long registerId) {
+        return Result.success(patientRegisterQueryService.getQueueStatus(registerId));
+    }
 
     @GetMapping("/schedules")
     public Result<Map<String, Object>> listSchedules(

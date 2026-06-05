@@ -355,9 +355,65 @@
 
 **Request**：同档案字段（`medicalRecordNo` 不可改）。
 
+#### 4.1.3 就诊人（本人 + 家属）
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P1 |
+| **GET** | `/family-members` |
+| **POST** | `/family-members` |
+
+> 需先执行 `docs/sql/patch-family-link.sql` 创建 `patient_family_link` 表。
+
+**GET Response `data.list[]`**
+
+```json
+{
+  "memberPatientId": 10001,
+  "realName": "李四",
+  "medicalRecordNo": "MR202605260001",
+  "gender": 1,
+  "idCard": "310...",
+  "phone": "13800000000",
+  "relationType": 0,
+  "isSelf": true
+}
+```
+
+**POST Request**
+
+```json
+{
+  "realName": "王五",
+  "gender": 1,
+  "idCard": "310...",
+  "phone": "13900000000",
+  "relationType": 3
+}
+```
+
+`relationType`：0 本人 · 1 父母 · 2 配偶 · 3 子女 · 4 其他。
+
 ---
 
 ### 4.2 挂号
+
+#### 4.2.0 门诊科室列表
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P1 |
+| **GET** | `/departments` |
+
+**Response `data.list[]`**
+
+```json
+{
+  "id": 10,
+  "deptName": "内科",
+  "deptCode": "NK"
+}
+```
 
 #### 4.2.1 可挂号排班列表
 
@@ -406,9 +462,14 @@
   "deptId": 10,
   "employeeId": 88,
   "registLevelId": 1,
-  "settleCategoryId": 1
+  "settleCategoryId": 1,
+  "memberPatientId": 10002
 }
 ```
+
+| 字段 | 说明 |
+|------|------|
+| `memberPatientId` | 可选；省略则为本人挂号；家属代挂时传就诊人 ID（须已通过 `/family-members` 绑定） |
 
 **Response `data`**
 
@@ -434,12 +495,53 @@
 
 **Query**：`page`, `pageSize`, `visitState`（可选）
 
+**Response `data.list[]`**（含本人及代挂家属记录）
+
+```json
+{
+  "registerId": 3001,
+  "deptName": "内科",
+  "doctorName": "张医生",
+  "levelName": "普通号",
+  "visitState": 1,
+  "patientName": "李四",
+  "workDate": "2026-06-04",
+  "noonType": 1,
+  "amount": 20.00
+}
+```
+
 #### 4.2.4 挂号详情
 
 | 项 | 值 |
 |----|-----|
 | **阶段** | P1 |
 | **GET** | `/registers/{registerId}` |
+
+#### 4.2.5 排队候诊状态
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P1 |
+| **GET** | `/registers/{registerId}/queue-status` |
+
+**Response `data`**（在挂号详情基础上追加）
+
+```json
+{
+  "registerId": 3001,
+  "visitState": 1,
+  "aheadCount": 2,
+  "queueHint": "前面还有 2 人，请留意叫号"
+}
+```
+
+#### 4.2.6 患者退号
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P1 |
+| **POST** | `/registers/{registerId}/cancel` |
 
 ---
 
@@ -705,6 +807,12 @@
 
 ### 5.3 检查申请
 
+前缀 `/check-requests`。**服务**：`hospital-his` · **权限**：`OUTPATIENT_DOCTOR`。
+
+> **AI 辅助开单**（ADR-015）：先 `diagnosis/suggest` 判断分支 → 再 **ai-draft 三步**（与处方对称）；**禁止** AI 未经医生确认直接 `status=10`。
+
+#### 5.3.1 手工开立（已开立）
+
 | 项 | 值 |
 |----|-----|
 | **阶段** | P2 |
@@ -742,17 +850,120 @@
 
 > 医生接口 **不返回** `payment_record` 明细，仅 `paid: true/false` 或 `status`。
 
+#### 5.3.2 AI 生成检查草稿
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P4 |
+| **POST** | `/check-requests/ai-draft` |
+
+**Request**
+
+```json
+{
+  "registerId": 3001,
+  "symptomsSummary": "可选；缺省则 his 聚合病历摘要"
+}
+```
+
+**流程**：his 聚合病历 → **Feign** → `hospital-ai-bridge` 生成结构化 JSON → his 写入草稿表。
+
+**Response `data`**
+
+```json
+{
+  "draftId": 8001,
+  "registerId": 3001,
+  "draftType": "CHECK",
+  "aiReason": "主诉头痛三天，建议影像学检查",
+  "items": [
+    {
+      "medicalTechnologyId": 201,
+      "itemName": "头部 CT",
+      "purpose": "排除颅内占位",
+      "bodyPart": "头部",
+      "remark": ""
+    }
+  ],
+  "stub": false
+}
+```
+
+**STUB 期**：`stub: true`, `draftId: null`, `items: []`。
+
+#### 5.3.3 医生编辑检查草稿
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P4 |
+| **PUT** | `/check-requests/ai-draft/{draftId}` |
+
+**Request**：与 `items[]` 结构同 §5.3.2；医生可增删改项目、部位、目的。
+
+#### 5.3.4 确认提交检查（已开立）
+
+| 项 | 值 |
+|----|-----|
+| **阶段** | P4 |
+| **POST** | `/check-requests/ai-draft/{draftId}/confirm` |
+
+**说明**：医生点击「确认提交」后，his 按 `items` 逐条创建 `check_request`（`fromAi=true`）及对应 `bill`；草稿置为已确认。
+
+**Response `data`**
+
+```json
+{
+  "requests": [
+    { "id": 6001, "status": 10, "billId": 8001 }
+  ]
+}
+```
+
 ---
 
 ### 5.4 检验申请
 
-路径与检查对称，前缀 `/inspection-requests`。**阶段 P2**。
+前缀 `/inspection-requests`。**服务**：`hospital-his` · **阶段 P2**（手工）/ **P4**（AI 草稿）。
+
+路径与 §5.3 **对称**：
+
+| 步骤 | Method | 路径 |
+|------|--------|------|
+| 手工开立 | POST | `/inspection-requests` |
+| 列表/详情 | GET | `/inspection-requests`, `/inspection-requests/{id}` |
+| AI 生成草稿 | POST | `/inspection-requests/ai-draft` |
+| 编辑草稿 | PUT | `/inspection-requests/ai-draft/{draftId}` |
+| 确认提交 | POST | `/inspection-requests/ai-draft/{draftId}/confirm` |
+
+**Request/Response `items[]`** 字段同检查；`draftType`: `INSPECTION`。
 
 ---
 
 ### 5.5 处置申请
 
-前缀 `/disposal-requests`。**阶段 P2～P3**。
+前缀 `/disposal-requests`。**服务**：`hospital-his` · **阶段 P2～P3**（手工）/ **P4**（AI 草稿）。**处置科执行**仍走 his 内处置模块（ADR-006）。
+
+| 步骤 | Method | 路径 |
+|------|--------|------|
+| 手工开立 | POST | `/disposal-requests` |
+| 列表/详情 | GET | `/disposal-requests`, `/disposal-requests/{id}` |
+| AI 生成草稿 | POST | `/disposal-requests/ai-draft` |
+| 编辑草稿 | PUT | `/disposal-requests/ai-draft/{draftId}` |
+| 确认提交 | POST | `/disposal-requests/ai-draft/{draftId}/confirm` |
+
+**`items[]` 示例**
+
+```json
+{
+  "medicalTechnologyId": 301,
+  "itemName": "洗胃",
+  "purpose": "急性中毒",
+  "bodyPart": "",
+  "remark": ""
+}
+```
+
+`draftType`: `DISPOSAL`。
 
 ---
 
@@ -1109,23 +1320,52 @@ data: {"stub":true,"delta":"【占位】您好，请先完成挂号后就诊。"
 
 ---
 
-### 7.4 辅助诊断建议
+### 7.4 辅助诊断建议（分支判断 · ADR-015 方案 A）
 
 | 项 | 值 |
 |----|-----|
-| **阶段** | P4 STUB |
+| **阶段** | P4 |
 | **POST** | `/diagnosis/suggest` |
+| **权限** | `OUTPATIENT_DOCTOR` |
 
-**Request**：`registerId`, `symptomsSummary`
+**用途**：辅助医生判断 **是否需要** 进入检查/检验/处置分支（**不**直接开立单据）；具体开单走 §5.3～5.5 **ai-draft 三步**。
 
-**Response STUB**
+**Request**
+
+```json
+{
+  "registerId": 3001,
+  "symptomsSummary": "可选；缺省则 bridge 侧聚合病历"
+}
+```
+
+**Response `data`**
+
+```json
+{
+  "stub": false,
+  "suggestions": ["头痛待查，建议影像学检查", "可先查血常规排除感染"],
+  "needCheck": true,
+  "needInspection": true,
+  "needDisposal": false,
+  "reason": "主诉与现病史提示需进一步医技检查"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `needCheck` / `needInspection` / `needDisposal` | 前端用于展示「建议开检查/检验/处置」入口；**医生仍可忽略** |
+| `suggestions` | 自然语言建议，供 UI 展示 |
+
+**STUB 期**
 
 ```json
 {
   "stub": true,
   "suggestions": [],
-  "needCheck": true,
+  "needCheck": false,
   "needInspection": false,
+  "needDisposal": false,
   "reason": "AI module disabled"
 }
 ```

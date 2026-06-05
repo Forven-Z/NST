@@ -1,32 +1,93 @@
 <view class="container">
-  <view class="card">
-    <view class="card-title">今日可挂号源</view>
-    <view class="muted">默认内科（deptId=1），支付后进入医生候诊队列</view>
+  <view class="steps card">
+    <text class="{{step >= 1 ? 'on' : ''}}">① 科室</text>
+    <text class="sep">›</text>
+    <text class="{{step >= 2 ? 'on' : ''}}">② 时间</text>
+    <text class="sep">›</text>
+    <text class="{{step >= 3 ? 'on' : ''}}">③ 号源</text>
   </view>
 
-  <view wx:if="{{loading}}" class="empty">加载中...</view>
-  <view wx:elif="{{schedules.length === 0}}" class="empty">暂无可用排班</view>
-
-  <view wx:else>
-    <view class="card" wx:for="{{schedules}}" wx:key="schedulingId">
-      <view class="row-between">
-        <view>
-          <view class="doctor-name">{{item.doctorName}}</view>
-          <view class="muted">{{item.deptName}} · {{item.levelName}}</view>
-        </view>
-        <view class="tag">余 {{item.remainQuota}}</view>
+  <view class="card" wx:if="{{members.length}}">
+    <view class="card-title">就诊人</view>
+    <scroll-view scroll-x class="member-scroll">
+      <view
+        wx:for="{{members}}"
+        wx:key="memberPatientId"
+        class="member-chip {{memberPatientId === item.memberPatientId ? 'active' : ''}}"
+        data-id="{{item.memberPatientId}}"
+        bindtap="onSelectMember"
+      >
+        {{item.realName}}{{item.isSelf ? '（本人）' : ''}}
       </view>
-      <view class="row-between fee-row">
-        <view class="price">¥{{item.registFee}}</view>
-        <button
-          class="btn-primary mini-btn"
-          size="mini"
-          loading="{{submitting}}"
-          data-index="{{index}}"
-          bindtap="onRegister"
-        >
-          立即挂号
-        </button>
+    </scroll-view>
+  </view>
+
+  <view wx:if="{{step === 1}}" class="card">
+    <view class="card-title">选择科室</view>
+    <view class="dept-grid">
+      <view
+        wx:for="{{departments}}"
+        wx:key="id"
+        class="dept-item"
+        data-id="{{item.id}}"
+        bindtap="onSelectDept"
+      >
+        {{item.deptName}}
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{step >= 2}}" class="card">
+    <view class="card-title row-between">
+      <text>选择日期与午别</text>
+      <text class="link" bindtap="backStep">返回</text>
+    </view>
+    <scroll-view scroll-x class="date-scroll">
+      <view
+        wx:for="{{dateOptions}}"
+        wx:key="workDate"
+        class="date-chip {{workDate === item.workDate ? 'active' : ''}}"
+        data-date="{{item.workDate}}"
+        bindtap="onSelectDate"
+      >
+        <view>{{item.label}}</view>
+        <view class="muted">{{item.workDate}}</view>
+      </view>
+    </scroll-view>
+    <view class="noon-row">
+      <view class="noon-chip {{noonType === 1 ? 'active' : ''}}" data-noon="1" bindtap="onSelectNoon">上午</view>
+      <view class="noon-chip {{noonType === 2 ? 'active' : ''}}" data-noon="2" bindtap="onSelectNoon">下午</view>
+    </view>
+    <view class="level-row">
+      <view
+        wx:for="{{levelOptions}}"
+        wx:key="label"
+        class="level-chip {{registLevelId === item.id ? 'active' : ''}}"
+        data-id="{{item.id === null ? 'null' : item.id}}"
+        bindtap="onSelectLevel"
+      >
+        {{item.label}}
+      </view>
+    </view>
+    <button class="btn-primary" bindtap="loadSchedules" loading="{{loading}}">查询号源</button>
+  </view>
+
+  <view wx:if="{{step === 3}}">
+    <view wx:if="{{loading}}" class="empty">加载中...</view>
+    <view wx:elif="{{!schedules.length}}" class="empty">该条件下暂无号源（专家号非每时段都有）</view>
+    <view wx:else>
+      <view class="card" wx:for="{{schedules}}" wx:key="schedulingId">
+        <view class="row-between">
+          <view>
+            <view class="doctor-name">{{item.doctorName}} · {{item.employeeTitle || ''}}</view>
+            <view class="muted">{{item.deptName}} · {{item.levelName}} · {{item.workDate}} {{item.noonLabel}}</view>
+          </view>
+          <view class="tag">余 {{item.remainQuota}}</view>
+        </view>
+        <view class="row-between fee-row">
+          <view class="price">¥{{item.registFee}}</view>
+          <button class="btn-primary mini-btn" size="mini" loading="{{submitting}}" data-index="{{index}}" bindtap="onRegister">挂号</button>
+        </view>
       </view>
     </view>
   </view>

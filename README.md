@@ -3,11 +3,15 @@
 门诊信息化 + AI 增强；**微服务**架构（HIS / LIS / PACS + 平台与 AI）。
 
 ```bash
-git clone https://github.com/Forven-Z/NST.git
+git clone https://github.com/<你的用户名>/NST.git
 cd NST
 ```
 
-Git 协作：**人人可推 `main`，但须保持可运行**；大改动先 `feature/*`，完善后自行合并。详见 [docs/TEAM_COLLABORATION.md](./docs/TEAM_COLLABORATION.md) §六。
+### Git 速查
+
+`clone` → 在 `feature/...` 上改 → `push` 分支 → GitHub **PR Merge** → `git pull origin main`
+
+详见 [docs/TEAM_COLLABORATION.md](./docs/TEAM_COLLABORATION.md) §六。
 
 ## 仓库结构
 

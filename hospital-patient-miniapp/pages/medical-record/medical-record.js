@@ -7,17 +7,23 @@ Page({
     record: null,
   },
 
+  onLoad(options) {
+    if (options.registerId) {
+      this.setData({ registerId: options.registerId })
+      this.onQuery()
+    }
+  },
+
   onRegisterInput(e) {
     this.setData({ registerId: e.detail.value })
   },
 
   async onQuery() {
-    const registerId = this.data.registerId.trim()
+    const registerId = String(this.data.registerId).trim()
     if (!registerId) {
       wx.showToast({ title: '请输入挂号单号', icon: 'none' })
       return
     }
-
     this.setData({ loading: true, record: null })
     try {
       const res = await fetchMedicalRecord(Number(registerId))

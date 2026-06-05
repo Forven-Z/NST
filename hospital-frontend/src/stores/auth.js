@@ -14,10 +14,14 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (state) => !!state.accessToken,
     roles: (state) => state.user?.roles ?? [],
     isOutpatientDoctor: (state) => state.user?.roles?.includes('OUTPATIENT_DOCTOR'),
+    isLabDoctor: (state) => state.user?.roles?.includes('LAB_DOCTOR'),
+    isCheckDoctor: (state) => state.user?.roles?.includes('CHECK_DOCTOR'),
+    isDisposalDoctor: (state) => state.user?.roles?.includes('DISPOSAL_DOCTOR'),
     isPharmacist: (state) =>
       state.user?.roles?.includes('PHARMACIST') || state.user?.roles?.includes('ADMIN'),
     isRegistrar: (state) =>
       state.user?.roles?.includes('REGISTRAR') || state.user?.roles?.includes('ADMIN'),
+    isAdmin: (state) => state.user?.roles?.includes('ADMIN'),
   },
 
   actions: {

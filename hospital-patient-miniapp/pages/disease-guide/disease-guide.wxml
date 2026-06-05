@@ -1,0 +1,23 @@
+<view class="container">
+  <view class="card tip-card">
+    <view class="card-title">按疾病 / 症状挂号</view>
+    <view class="muted">根据常见症状推荐科室，减少挂错号。不确定时可挂内科普通号，由分诊台或医生进一步指引。</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">请选择与您最接近的描述</view>
+    <view
+      wx:for="{{list}}"
+      wx:key="id"
+      class="disease-row"
+      data-item="{{item}}"
+      bindtap="onSelect"
+    >
+      <view>
+        <view class="disease-name">{{item.name}}</view>
+        <view class="muted">{{item.hint}}</view>
+      </view>
+      <view class="dept-tag">→ {{item.deptName}}</view>
+    </view>
+  </view>
+</view>

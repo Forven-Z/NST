@@ -1,45 +1,50 @@
 # hospital-patient-miniapp
 
-患者端 **原生微信小程序**（WXML + WXSS + JavaScript）。
+患者端 **原生微信小程序**，对接云脑 HIS 门诊闭环（Mock / Gateway 联调）。
 
-## 技术栈（定稿）
+## 界面结构（已定稿）
 
-- **微信官方原生框架**（非 uni-app）
-- **微信开发者工具**：创建、编辑、预览、上传
-- **`wx.request`**：调用 `hospital-gateway` REST API（`Result<T>`）
-- **`wx.login`**：微信 code 换 JWT
-- **`wx.uploadFile`**：医学影像上传（P4）
-- UI：微信原生组件；可选 **WeUI** / **Vant Weapp**
-- 语言：**JavaScript**（第一期）
+| Tab | 内容 |
+|-----|------|
+| **首页** | 「您好，{账号名}」+ **就诊人切换** · **当前就医行程卡**（按就诊人过滤）· **门诊 / 住院 / 检查 / 其它** 四 Tab · 就医提示 |
+| **消息中心** | 挂号/候诊/报告 Mock 通知 |
+| **个人中心** | 档案 · 就诊人/挂号/待缴/缴费记录/报告/病历 · 退出 |
 
-## 功能范围（规划）
+### 行程卡（P1）
 
-- 微信登录
-- 线上挂号、待缴/缴费记录
-- AI 智能问诊 / 导诊（P4，对接 `hospital-ai-bridge`）
-- 电子病历查看
-- 医学影像上传（→ MinIO → 异步 CNN，P4）
+按当前就诊人最近有效挂号展示状态与主按钮：待支付→去支付；已缴费→排队；接诊中→详情；看诊结束且有医技待缴→去缴费；否则→查报告。无进行中挂号时引导「去挂号」。
 
-## 开发与运行
+### 四 Tab 服务
 
-1. 安装 [微信开发者工具](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)。
-2. **导入项目** → 选择本目录 `hospital-patient-miniapp/`（含 `app.json` 的工程根）。
-3. 开发阶段：**设置 → 安全** → 勾选「不校验合法域名」。
-4. API 基址：`http://localhost:9000/api/v1`（见 `utils/request.js` 或 `app.js` globalData）。
-5. 详见 **`docs/DEV_ENV_SETUP.md` §九**。
+- **门诊**：线上挂号、门诊缴费、挂号记录、智能分诊、电子病历
+- **住院**：在院预交、住院费用、电子陪护证、病案复印（占位）
+- **检查**：检验报告、检查报告、待缴清单
+- **其它**：智能复诊、电子发票（占位）
 
-## 工程初始化（待做）
+### 费用页 `pages/bills`
 
-当前目录为占位说明；P0.5 在微信开发者工具中 **新建小程序** 或导入模板，代码保存在本目录，并提交：
+单页 **待缴 | 已缴**；支持 `scope=outpatient|exam|all` 与 `registerId`（行程卡带入）。**已缴**入口仅在个人中心「缴费记录」；「待缴费用」进入待缴全量。
 
-- `app.js` / `app.json` / `app.wxss`
-- `project.config.json`
-- `pages/`、`utils/request.js` 等
+## 患者端能力（与 PC Mock 闭环一致）
 
-## 后端依赖
+```
+登录 → 切换就诊人 → 挂号 → 待缴/支付 → 排队候诊
+     → 行程卡引导 → 报告/病历
+```
 
-- `hospital-patient`：挂号、费用、病历
-- `hospital-auth`：`POST /api/v1/auth/patient/wechat/login`
-- `hospital-ai-bridge`：AI 问诊（P4；原生侧可用轮询或分块读取，非 SSE 必需）
+## 运行
 
-详见 `docs/PROJECT_REQUIREMENTS.md` §0.1、`docs/API.md` §四。
+1. 微信开发者工具导入本目录，勾选「不校验合法域名」
+2. `config.js` → `USE_MOCK: true` 离线演示（**不调用真实 wx.login**，游客模式也可登录）
+3. Tab 图标异常时执行：`node scripts/gen-tab-icons.js`
+4. 联调：`USE_MOCK: false`，启动 Gateway `:9000`
+
+### Mock 演示路径
+
+登录（Mock）→ 首页查看行程卡（预置挂号 `3001`）→ 切换家属就诊人 → 四 Tab 入口 → 个人中心「缴费记录」
+
+### 控制台报错「游客模式 / webapi_getwxaasyncsecinfo:fail」
+
+开发者工具 **touristappid 游客模式** 的内部 SDK 报错，一般不影响 Mock 页面。处理：绑定测试号 AppID、扫码登录、清缓存重编译。
+
+详见 `docs/FRONTEND_API_MAP.md`、`docs/RUNBOOK.md`。

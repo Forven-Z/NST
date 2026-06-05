@@ -1,18 +1,39 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+import { resolveHomeRoute } from '../utils/roles'
+import { fetchAuthHealth } from '../api/auth'
+import { useMock } from '../utils/mock'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
 const loading = ref(false)
+const backendStatus = ref('checking') // checking | up | down
+const mockMode = useMock()
+
 const form = reactive({
   username: 'doctor01',
   password: '123456',
 })
+
+onMounted(checkBackend)
+
+async function checkBackend() {
+  if (mockMode) {
+    backendStatus.value = 'mock'
+    return
+  }
+  try {
+    await fetchAuthHealth()
+    backendStatus.value = 'up'
+  } catch {
+    backendStatus.value = 'down'
+  }
+}
 
 async function onSubmit() {
   loading.value = true
@@ -22,15 +43,8 @@ async function onSubmit() {
     const redirect = route.query.redirect
     if (redirect) {
       await router.replace(String(redirect))
-    } else if (auth.isOutpatientDoctor) {
-      await router.replace({ name: 'doctor-workspace' })
-    } else if (auth.isPharmacist) {
-      await router.replace({ name: 'pharmacy-pending' })
-    } else if (auth.isRegistrar) {
-      await router.replace({ name: 'registrar-refund' })
     } else {
-      await router.replace({ name: 'login' })
-      ElMessage.warning('当前账号无可用工作台')
+      await router.replace(resolveHomeRoute(auth.roles))
     }
   } catch (err) {
     ElMessage.error(err.message || '登录失败')
@@ -47,6 +61,33 @@ async function onSubmit() {
         <h1>智慧云脑诊疗平台</h1>
         <p>医护端登录 · Gateway :9000</p>
       </div>
+
+      <el-alert
+        v-if="backendStatus === 'down'"
+        type="error"
+        :closable="false"
+        show-icon
+        title="后端未就绪"
+        description="Gateway :9000 无响应。联调登录需先启动：PostgreSQL → Nacos :8848 → auth :9101 → gateway :9000（详见 docs/RUNBOOK.md §四、§5.2）。若只想浏览界面，在 .env.development 设 VITE_USE_MOCK=true 后重启 npm run dev。"
+        class="status-alert"
+      />
+      <el-alert
+        v-else-if="backendStatus === 'mock'"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="Mock 演示模式"
+        description="全链路本地 Mock：挂号→收费→叫号→开单→检验/检查/药房/处置均可演示，无需启动后端。密码均为 123456。"
+        class="status-alert"
+      />
+      <el-alert
+        v-else-if="backendStatus === 'up'"
+        type="success"
+        :closable="false"
+        show-icon
+        title="Gateway 已连通"
+        class="status-alert"
+      />
 
       <el-form label-position="top" @submit.prevent="onSubmit">
         <el-form-item label="用户名">
@@ -67,7 +108,10 @@ async function onSubmit() {
         </el-button>
       </el-form>
 
-      <p class="hint">开发账号：doctor01 / pharmacy01 / registrar01，密码 123456</p>
+      <p class="hint">
+        开发账号（密码 123456）：doctor01 · lab01 · check01 · pharmacy01 · registrar01 · disposal01 · admin
+      </p>
+      <p class="hint sub">推荐演示路径：registrar01 挂号 → 收费 → doctor01 叫号开单 → lab01/check01/pharmacy01</p>
     </div>
   </div>
 </template>
@@ -101,6 +145,10 @@ async function onSubmit() {
   font-size: 14px;
 }
 
+.status-alert {
+  margin-bottom: 16px;
+}
+
 .submit-btn {
   width: 100%;
   margin-top: 8px;
@@ -111,5 +159,9 @@ async function onSubmit() {
   text-align: center;
   font-size: 12px;
   color: #94a3b8;
+}
+
+.hint.sub {
+  margin-top: 8px;
 }
 </style>

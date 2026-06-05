@@ -31,6 +31,7 @@
   },
   "compileType": "miniprogram",
   "appid": "touristappid",
+  "libVersion": "3.5.7",
   "projectname": "hospital-patient-miniapp",
   "condition": {},
   "simulatorPluginLibVersion": {},
