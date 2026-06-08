@@ -1,24 +1,77 @@
-<view class="container">
+<view class="page">
+  <nav-bar title="添加就诊人" bgColor="#1677ff" />
+
+  <view class="container">  <view class="banner">实名制就诊，请如实填写就诊信息</view>
+
   <view class="card">
-    <view class="card-title">添加就诊人</view>
-    <view class="form-item">
-      <text class="label">姓名</text>
-      <input placeholder="真实姓名" data-field="realName" bindinput="onInput" />
+    <view class="section-head">
+      <text class="card-title">就诊人信息</text>
+      <view class="switch-row">
+        <text class="switch-label">无身份证号患儿</text>
+        <switch checked="{{form.noIdCard}}" bindchange="onNoIdCardChange" color="#2563eb" />
+      </view>
     </view>
+
     <view class="form-item">
-      <text class="label">身份证</text>
-      <input placeholder="18位身份证号" data-field="idCard" bindinput="onInput" />
+      <text class="label required">姓名</text>
+      <input class="input" placeholder="请输入就诊人姓名" value="{{form.realName}}" data-field="realName" bindinput="onInput" />
     </view>
-    <view class="form-item">
-      <text class="label">手机号</text>
-      <input placeholder="选填" data-field="phone" bindinput="onInput" />
+
+    <view class="form-item" wx:if="{{!form.noIdCard}}">
+      <text class="label required">身份证号</text>
+      <input class="input" placeholder="18位身份证号" maxlength="18" value="{{form.idCard}}" data-field="idCard" bindinput="onInput" bindblur="onIdCardBlur" />
     </view>
+
     <view class="form-item">
-      <text class="label">关系</text>
-      <picker mode="selector" range="{{relationTypes}}" range-key="label" bindchange="onRelationChange">
-        <view class="picker">请选择与本人关系</view>
+      <text class="label required">性别</text>
+      <picker mode="selector" range="{{genderLabels}}" value="{{genderIndex}}" bindchange="onGenderChange">
+        <view class="picker">{{genderLabels[genderIndex] || '请选择'}}</view>
       </picker>
     </view>
-    <button class="btn-primary" loading="{{saving}}" bindtap="onSubmit">保存</button>
+
+    <view class="form-item">
+      <text class="label required">出生日期</text>
+      <picker mode="date" value="{{form.birthDate}}" end="{{today}}" bindchange="onBirthDateChange">
+        <view class="picker">{{form.birthDate || '请选择'}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item" wx:if="{{!form.noIdCard}}">
+      <text class="label">手机号</text>
+      <input class="input" type="number" maxlength="11" placeholder="选填；儿童可留空，有号则不可重复" value="{{form.phone}}" data-field="phone" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label">联系地址</text>
+      <input class="input" placeholder="街道、小区、门牌号（挂号时写入病历）" value="{{form.address}}" data-field="address" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label required">与本人关系</text>
+      <picker mode="selector" range="{{relationTypes}}" range-key="label" value="{{relationIndex}}" bindchange="onRelationChange">
+        <view class="picker">{{relationTypes[relationIndex].label}}</view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{form.noIdCard}}">
+    <view class="card-title">监护人 / 陪诊人</view>
+    <view class="hint">须为当前账号本人，代无身份证患儿就诊</view>
+
+    <view class="form-item">
+      <text class="label required">陪诊人姓名</text>
+      <input class="input" placeholder="请输入陪诊人姓名" value="{{form.guardianName}}" data-field="guardianName" bindinput="onInput" />
+    </view>
+    <view class="form-item">
+      <text class="label required">身份证号</text>
+      <input class="input" placeholder="陪诊人18位身份证号" maxlength="18" value="{{form.guardianIdCard}}" data-field="guardianIdCard" bindinput="onInput" />
+    </view>
+    <view class="form-item">
+      <text class="label required">手机号</text>
+      <input class="input" type="number" maxlength="11" placeholder="陪诊人联系电话" value="{{form.guardianPhone}}" data-field="guardianPhone" bindinput="onInput" />
+    </view>
+  </view>
+
+  <button class="btn-primary submit-btn" loading="{{saving}}" bindtap="onSubmit">确认添加</button>
   </view>
 </view>

@@ -85,7 +85,7 @@ psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 | `schema.sql` | 全量 DDL（26 表 + `patient_family_link` + 索引） | P0.5 必跑 |
 | `seed-dict.sql` | 科室、号别、员工、排班、测试登录 | P1 联调 |
 | `patch-family-link.sql` | 旧库补家属表（新环境勿单独跑） | 增量 |
-| `patch-family-link-relation-type.sql` | 旧库：`relation_type` 6→4、默认改 4 | 增量 |
+| `patch-patient-phone-unique.sql` | 旧库：`phone` 部分唯一索引 `ux_patient_phone` | 增量 |
 | `vector.sql` | RAG 向量表（待 Spring AI 版本确定） | P4 |
 
 ---

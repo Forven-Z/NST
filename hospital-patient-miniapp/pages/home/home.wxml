@@ -2,18 +2,19 @@
   <view class="welcome card">
     <view class="welcome-row row-between">
       <view class="welcome-left">
-        <view class="welcome-title">您好，{{ownerName}}</view>
-        <view class="welcome-sub muted">账号病历号 {{ownerMedicalRecordNo}}</view>
+        <view class="welcome-title">您好，{{currentAccountName}}</view>
+        <view class="welcome-sub muted">病历号 {{currentMedicalRecordNo}}</view>
       </view>
-      <view class="member-switch" bindtap="onSwitchMember">
-        <text class="member-switch-label">就诊人</text>
-        <text class="member-switch-name">{{activeMemberName}}</text>
+      <view wx:if="{{loggedIn}}" class="member-switch" bindtap="onSwitchAccount">
+        <text class="member-switch-label">账户</text>
+        <text class="member-switch-name">切换</text>
         <text class="member-arrow">▼</text>
       </view>
+      <button wx:else class="welcome-login-btn" size="mini" bindtap="onGoLogin">登录</button>
     </view>
   </view>
 
-  <view class="trip card" wx:if="{{trip}}">
+  <view class="trip card" wx:if="{{loggedIn && trip}}">
     <view class="trip-head row-between">
       <view class="trip-label">当前就医</view>
       <view class="trip-tag">{{trip.stateLabel}}</view>
@@ -24,10 +25,16 @@
     <button class="btn-primary trip-btn" bindtap="onTripAction">{{trip.actionText}}</button>
   </view>
 
-  <view class="trip card empty-trip" wx:else>
+  <view class="trip card empty-trip" wx:elif="{{loggedIn}}">
     <view class="trip-label">当前就医</view>
-    <view class="muted">该就诊人暂无进行中的挂号</view>
+    <view class="muted">当前账户暂无进行中的挂号</view>
     <button class="btn-primary trip-btn" bindtap="goRegister">去挂号</button>
+  </view>
+
+  <view class="trip card guest-trip" wx:else>
+    <view class="trip-label">欢迎使用</view>
+    <view class="muted">登录病人账户后可挂号、缴费；可像 QQ 一样添加并切换多个就诊人</view>
+    <button class="btn-primary trip-btn" bindtap="onGoLogin">登录病人账户</button>
   </view>
 
   <view class="service-panel">
@@ -58,6 +65,6 @@
 
   <view class="tip card">
     <view class="tip-title">就医提示</view>
-    <view class="tip-text muted">初诊建议挂普通号；挂号后请先缴费再到院候诊。检验检查需医生开单缴费后执行，报告在「检查」Tab 查询；费用可在「我的费用」查看待缴与已缴。</view>
+    <view class="tip-text muted">切换账户后再挂号，费用与报告均归属当前登录的病人账户。支付时将绑定微信用于收银。</view>
   </view>
 </view>

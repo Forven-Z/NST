@@ -139,7 +139,8 @@ CREATE TABLE IF NOT EXISTS patient (
     update_time         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ix_patient_real_name ON patient(real_name);
-CREATE INDEX IF NOT EXISTS ix_patient_phone ON patient(phone);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_patient_phone ON patient(phone)
+    WHERE delmark = 0 AND phone IS NOT NULL AND phone <> '';
 CREATE INDEX IF NOT EXISTS ix_patient_id_card ON patient(id_card);
 
 CREATE TABLE IF NOT EXISTS patient_wechat (
@@ -159,6 +160,10 @@ CREATE TABLE IF NOT EXISTS patient_family_link (
     owner_patient_id    BIGINT       NOT NULL REFERENCES patient(id),
     member_patient_id   BIGINT       NOT NULL REFERENCES patient(id),
     relation_type       SMALLINT     NOT NULL DEFAULT 4,
+    no_id_card          BOOLEAN      NOT NULL DEFAULT FALSE,
+    guardian_name       VARCHAR(64),
+    guardian_id_card    VARCHAR(18),
+    guardian_phone      VARCHAR(20),
     delmark             SMALLINT     NOT NULL DEFAULT 0,
     create_time         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     update_time         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -166,6 +171,10 @@ CREATE TABLE IF NOT EXISTS patient_family_link (
 );
 CREATE INDEX IF NOT EXISTS ix_patient_family_owner ON patient_family_link(owner_patient_id);
 COMMENT ON COLUMN patient_family_link.relation_type IS '0本人 1父母 2配偶 3子女 4其他';
+COMMENT ON COLUMN patient_family_link.no_id_card IS '无身份证号患儿';
+COMMENT ON COLUMN patient_family_link.guardian_name IS '陪诊人/监护人姓名';
+COMMENT ON COLUMN patient_family_link.guardian_id_card IS '陪诊人身份证号';
+COMMENT ON COLUMN patient_family_link.guardian_phone IS '陪诊人联系电话';
 
 CREATE TABLE IF NOT EXISTS sys_user (
     id              BIGSERIAL PRIMARY KEY,

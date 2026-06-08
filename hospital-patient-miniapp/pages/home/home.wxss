@@ -22,6 +22,18 @@
   font-size: 24rpx;
 }
 
+.welcome-login-btn {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1677ff !important;
+  border: none;
+  font-weight: 600;
+}
+
+.guest-trip .muted {
+  line-height: 1.6;
+  margin: 12rpx 0 20rpx;
+}
+
 .welcome-row {
   display: flex;
   flex-direction: row;

@@ -1,26 +1,24 @@
 const {
   fetchDepartments,
-  fetchFamilyMembers,
   fetchSchedules,
   createRegister,
+  fetchProfile,
 } = require('../../api/patient')
 const { nextDays } = require('../../utils/date')
 const { getAccessToken } = require('../../utils/auth')
-const patientContext = require('../../utils/patient-context')
 
 Page({
   data: {
     step: 1,
     loading: false,
     submitting: false,
+    currentPatientName: '—',
     departments: [],
     dateOptions: [],
     deptId: null,
     workDate: '',
     noonType: 1,
     registLevelId: null,
-    members: [],
-    memberPatientId: null,
     schedules: [],
     levelOptions: [
       { id: null, label: '全部' },
@@ -38,7 +36,9 @@ Page({
 
   onShow() {
     if (!getAccessToken()) {
-      wx.reLaunch({ url: '/pages/login/login' })
+      wx.redirectTo({
+        url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/register/register'),
+      })
       return
     }
     this.init()
@@ -47,7 +47,17 @@ Page({
   async init() {
     const dateOptions = nextDays(7)
     this.setData({ dateOptions, workDate: dateOptions[0]?.workDate || '' })
-    await Promise.all([this.loadDepartments(), this.loadMembers()])
+    await Promise.all([this.loadDepartments(), this.loadCurrentPatient()])
+  },
+
+  async loadCurrentPatient() {
+    try {
+      const res = await fetchProfile()
+      const p = res.data || {}
+      this.setData({ currentPatientName: p.realName || '当前账户' })
+    } catch (err) {
+      /* noop */
+    }
   },
 
   async loadDepartments() {
@@ -65,22 +75,6 @@ Page({
       }
     } catch (err) {
       wx.showToast({ title: err.message || '加载科室失败', icon: 'none' })
-    }
-  },
-
-  async loadMembers() {
-    try {
-      const res = await fetchFamilyMembers()
-      const list = res.data?.list || []
-      const active = patientContext.getActiveMember()
-      const match = list.find((m) => m.memberPatientId === active.memberPatientId)
-      const self = match || list.find((m) => m.isSelf) || list[0]
-      this.setData({
-        members: list,
-        memberPatientId: self?.memberPatientId || null,
-      })
-    } catch (err) {
-      /* noop */
     }
   },
 
@@ -102,10 +96,6 @@ Page({
   onSelectLevel(e) {
     this.setData({ registLevelId: e.currentTarget.dataset.id === 'null' ? null : Number(e.currentTarget.dataset.id) })
     this.loadSchedules()
-  },
-
-  onSelectMember(e) {
-    this.setData({ memberPatientId: Number(e.currentTarget.dataset.id) })
   },
 
   async loadSchedules() {
@@ -133,12 +123,11 @@ Page({
     const index = e.currentTarget.dataset.index
     const sched = this.data.schedules[index]
     if (!sched || this.data.submitting) return
-    const member = this.data.members.find((m) => m.memberPatientId === this.data.memberPatientId)
-    const name = member?.realName || '本人'
+    const name = this.data.currentPatientName
     const confirmed = await new Promise((resolve) => {
       wx.showModal({
         title: '确认挂号',
-        content: `就诊人：${name}\n${sched.deptName} · ${sched.doctorName}\n${sched.workDate} ${sched.noonLabel} · ${sched.levelName}\n挂号费 ¥${sched.registFee}`,
+        content: `当前账户：${name}\n${sched.deptName} · ${sched.doctorName}\n${sched.workDate} ${sched.noonLabel} · ${sched.levelName}\n挂号费 ¥${sched.registFee}`,
         success: (res) => resolve(res.confirm),
       })
     })
@@ -153,7 +142,6 @@ Page({
         registLevelId: sched.registLevelId,
         settleCategoryId: 1,
       }
-      if (this.data.memberPatientId) body.memberPatientId = this.data.memberPatientId
       const res = await createRegister(body)
       wx.showModal({
         title: '挂号成功',

@@ -26,12 +26,14 @@ public class PatientWechatService {
             Optional<Long> mergedId = identityMergeService.resolvePatientIdForNewLogin(openid, request.getIdCard());
             if (mergedId.isPresent()) {
                 patientId = mergedId.get();
+                applyInitialProfile(patientId, request);
             } else {
                 isNewPatient = true;
                 String medicalRecordNo = BizNoGenerator.medicalRecordNo();
-                String realName = StringUtils.hasText(request.getNickName()) ? request.getNickName() : "微信用户";
+                String realName = resolveRealName(request);
                 patientId = patientRepository.insertPatient(medicalRecordNo, realName);
                 patientRepository.upsertWechatBinding(patientId, openid);
+                applyInitialProfile(patientId, request);
             }
         } else {
             patientRepository.upsertWechatBinding(patientId, openid);
@@ -39,5 +41,50 @@ public class PatientWechatService {
 
         String medicalRecordNo = patientRepository.findMedicalRecordNo(patientId);
         return new WechatAuthService.PatientSession(patientId, medicalRecordNo, isNewPatient);
+    }
+
+    private void applyInitialProfile(Long patientId, WechatLoginRequest request) {
+        if (!hasProfilePayload(request)) {
+            return;
+        }
+        String phone = blankToNull(request.getPhone());
+        if (phone != null) {
+            patientRepository.assertPhoneAvailable(phone, patientId);
+        }
+        String idCard = blankToNull(request.getIdCard());
+        patientRepository.updateProfile(
+                patientId,
+                resolveRealName(request),
+                request.getGender(),
+                request.getBirthDate(),
+                phone,
+                idCard,
+                blankToNull(request.getAddress()),
+                null
+        );
+    }
+
+    private static boolean hasProfilePayload(WechatLoginRequest request) {
+        return StringUtils.hasText(request.getRealName())
+                || StringUtils.hasText(request.getNickName())
+                || StringUtils.hasText(request.getIdCard())
+                || request.getGender() != null
+                || request.getBirthDate() != null
+                || StringUtils.hasText(request.getPhone())
+                || StringUtils.hasText(request.getAddress());
+    }
+
+    private static String resolveRealName(WechatLoginRequest request) {
+        if (StringUtils.hasText(request.getRealName())) {
+            return request.getRealName().trim();
+        }
+        if (StringUtils.hasText(request.getNickName())) {
+            return request.getNickName().trim();
+        }
+        return "微信用户";
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

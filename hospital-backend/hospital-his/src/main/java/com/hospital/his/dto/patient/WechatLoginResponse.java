@@ -11,5 +11,6 @@ public class WechatLoginResponse {
     private Long expiresIn;
     private Long patientId;
     private String medicalRecordNo;
+    private String realName;
     private Boolean isNewPatient;
 }

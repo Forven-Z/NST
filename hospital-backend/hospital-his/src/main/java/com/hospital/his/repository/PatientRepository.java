@@ -1,5 +1,7 @@
 package com.hospital.his.repository;
 
+import com.hospital.common.constant.ErrorCode;
+import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.patient.PatientProfileResponse;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -133,6 +135,36 @@ public class PatientRepository {
                 .optional();
     }
 
+    public Optional<Long> findPatientIdByPhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return Optional.empty();
+        }
+        return jdbcClient.sql("""
+                        SELECT id FROM patient WHERE phone = :phone AND delmark = 0
+                        """)
+                .param("phone", phone.trim())
+                .query(Long.class)
+                .optional();
+    }
+
+    /**
+     * 手机号可选（儿童等留空）；非空时校验格式且全局唯一（与 ux_patient_phone 一致）。
+     */
+    public void assertPhoneAvailable(String phone, Long excludePatientId) {
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        String normalized = phone.trim();
+        if (!normalized.matches("^1\\d{10}$")) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "手机号格式不正确");
+        }
+        findPatientIdByPhone(normalized).ifPresent(existingId -> {
+            if (excludePatientId == null || !existingId.equals(excludePatientId)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "该手机号已被其他就诊人使用");
+            }
+        });
+    }
+
     public boolean hasWechatBinding(Long patientId) {
         return jdbcClient.sql("""
                         SELECT COUNT(*) FROM patient_wechat WHERE patient_id = :patientId
@@ -171,17 +203,19 @@ public class PatientRepository {
     }
 
     public long insertFamilyPatient(String medicalRecordNo, String realName, Integer gender,
-                                    String idCard, String phone) {
+                                    java.time.LocalDate birthDate, String idCard, String phone, String address) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcClient.sql("""
-                        INSERT INTO patient (medical_record_no, real_name, gender, id_card, phone, need_medical_book)
-                        VALUES (:medicalRecordNo, :realName, :gender, :idCard, :phone, FALSE)
+                        INSERT INTO patient (medical_record_no, real_name, gender, birth_date, id_card, phone, address, need_medical_book)
+                        VALUES (:medicalRecordNo, :realName, :gender, :birthDate, :idCard, :phone, :address, FALSE)
                         """)
                 .param("medicalRecordNo", medicalRecordNo)
                 .param("realName", realName)
                 .param("gender", gender != null ? gender : 0)
+                .param("birthDate", birthDate)
                 .param("idCard", idCard)
                 .param("phone", phone)
+                .param("address", address)
                 .update(keyHolder, "id");
         Number key = keyHolder.getKey();
         return key != null ? key.longValue() : 0L;

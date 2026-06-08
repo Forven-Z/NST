@@ -41,6 +41,9 @@ logs/
 work/
 *.log
 
+# 小程序本地联调配置（不提交）
+hospital-patient-miniapp/config.local.js
+
 # 测试 / 覆盖率
 **/coverage/
 **/.pytest_cache/

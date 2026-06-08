@@ -10,20 +10,87 @@
 | **报告** | 检验/检查报告列表（按当前就诊人 · Tab 栏入口） |
 | **个人中心** | 档案 · 就诊人/挂号/待缴/缴费记录/报告/病历 · 退出 |
 
-### 行程卡（P1）
+## 运行模式
 
-按当前就诊人最近有效挂号展示状态与主按钮：待支付→去支付；已缴费→排队；接诊中→详情；看诊结束且有医技待缴→去缴费；否则→查报告。无进行中挂号时引导「去挂号」。
+| 模式 | 配置 | 说明 |
+|------|------|------|
+| **Mock 演示** | 无 `config.local.js` | 离线；默认账户手机 `13800138001` + 身份证 `110101199001011234` |
+| **联调** | `config.local.js` → `USE_MOCK: false` | Gateway `127.0.0.1:9000` |
 
-### 四 Tab 服务
+## 账户模型（QQ 式）
 
-- **门诊**：线上挂号、门诊缴费、挂号记录、智能分诊、电子病历
-- **住院**：在院预交、住院费用、电子陪护证、病案复印（占位）
-- **检查**：检验报告、检查报告、待缴清单
-- **其它**：智能复诊、电子发票（占位）
+- **登录**：手机号 + 身份证 + 验证码（Mock 可 `000000`）→ JWT = 病人账户
+- **切换**：首页/个人中心切换 → `POST /patient/auth/switch-account` 换 JWT
+- **添加账户**：个人中心或登录页「添加其他病人账户」
+- **微信**：仅在支付前绑定（`/patient/auth/wechat/bind`），不是登录入口
 
-### 费用页 `pages/bills`
+## 快速联调（推荐）
 
-单页 **待缴 | 已缴**；支持 `scope=outpatient|exam|all` 与 `registerId`（行程卡带入）。**已缴**入口仅在个人中心「缴费记录」；「待缴费用」进入待缴全量。
+### 1. 准备数据库
+
+```powershell
+cd C:\Users\King\Desktop\NST
+$env:PGPASSWORD='123456'
+psql -U postgres -d hospital -f docs\sql\patch-family-link.sql
+psql -U postgres -d hospital -f docs\sql\patch-family-link-guardian.sql
+psql -U postgres -d hospital -f docs\sql\seed-dict.sql
+psql -U postgres -d hospital -f docs\sql\patch-scheduling-refresh.sql
+```
+
+（新库已跑过 `schema.sql` 且含 `patient_family_link` 时，前两步可跳过。）
+
+### 2. 启动 R-min 后端
+
+```powershell
+.\scripts\start-r-min.ps1
+# 若曾手动停过部分进程、出现 503，请完整重启：
+.\scripts\start-r-min.ps1 -Restart
+```
+
+停止：
+
+```powershell
+.\scripts\stop-r-min.ps1
+```
+
+依次启动 **Nacos :8848** → **auth :9101** → **his :9102** → **gateway :9000**。脚本会等待 login 接口可用（避免 Gateway 已起但 HIS 未注册 Nacos 导致 **503**）。日志在 `logs/r-min/`。
+
+验收：
+
+```powershell
+.\scripts\miniapp-smoke.ps1
+```
+
+### 3. 小程序切联调
+
+```powershell
+cd hospital-patient-miniapp
+copy config.local.example.js config.local.js
+```
+
+确认 `config.local.js`：
+
+```javascript
+module.exports = {
+  API_BASE: 'http://127.0.0.1:9000/api/v1',
+  USE_MOCK: false,
+}
+```
+
+### 4. 微信开发者工具
+
+1. 导入 **`hospital-patient-miniapp/`**
+2. **详情 → 本地设置** → 勾选 **不校验合法域名、web-view、TLS**
+3. 编译运行 → **登录页** 填写本人档案 → 登录
+4. 验证：个人档案、就诊人、挂号、待缴
+
+登录页底部会显示当前为 Mock 或联调模式。
+
+## Mock 演示（无后端）
+
+1. 删除或重命名 `config.local.js`（或设 `USE_MOCK: true`）
+2. 微信开发者工具导入本目录
+3. Tab 图标异常时：`node scripts/gen-tab-icons.js`
 
 ## 患者端能力（与 PC Mock 闭环一致）
 
@@ -32,19 +99,4 @@
      → 行程卡引导 → 报告/病历
 ```
 
-## 运行
-
-1. 微信开发者工具导入本目录，勾选「不校验合法域名」
-2. `config.js` → `USE_MOCK: true` 离线演示（**不调用真实 wx.login**，游客模式也可登录）
-3. Tab 图标异常时执行：`node scripts/gen-tab-icons.js`
-4. 联调：`USE_MOCK: false`，启动 Gateway `:9000`
-
-### Mock 演示路径
-
-登录（Mock）→ 首页查看行程卡（预置挂号 `3001`）→ 切换家属就诊人 → 四 Tab 入口 → 个人中心「缴费记录」
-
-### 控制台报错「游客模式 / webapi_getwxaasyncsecinfo:fail」
-
-开发者工具 **touristappid 游客模式** 的内部 SDK 报错，一般不影响 Mock 页面。处理：绑定测试号 AppID、扫码登录、清缓存重编译。
-
-详见 `docs/API.md`（附录 A）、`docs/RUNBOOK.md`。
+详见 `docs/API.md`（附录 A）、`docs/RUNBOOK.md` §6.2、`scripts/start-r-min.ps1`。

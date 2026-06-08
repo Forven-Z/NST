@@ -1,0 +1,55 @@
+.nav-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.nav-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+}
+
+.nav-back {
+  position: absolute;
+  left: 8rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.nav-back-hover {
+  opacity: 0.75;
+}
+
+.nav-back-icon {
+  font-size: 44rpx;
+  line-height: 1;
+  font-weight: 300;
+  margin-right: 4rpx;
+}
+
+.nav-back-text {
+  font-size: 28rpx;
+}
+
+.nav-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-bar-placeholder {
+  width: 100%;
+}

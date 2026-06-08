@@ -95,6 +95,10 @@
   opacity: 0.85;
 }
 
+.guest-empty .guest-login-btn {
+  margin-top: 32rpx;
+}
+
 .list-wrap .card {
   margin-bottom: 16rpx;
 }

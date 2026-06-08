@@ -4,15 +4,21 @@
       <text>就诊人管理</text>
       <text class="link" bindtap="goAdd">+ 添加</text>
     </view>
-    <view class="muted">一个账号可为家人添加就诊人，代其挂号（参考医院预约系统常见做法）</view>
+    <view class="muted">一个账号可为家人添加就诊人，代其挂号；无身份证患儿须填写陪诊人信息</view>
   </view>
 
   <view wx:if="{{loading}}" class="empty">加载中...</view>
   <view wx:else>
     <view class="card" wx:for="{{list}}" wx:key="memberPatientId">
-      <view class="doctor-name">{{item.realName}} {{item.isSelf ? '（本人）' : ''}}</view>
+      <view class="doctor-name row-between">
+        <text>{{item.realName}} {{item.isSelf ? '（本人）' : ''}}</text>
+        <text class="tag" wx:if="{{item.noIdCard}}">无身份证</text>
+      </view>
       <view class="muted">病历号 {{item.medicalRecordNo || '—'}}</view>
       <view class="muted" wx:if="{{item.idCard}}">身份证 {{item.idCard}}</view>
+      <view class="muted" wx:if="{{item.phone}}">手机 {{item.phone}}</view>
+      <view class="muted" wx:if="{{item.address}}">地址 {{item.address}}</view>
+      <view class="muted" wx:if="{{item.noIdCard && item.guardianName}}">陪诊人 {{item.guardianName}} {{item.guardianPhone}}</view>
     </view>
   </view>
 </view>

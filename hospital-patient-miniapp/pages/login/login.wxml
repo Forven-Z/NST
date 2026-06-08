@@ -1,21 +1,57 @@
 <view class="login-page">
+  <nav-bar title="{{navTitle}}" bgColor="#1677ff" />
+
   <view class="hero">
     <view class="logo">云脑</view>
     <view class="title">智慧云脑诊疗平台</view>
-    <view class="subtitle">患者端 · 在线挂号 · 模拟支付</view>
+    <view class="subtitle">患者端 · 实名制就诊 · 在线挂号</view>
   </view>
 
+  <view class="banner">实名制就诊，请如实填写本人信息</view>
+
   <view class="card form-card">
-    <view class="label">昵称（开发期 mock 微信登录）</view>
-    <input
-      class="input"
-      placeholder="请输入昵称"
-      value="{{nickName}}"
-      bindinput="onNickInput"
-    />
-    <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">
-      微信一键登录
-    </button>
-    <view class="tip">Mock 模式无需后端；控制台「游客模式 / webapi_getwxaasyncsecinfo」为工具环境提示，可忽略。建议详情里改用测试 AppID。</view>
+    <view class="card-title">{{addMode ? '添加病人账户' : '本人档案'}}</view>
+    <view class="hint">信息用于挂号与病历，与添加就诊人字段一致</view>
+
+    <view class="form-item">
+      <text class="label required">姓名</text>
+      <input class="input" placeholder="请输入真实姓名" value="{{form.realName}}" data-field="realName" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label required">身份证号</text>
+      <input class="input" placeholder="18位身份证号" maxlength="18" value="{{form.idCard}}" data-field="idCard" bindinput="onInput" bindblur="onIdCardBlur" />
+    </view>
+
+    <view class="form-item">
+      <text class="label required">性别</text>
+      <picker mode="selector" range="{{genderLabels}}" value="{{genderIndex}}" bindchange="onGenderChange">
+        <view class="picker">{{genderLabels[genderIndex] || '请选择'}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <text class="label required">出生日期</text>
+      <picker mode="date" value="{{form.birthDate}}" end="{{today}}" bindchange="onBirthDateChange">
+        <view class="picker">{{form.birthDate || '请选择'}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <text class="label required">手机号</text>
+      <input class="input" type="number" maxlength="11" placeholder="11位手机号，全院唯一" value="{{form.phone}}" data-field="phone" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label">联系地址</text>
+      <input class="input" placeholder="街道、小区、门牌号（挂号写入病历）" value="{{form.address}}" data-field="address" bindinput="onInput" />
+    </view>
+
+    <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">{{addMode ? '添加并登录' : '登录'}}</button>
+    <view class="link-row" wx:if="{{hasAccounts && !addMode}}">
+      <text class="link" bindtap="goAddMode">添加其他病人账户</text>
+    </view>
+    <view class="tip" wx:if="{{useMock}}">Mock 模式可直接填写档案登录；本机可保存多个账户并切换。</view>
+    <view class="tip" wx:else>联调模式：Gateway 127.0.0.1:9000；若身份证已在院内建档将自动合并。</view>
   </view>
 </view>

@@ -103,10 +103,12 @@ Mock 数据结构 **与本文件一致**。
 - `POST /callback/wechat/pay`
 - `GET /auth/health`、各服务 `/health`
 
-### 1.6 就诊人模型（ADR-016）
+### 1.6 就诊人模型（ADR-016 v1.8）
 
-- JWT `patientId` = **操作者**（微信登录用户）
-- Query `visitPatientId` 或别名 `patientId` = **当前就诊人**（省略=本人）
+- JWT **`patientId` = 当前登录的病人账户**（QQ 式切换后 JWT 随之更换）
+- `POST /patient/auth/login` 登录；`POST /patient/auth/switch-account` 切换家属账户（须 link 授权）
+- Query `visitPatientId` / `patientId`：**兼容字段**；新客户端省略，后端默认 JWT 本人
+- 微信 `openid` 仅支付绑定，非登录主体
 - 挂号 Body 可选 `memberPatientId` 代家属挂号
 
 ---
@@ -209,18 +211,60 @@ Mock 数据结构 **与本文件一致**。
 
 ## 四、患者端 · `/patient/**`（his）
 
-### POST `/patient/auth/wechat` ✅ P1
+### POST `/patient/auth/login` ✅ P1（主登录入口）
 
-**Request**：`{ "code", "nickName?", "avatarUrl?", "idCard?" }`  
-**Response `data`**：`accessToken`, `expiresIn`, `patientId`, `medicalRecordNo`, `isNewPatient`
+**Request**：`realName`, `idCard`（18 位）, `gender`（1 男 / 2 女）, `birthDate`（`YYYY-MM-DD`）, `phone`（11 位）, `address?`
+
+**Response `data`**：`accessToken`, `expiresIn`, `patientId`, `medicalRecordNo`, `realName`, `isNewPatient`
+
+> JWT **`patientId` = 当前登录的病人账户**（非微信身份）。微信仅用于支付绑定。
+
+### POST `/patient/auth/switch-account` ✅ P1
+
+**Request**：`{ "targetPatientId": 123 }`  
+**说明**：QQ 式切换；校验家属 link 双向授权后 **换发目标账户 JWT**。  
+**Response `data`**：同 login。
+
+### POST `/patient/auth/wechat/bind` ✅ P1
+
+**Request**：`{ "code" }`（需已登录）  
+**说明**：支付前将 openid 绑定到 **当前病人账户**。
+
+### POST `/patient/auth/wechat` ⚠️ 兼容
+
+旧版微信登录入口，新客户端请用 `/login` + `/wechat/bind`。
 
 ### GET/PUT `/patient/profile` ✅ P1
 
-**GET `data`**：`id`, `realName`, `medicalRecordNo`, `gender`, `phone`, `idCard`, `address`
+**GET `data`**：`id`, `realName`, `medicalRecordNo`, `gender`, `birthDate`, `phone`, `idCard`, `address`
+
+**PUT Request**：`realName`, `gender`, `birthDate`, `phone`, `idCard`, `address`, `settleCategoryId?`
+
+**PUT Response `data`**：同 GET；若身份证合并则额外返回 `identityMerged=true`, `accessToken`, `expiresIn`
 
 ### GET/POST `/patient/family-members` ✅ P1
 
-**表**：`patient_family_link`（ADR-016）
+**表**：`patient_family_link` + `patient`（ADR-016）
+
+**GET `data.list[]`**：`memberPatientId`, `realName`, `medicalRecordNo`, `gender`, `birthDate`, `idCard`, `phone`, `address`, `relationType`, `noIdCard`, `guardianName?`, `guardianIdCard?`, `guardianPhone?`, `isSelf`
+
+**POST Request**
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `realName` | 是 | 就诊人姓名 |
+| `gender` | 是 | 1 男 2 女 |
+| `birthDate` | 是 | `YYYY-MM-DD` |
+| `address` | 否 | 联系住址；挂号写入病历快照 |
+| `relationType` | 否 | 1父母 2配偶 3子女 4其他；无身份证患儿默认 3 |
+| `idCard` | 有证必填 | 18 位；与 `noIdCard` 互斥 |
+| `phone` | 否 | 可空；非空须 11 位且全院唯一 |
+| `noIdCard` | 否 | `true` 表示无身份证号患儿 |
+| `guardianName` | 无证必填 | 陪诊人姓名（须为账号本人） |
+| `guardianIdCard` | 无证必填 | 须与本人档案 `idCard` 一致 |
+| `guardianPhone` | 无证必填 | 陪诊人手机 |
+
+**POST Response `data`**：同列表项字段。
 
 ### GET `/patient/departments` ✅ P1
 

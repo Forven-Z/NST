@@ -1,9 +1,10 @@
 const { fetchReports } = require('../../api/patient')
-const { getAccessToken } = require('../../utils/auth')
+const { isLoggedIn, requireLogin } = require('../../utils/auth')
 const patientContext = require('../../utils/patient-context')
 
 Page({
   data: {
+    loggedIn: false,
     tab: 'all',
     list: [],
     loading: false,
@@ -20,8 +21,10 @@ Page({
   },
 
   onShow() {
-    if (!getAccessToken()) {
-      wx.reLaunch({ url: '/pages/login/login' })
+    var loggedIn = isLoggedIn()
+    this.setData({ loggedIn: loggedIn })
+    if (!loggedIn) {
+      this.setData({ list: [], loading: false, activeMemberName: '—' })
       return
     }
     var active = patientContext.getActiveMember()
@@ -32,7 +35,17 @@ Page({
     this.load()
   },
 
+  onGoLogin() {
+    wx.navigateTo({
+      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/reports/reports'),
+    })
+  },
+
   onTab(e) {
+    if (!isLoggedIn()) {
+      requireLogin({ mode: 'modal', message: '查看报告请先登录' })
+      return
+    }
     this.setData({ tab: e.currentTarget.dataset.tab })
     this.load()
   },
@@ -57,6 +70,7 @@ Page({
   },
 
   onDetail(e) {
+    if (!requireLogin({ mode: 'modal', message: '查看报告详情请先登录' })) return
     var item = e.currentTarget.dataset.item
     if (!item) return
     wx.navigateTo({

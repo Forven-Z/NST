@@ -231,16 +231,21 @@ PC 医生
 
 ## 五、ADR-016 就诊人/家属业务模型（已定稿 · 方案 A）
 
-### 5.1 定稿结论
+### 5.1 定稿结论（v1.8 修订 · QQ 式病人账户）
 
 | 概念 | 约定 |
 |------|------|
-| **操作者** | 微信 openid → `patient_wechat` → JWT **`patientId`**（固定，切换就诊人不变） |
-| **当前就诊人** | 首页切换 → Query/Body **`visitPatientId`**（省略 = 本人） |
-| **本人判定** | `visitPatientId == JWT patientId`；**不进** `patient_family_link` |
-| **link 表** | 只存操作者代管的 **非本人** 就诊人 |
-| **业务数据** | `register` / `bill` / 病历等挂在 **就诊人** `patient_id` |
-| **支付** | 操作者微信发起；`payment_record.patient_id` = 操作者；`bill.patient_id` = 就诊人 |
+| **登录鉴权** | JWT **`patientId` = 当前病人账户**（`patient` 表）；**非**微信账号 |
+| **登录入口** | `POST /patient/auth/login`（完整本人档案：姓名、身份证、性别、出生日期、手机号、地址） |
+| **切换账户** | `POST /patient/auth/switch-account` → **换发目标病人 JWT**（须家属 link 授权） |
+| **本机多账户** | 小程序 `account-store` 缓存多个 Token，类似 QQ 切号 |
+| **微信** | 仅 `POST /patient/auth/wechat/bind` 绑定 openid，用于支付 |
+| **家属 link** | 仍用于切换授权与无手机患儿；添加后可切换登录该就诊账户 |
+| **业务数据** | `register` / `bill` / 病历等挂在 **当前 JWT 病人** `patient_id` |
+
+### 5.1.1 历史方案 A（操作者 + visitPatientId）
+
+v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1.8 起小程序改为 JWT 随账户切换**，后端 `visitPatientId` 仍兼容但客户端默认省略。
 
 ### 5.2 典型场景
 
@@ -272,4 +277,4 @@ PC 医生
 | v1.4 | 2026-05 | **ADR-014 修订**：仓库定名 **NST**（Nexus Smart Treatment） |
 | v1.5 | 2026-06 | **ADR-015** AI 辅助开单：diagnosis/suggest + ai-draft 三步 |
 | v1.6 | 2026-06 | **ADR-016** 就诊人/家属：**方案 A**（操作者 JWT + visitPatientId） |
-| v1.7 | 2026-06 | **ADR-017** 处置拆为 **`hospital-disposal`**；**ADR-006 修订** |
+| v1.8 | 2026-06 | **ADR-016 修订**：病人账户登录 + QQ 式 `switch-account`；微信仅 bind 支付 |

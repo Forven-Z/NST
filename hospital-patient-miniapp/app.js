@@ -1,28 +1,27 @@
 const { getAccessToken, clearSession } = require('./utils/auth')
+const accountStore = require('./utils/account-store')
 
 App({
   globalData: {
-    ownerPatientId: null,
-    activeMemberPatientId: null,
+    currentPatientId: null,
     medicalRecordNo: '',
   },
 
   onLaunch() {
-    const token = getAccessToken()
-    if (token) {
-      this.globalData.ownerPatientId = wx.getStorageSync('patientId') || null
+    const acc = accountStore.getCurrentAccount()
+    if (acc && acc.accessToken) {
+      this.globalData.currentPatientId = acc.patientId
+      this.globalData.medicalRecordNo = acc.medicalRecordNo || ''
+    } else if (getAccessToken()) {
+      this.globalData.currentPatientId = wx.getStorageSync('patientId') || null
       this.globalData.medicalRecordNo = wx.getStorageSync('medicalRecordNo') || ''
-      this.globalData.activeMemberPatientId = wx.getStorageSync('activeMemberPatientId') || this.globalData.ownerPatientId
     } else {
       clearSession()
     }
   },
 
-  ensureLogin() {
-    if (!getAccessToken()) {
-      wx.reLaunch({ url: '/pages/login/login' })
-      return false
-    }
-    return true
+  ensureLogin(options) {
+    const { requireLogin } = require('./utils/auth')
+    return requireLogin(options || { mode: 'modal' })
   },
 })

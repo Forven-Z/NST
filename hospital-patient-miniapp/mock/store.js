@@ -1,17 +1,30 @@
 const dict = require('./dict')
+const phoneUtil = require('../utils/phone')
 
 let patientId = 10001
 let profile = {
   id: 10001,
-  realName: '微信用户',
+  realName: '测试患者',
   medicalRecordNo: 'MR202606040100',
   gender: 1,
-  phone: '',
-  idCard: '',
+  birthDate: '',
+  phone: '13800138001',
+  idCard: '110101199001011234',
   address: '',
 }
 
 const familyMembers = []
+/** 非空手机号 -> memberPatientId（Mock 对齐 ux_patient_phone） */
+const phoneRegistry = new Map()
+
+function syncPhoneRegistry() {
+  phoneRegistry.clear()
+  if (profile.phone) phoneRegistry.set(profile.phone, patientId)
+  familyMembers.forEach(function (m) {
+    if (m.phone) phoneRegistry.set(m.phone, m.memberPatientId)
+  })
+}
+
 let nextRegisterId = 31000
 let nextBillId = 82000
 let nextPaymentId = 90000
@@ -87,24 +100,163 @@ function seedRegisters() {
 
 seedRegisters()
 
-function login(nickName) {
-  profile.realName = nickName || profile.realName
-  return ok({
-    accessToken: 'mock-patient-token',
+function login(body) {
+  return patientLogin(body)
+}
+
+function findPatientByCredentials(phone, idCard) {
+  var p = String(phone || '').trim()
+  var c = String(idCard || '').trim().toUpperCase()
+  if (profile.phone === p && profile.idCard && profile.idCard.toUpperCase() === c) {
+    return { patientId: 10001, data: profile }
+  }
+  for (var i = 0; i < familyMembers.length; i++) {
+    var m = familyMembers[i]
+    if (m.idCard && m.idCard.toUpperCase() === c && m.phone === p) {
+      return { patientId: m.memberPatientId, data: m }
+    }
+  }
+  return null
+}
+
+function sessionPayload(id, data) {
+  return {
+    accessToken: 'mock-patient-token-' + id,
     expiresIn: 7200,
-    patientId,
-    medicalRecordNo: profile.medicalRecordNo,
+    patientId: id,
+    medicalRecordNo: data.medicalRecordNo || profile.medicalRecordNo,
+    realName: data.realName || '就诊人',
     isNewPatient: false,
+  }
+}
+
+function applyProfileFields(target, data) {
+  if (!target || !data) return
+  if (data.realName) target.realName = data.realName
+  if (data.idCard) target.idCard = data.idCard
+  if (data.phone) target.phone = data.phone
+  if (data.gender) target.gender = data.gender
+  if (data.birthDate) target.birthDate = data.birthDate
+  if (data.address != null) target.address = data.address
+}
+
+function activateMockPatient(id, data) {
+  patientId = id
+  if (id === 10001) {
+    applyProfileFields(profile, data)
+    syncPhoneRegistry()
+    return
+  }
+  var member = familyMembers.find(function (m) { return m.memberPatientId === id })
+  if (member) applyProfileFields(member, data)
+}
+
+function patientLogin(body) {
+  body = body || {}
+  var phone = String(body.phone || '').trim()
+  var idCard = String(body.idCard || '').trim().toUpperCase()
+  var realName = String(body.realName || '').trim()
+  if (!realName) {
+    return Promise.reject(new Error('请填写姓名'))
+  }
+  if (!phone.match(/^1\d{10}$/) || idCard.length !== 18) {
+    return Promise.reject(new Error('手机号或身份证格式不正确'))
+  }
+  if (!body.gender || (body.gender !== 1 && body.gender !== 2)) {
+    return Promise.reject(new Error('请选择性别'))
+  }
+  if (!body.birthDate) {
+    return Promise.reject(new Error('请选择出生日期'))
+  }
+  var profileData = {
+    realName: realName,
+    idCard: idCard,
+    phone: phone,
+    gender: body.gender,
+    birthDate: body.birthDate,
+    address: String(body.address || '').trim(),
+  }
+  var found = findPatientByCredentials(phone, idCard)
+  if (found) {
+    applyProfileFields(found.data, profileData)
+    activateMockPatient(found.patientId, profileData)
+    return ok(sessionPayload(found.patientId, found.data))
+  }
+  return assertPhoneAvailable(phone, null).then(function (normalized) {
+    var newId = 10000 + familyMembers.length + 2
+    var member = Object.assign({
+      memberPatientId: newId,
+      medicalRecordNo: 'MR20260604' + String(3000 + familyMembers.length),
+      relationType: 4,
+      isSelf: false,
+    }, profileData, { phone: normalized })
+    familyMembers.push(member)
+    if (normalized) phoneRegistry.set(normalized, newId)
+    activateMockPatient(newId, member)
+    return ok(Object.assign(sessionPayload(newId, member), { isNewPatient: true }))
+  })
+}
+
+function switchAccount(targetPatientId) {
+  var target = Number(targetPatientId)
+  if (target === patientId) {
+    var cur = target === 10001 ? profile : familyMembers.find(function (m) { return m.memberPatientId === target })
+    return ok(sessionPayload(target, cur || profile))
+  }
+  if (target === 10001) {
+    activateMockPatient(10001, profile)
+    return ok(sessionPayload(10001, profile))
+  }
+  var member = familyMembers.find(function (m) { return m.memberPatientId === target })
+  if (!member) {
+    return Promise.reject(new Error('无权切换到该就诊账户'))
+  }
+  activateMockPatient(target, member)
+  return ok(sessionPayload(target, member))
+}
+
+function assertPhoneAvailable(phone, excludePatientId) {
+  return normalizeOptionalPhone(phone).then(function (normalized) {
+    if (!normalized) return ''
+    var owner = phoneRegistry.get(normalized)
+    if (owner != null && owner !== excludePatientId) {
+      return Promise.reject(new Error('该手机号已被其他就诊人使用'))
+    }
+    return normalized
   })
 }
 
 function getProfile() {
-  return ok({ ...profile })
+  if (patientId === 10001) {
+    return ok(Object.assign({ id: 10001 }, profile))
+  }
+  var m = familyMembers.find(function (x) { return x.memberPatientId === patientId })
+  if (m) {
+    return ok({
+      id: m.memberPatientId,
+      realName: m.realName,
+      medicalRecordNo: m.medicalRecordNo,
+      gender: m.gender,
+      birthDate: m.birthDate,
+      phone: m.phone,
+      idCard: m.idCard,
+      address: m.address || '',
+    })
+  }
+  return ok(Object.assign({ id: patientId }, profile))
 }
 
 function updateProfile(body) {
-  Object.assign(profile, body || {})
-  return ok(profile)
+  body = body || {}
+  return assertPhoneAvailable(body.phone, patientId).then(function (normalized) {
+    if (profile.phone && profile.phone !== normalized) {
+      phoneRegistry.delete(profile.phone)
+    }
+    Object.assign(profile, body)
+    profile.phone = normalized
+    if (normalized) phoneRegistry.set(normalized, patientId)
+    return ok({ ...profile })
+  })
 }
 
 function listDepartments() {
@@ -120,25 +272,72 @@ function listFamily() {
     memberPatientId: patientId,
     realName: profile.realName,
     medicalRecordNo: profile.medicalRecordNo,
+    gender: profile.gender || 1,
+    birthDate: profile.birthDate || null,
+    idCard: profile.idCard || null,
+    phone: profile.phone || null,
+    address: profile.address || '',
     relationType: 0,
+    noIdCard: false,
     isSelf: true,
   }
   return ok({ list: [self, ...familyMembers] })
 }
 
 function addFamily(body) {
-  const member = {
-    memberPatientId: 10000 + familyMembers.length + 2,
-    realName: body.realName,
-    medicalRecordNo: `MR20260604${String(2000 + familyMembers.length)}`,
-    idCard: body.idCard,
-    gender: body.gender || 1,
-    phone: body.phone || '',
-    relationType: body.relationType || 4,
-    isSelf: false,
+  const noIdCard = !!body.noIdCard
+  if (noIdCard) {
+    if (!body.guardianName || !body.guardianIdCard || !body.guardianPhone) {
+      return Promise.reject(new Error('请填写陪诊人信息'))
+    }
+    if (profile.idCard && body.guardianIdCard.toUpperCase() !== profile.idCard.toUpperCase()) {
+      return Promise.reject(new Error('陪诊人须为当前账号本人（身份证与本人档案一致）'))
+    }
+    const member = {
+      memberPatientId: 10000 + familyMembers.length + 2,
+      realName: body.realName,
+      medicalRecordNo: 'MR20260604' + String(2000 + familyMembers.length),
+      idCard: null,
+      gender: body.gender || 1,
+      birthDate: body.birthDate || null,
+      phone: null,
+      address: body.address || '',
+      relationType: body.relationType || 3,
+      noIdCard: true,
+      guardianName: body.guardianName,
+      guardianIdCard: body.guardianIdCard,
+      guardianPhone: body.guardianPhone,
+      isSelf: false,
+    }
+    familyMembers.push(member)
+    return ok(member)
   }
-  familyMembers.push(member)
-  return ok(member)
+  return assertPhoneAvailable(body.phone, null).then(function (normalized) {
+    const member = {
+      memberPatientId: 10000 + familyMembers.length + 2,
+      realName: body.realName,
+      medicalRecordNo: 'MR20260604' + String(2000 + familyMembers.length),
+      idCard: body.idCard,
+      gender: body.gender || 1,
+      birthDate: body.birthDate || null,
+      phone: normalized,
+      address: body.address || '',
+      relationType: body.relationType || 4,
+      noIdCard: false,
+      isSelf: false,
+    }
+    familyMembers.push(member)
+    if (normalized) phoneRegistry.set(normalized, member.memberPatientId)
+    return ok(member)
+  })
+}
+
+function normalizeOptionalPhone(phone) {
+  const normalized = phoneUtil.normalizePhoneOptional(phone)
+  if (normalized === null) {
+    return Promise.reject(new Error('手机号格式不正确'))
+  }
+  return Promise.resolve(normalized)
 }
 
 function createRegister(body) {
@@ -447,6 +646,8 @@ function getRegisterOrders(registerId) {
 
 module.exports = {
   login,
+  patientLogin,
+  switchAccount,
   getProfile,
   updateProfile,
   listDepartments,
