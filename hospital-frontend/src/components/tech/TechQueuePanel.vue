@@ -1,21 +1,9 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-
-const SAMPLE_RESULTS = {
-  INSPECTION: `白细胞计数 WBC 6.2×10⁹/L（参考 3.5-9.5）
-红细胞计数 RBC 4.65×10¹²/L
-血红蛋白 Hb 138 g/L
-血小板 PLT 210×10⁹/L
-中性粒细胞比例 62%
-结论：血常规未见明显异常。`,
-  CHECK: `检查部位：头颅 CT 平扫
-影像所见：脑实质密度均匀，未见明显占位性病变；脑室系统大小形态正常；中线结构居中。
-印象：头颅 CT 平扫未见明显异常。`,
-  DISPOSAL: `处置项目：洗胃
-过程：经口置入胃管，用 0.9% 氯化钠溶液反复灌洗至洗出液澄清。
-结果：洗胃完成，患者生命体征平稳，安返观察。`,
-}
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import ResultReportSections from '../medical/ResultReportSections.vue'
+import { INTEGRATION_ROUTES, TRIAGE_LEVEL_MAP } from '../../config/integrations'
 
 const props = defineProps({
   title: { type: String, default: '待执行队列' },
@@ -24,18 +12,26 @@ const props = defineProps({
   fetchQueue: { type: Function, required: true },
   executeRequest: { type: Function, required: true },
   saveResult: { type: Function, required: true },
+  fetchResultDetail: { type: Function, default: null },
+  generateAiReport: { type: Function, default: null },
   defaultStatus: { type: Number, default: 20 },
   workflowHint: { type: String, default: '' },
+  showTriage: { type: Boolean, default: false },
 })
+
+const router = useRouter()
 
 const loading = ref(false)
 const executingId = ref(null)
 const savingId = ref(null)
+const generatingAiId = ref(null)
 const statusFilter = ref(props.defaultStatus)
 const list = ref([])
 
 const resultDialogVisible = ref(false)
-const resultText = ref('')
+const resultDetail = ref(null)
+const aiReportText = ref('')
+const doctorReportText = ref('')
 const currentRow = ref(null)
 
 const statusMap = {
@@ -67,12 +63,29 @@ async function loadList() {
   }
 }
 
+async function loadResultDetail(row) {
+  if (!props.fetchResultDetail) {
+    return {
+      instrumentData: '',
+      aiReportText: row.aiReportText || '',
+      doctorReportText: row.doctorReportText || '',
+      aiReportStatus: row.aiReportStatus || 'PENDING',
+    }
+  }
+  const res = await props.fetchResultDetail(rowId(row))
+  return res.data || {}
+}
+
 async function onExecute(row) {
   const id = rowId(row)
   executingId.value = id
   try {
     await props.executeRequest(id)
-    ElMessage.success('已开始执行，完成后请录入结果')
+    ElMessage.success(
+      props.techType === 'CHECK'
+        ? '已开始执行，请进入影像 AI 工作台：大模型组阅片 + 智能体组生成分析'
+        : '已开始执行，可点击「生成 AI 检验报告」或由智能体自动生成后核对录入',
+    )
     await loadList()
   } catch (err) {
     ElMessage.error(err.message || '执行失败')
@@ -81,21 +94,76 @@ async function onExecute(row) {
   }
 }
 
-function openResultDialog(row) {
+async function openResultDialog(row) {
   currentRow.value = row
-  resultText.value = row.resultText || ''
-  resultDialogVisible.value = true
+  try {
+    const detail = await loadResultDetail(row)
+    resultDetail.value = detail
+    aiReportText.value = detail.aiReportText || ''
+    doctorReportText.value = detail.doctorReportText || ''
+    resultDialogVisible.value = true
+  } catch (err) {
+    ElMessage.error(err.message || '加载报告详情失败')
+  }
+}
+
+async function onGenerateAiFromList(row) {
+  currentRow.value = row
+  await onGenerateAiReport(true)
+}
+
+async function onGenerateAiReport(openDialog = false) {
+  if (!props.generateAiReport || !currentRow.value) return
+  const id = rowId(currentRow.value)
+  generatingAiId.value = id
+  try {
+    const cachedId = resultDetail.value?.inspectionRequestId
+      ?? resultDetail.value?.checkRequestId
+      ?? resultDetail.value?.disposalRequestId
+    if (!resultDetail.value || cachedId !== id) {
+      const base = await loadResultDetail(currentRow.value)
+      resultDetail.value = base
+      aiReportText.value = base.aiReportText || ''
+      doctorReportText.value = base.doctorReportText || ''
+    }
+    const res = await props.generateAiReport(id)
+    const detail = res.data || {}
+    resultDetail.value = { ...resultDetail.value, ...detail }
+    aiReportText.value = detail.aiReportText || ''
+    if (openDialog) resultDialogVisible.value = true
+    ElMessage.success(
+      props.techType === 'CHECK' ? '智能体 AI 影像分析已生成' : '智能体 AI 检验报告已生成',
+    )
+  } catch (err) {
+    ElMessage.error(err.message || 'AI 报告生成失败')
+  } finally {
+    generatingAiId.value = null
+  }
+}
+
+function goImagingAi(row) {
+  router.push({
+    path: INTEGRATION_ROUTES.imagingAiWorkbench,
+    query: {
+      checkRequestId: rowId(row),
+      patientName: row.patientName,
+      itemName: row.itemName,
+    },
+  })
 }
 
 async function onSaveResult() {
-  if (!resultText.value.trim()) {
-    ElMessage.warning('请填写结果')
+  if (!aiReportText.value.trim() && !doctorReportText.value.trim()) {
+    ElMessage.warning('请至少填写 AI 报告或医师意见')
     return
   }
   const id = rowId(currentRow.value)
   savingId.value = id
   try {
-    await props.saveResult(id, { resultText: resultText.value.trim() })
+    await props.saveResult(id, {
+      aiReportText: aiReportText.value.trim(),
+      doctorReportText: doctorReportText.value.trim(),
+    })
     ElMessage.success('结果已保存，医生可在工作站查看')
     resultDialogVisible.value = false
     await loadList()
@@ -103,15 +171,6 @@ async function onSaveResult() {
     ElMessage.error(err.message || '保存失败')
   } finally {
     savingId.value = null
-  }
-}
-
-async function onQuickFill() {
-  try {
-    await ElMessageBox.confirm('填入该类型项目的示例报告？', '快捷录入', { type: 'info' })
-    resultText.value = SAMPLE_RESULTS[props.techType] || SAMPLE_RESULTS.INSPECTION
-  } catch {
-    /* cancelled */
   }
 }
 </script>
@@ -147,6 +206,16 @@ async function onQuickFill() {
         <el-table-column prop="medicalRecordNo" label="病历号" width="150" />
         <el-table-column prop="patientName" label="患者" width="100" />
         <el-table-column prop="itemName" label="项目" min-width="140" />
+        <el-table-column v-if="showTriage" label="AI 分诊" width="96">
+          <template #default="{ row }">
+            <el-tooltip v-if="row.triageNote" :content="row.triageNote" placement="top">
+              <el-tag size="small" :type="TRIAGE_LEVEL_MAP[row.triageLevel]?.type || 'info'">
+                {{ TRIAGE_LEVEL_MAP[row.triageLevel]?.label || '普通' }}
+              </el-tag>
+            </el-tooltip>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="金额" width="90">
           <template #default="{ row }">¥{{ row.itemPrice ?? '-' }}</template>
         </el-table-column>
@@ -157,7 +226,7 @@ async function onQuickFill() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" :width="techType === 'CHECK' ? 300 : 260" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 20"
@@ -167,6 +236,23 @@ async function onQuickFill() {
               @click="onExecute(row)"
             >
               开始执行
+            </el-button>
+            <el-button
+              v-if="techType === 'CHECK' && (row.status === 20 || row.status === 30)"
+              type="warning"
+              link
+              @click="goImagingAi(row)"
+            >
+              影像 AI 工作台
+            </el-button>
+            <el-button
+              v-if="techType === 'INSPECTION' && (row.status === 20 || row.status === 30) && generateAiReport"
+              type="primary"
+              link
+              :loading="generatingAiId === rowId(row)"
+              @click="onGenerateAiFromList(row)"
+            >
+              生成 AI 检验报告
             </el-button>
             <el-button
               v-if="row.status === 20 || row.status === 30"
@@ -181,10 +267,31 @@ async function onQuickFill() {
       </el-table>
     </el-card>
 
-    <el-dialog v-model="resultDialogVisible" title="录入结果" width="560px">
-      <el-input v-model="resultText" type="textarea" :rows="10" placeholder="检验/检查/处置报告正文..." />
+    <el-dialog
+      v-model="resultDialogVisible"
+      :title="`录入结果 · ${currentRow?.itemName || ''}`"
+      width="680px"
+      destroy-on-close
+    >
+      <ResultReportSections
+        v-if="resultDetail"
+        :instrument-data="resultDetail.instrumentData"
+        :ai-report-text="aiReportText"
+        :doctor-report-text="doctorReportText"
+        :ai-report-status="resultDetail.aiReportStatus"
+        editable-ai
+        editable-doctor
+        @update:ai-report-text="aiReportText = $event"
+        @update:doctor-report-text="doctorReportText = $event"
+      />
       <template #footer>
-        <el-button @click="onQuickFill">填入示例报告</el-button>
+        <el-button
+          v-if="generateAiReport"
+          :loading="generatingAiId === rowId(currentRow)"
+          @click="onGenerateAiReport"
+        >
+          {{ techType === 'CHECK' ? '智能体：生成 AI 影像分析' : '智能体：生成 AI 检验报告' }}
+        </el-button>
         <el-button @click="resultDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="!!savingId" @click="onSaveResult">保存并发布</el-button>
       </template>
@@ -214,5 +321,10 @@ async function onQuickFill() {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 12px;
 }
 </style>

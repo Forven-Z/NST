@@ -1,8 +1,11 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { INTEGRATION_ROUTES } from '../../config/integrations'
 import { fetchImagingStudies } from '../../api/pacs'
 
+const router = useRouter()
 const loading = ref(false)
 const statusFilter = ref('')
 const list = ref([])
@@ -28,6 +31,17 @@ async function loadList() {
     loading.value = false
   }
 }
+
+function goImagingAi(row) {
+  router.push({
+    path: INTEGRATION_ROUTES.imagingAiWorkbench,
+    query: {
+      checkRequestId: row.checkRequestId,
+      patientName: row.patientName,
+      itemName: row.itemName,
+    },
+  })
+}
 </script>
 
 <template>
@@ -36,8 +50,8 @@ async function loadList() {
       type="info"
       :closable="false"
       show-icon
-      title="影像任务（Mock）"
-      description="对应 imaging_study / check_request；P4 可对接 MinIO 上传与 CNN 推理回调。"
+      title="影像任务"
+      description="对应 imaging_study / check_request。大模型组可通过「打开影像 AI 工作台」进入 CT 推理界面，生成 AI 检查报告后由放射科医师核对录入。"
       class="tip"
     />
 
@@ -78,6 +92,18 @@ async function loadList() {
         <el-table-column label="报告" width="90">
           <template #default="{ row }">
             {{ row.resultReady ? '已出' : '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.uploadStatus === 'UPLOADED' && !row.resultReady"
+              type="warning"
+              link
+              @click="goImagingAi(row)"
+            >
+              影像 AI 工作台
+            </el-button>
           </template>
         </el-table-column>
       </el-table>

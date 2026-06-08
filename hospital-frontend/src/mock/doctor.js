@@ -106,9 +106,10 @@ export function mockConfirmClinicalDraft(type, draftId, registerId, items) {
   })
 }
 
-export function mockDiagnosisSuggestForRegister(registerId) {
+export function mockDiagnosisSuggestForRegister(registerId, recordOverride) {
   const reg = getRegisterById(registerId)
-  const record = getMedicalRecord(registerId)
+  const saved = getMedicalRecord(registerId)
+  const record = recordOverride?.readme ? recordOverride : saved
   const readme = record.readme || reg?.patientName || ''
   const isHeadache = /头痛|头疼|头晕/.test(readme)
   const isFever = /发热|发烧|咳嗽/.test(readme)

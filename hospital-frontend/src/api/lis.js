@@ -1,6 +1,12 @@
 import request from './request'
 import { useMock } from '../utils/mock'
-import { mockLisExecute, mockLisQueue, mockLisSaveResult } from '../mock/lis'
+import {
+  mockLisExecute,
+  mockLisGenerateAiReport,
+  mockLisQueue,
+  mockLisResultDetail,
+  mockLisSaveResult,
+} from '../mock/lis'
 
 export function fetchLisQueue(params) {
   if (useMock()) return mockLisQueue(params)
@@ -15,4 +21,14 @@ export function executeLisRequest(id) {
 export function saveLisResult(id, data) {
   if (useMock()) return mockLisSaveResult(id, data)
   return request.post(`/lis/requests/${id}/result`, data)
+}
+
+export function fetchLisResultDetail(id) {
+  if (useMock()) return mockLisResultDetail(id)
+  return request.get(`/lis/requests/${id}/result-detail`)
+}
+
+export function generateLisAiReport(id) {
+  if (useMock()) return mockLisGenerateAiReport(id)
+  return request.post(`/lis/requests/${id}/ai-report`)
 }

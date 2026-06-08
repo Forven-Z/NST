@@ -1,19 +1,16 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
 import { useMock } from '../../utils/mock'
 
 const mockMode = useMock()
+const workspace = useDoctorWorkspaceStore()
+const { draftMessages } = storeToRefs(workspace)
+
 const input = ref('')
 const loading = ref(false)
-
-const messages = ref([
-  {
-    role: 'assistant',
-    text: mockMode
-      ? '【Mock 助理】可询问门诊流程、号别选择、开单顺序等。P4 将接入 Spring AI 流式对话。'
-      : 'Spring AI 流式助理将在 P4 接入，当前请使用左侧 AI 诊断条。',
-  },
-])
+const scrollRef = ref(null)
 
 const FAQ = [
   {
@@ -38,6 +35,24 @@ const FAQ = [
   },
 ]
 
+const welcomeText = mockMode
+  ? '【AI 助理】左侧生成的检查/检验/处置草稿将显示在此处；也可询问门诊流程、号别选择等。'
+  : 'AI 助理将展示诊疗草稿与辅助信息。'
+
+const chatMessages = ref([{ id: 'welcome', role: 'assistant', text: welcomeText }])
+
+const allMessages = computed(() => [...chatMessages.value, ...draftMessages.value])
+
+watch(
+  () => allMessages.value.length,
+  async () => {
+    await nextTick()
+    if (scrollRef.value) {
+      scrollRef.value.scrollTop = scrollRef.value.scrollHeight
+    }
+  },
+)
+
 function reply(text) {
   for (const item of FAQ) {
     if (item.q.test(text)) return item.a
@@ -48,11 +63,11 @@ function reply(text) {
 async function onSend() {
   const text = input.value.trim()
   if (!text) return
-  messages.value.push({ role: 'user', text })
+  chatMessages.value.push({ id: `user-${Date.now()}`, role: 'user', text })
   input.value = ''
   loading.value = true
   await new Promise((r) => setTimeout(r, 400))
-  messages.value.push({ role: 'assistant', text: reply(text) })
+  chatMessages.value.push({ id: `reply-${Date.now()}`, role: 'assistant', text: reply(text) })
   loading.value = false
 }
 
@@ -67,16 +82,16 @@ function onQuick(q) {
     <div class="ai-header">
       <h3>AI 助理</h3>
       <el-tag size="small" :type="mockMode ? 'warning' : 'info'">
-        {{ mockMode ? 'Mock 问答' : 'P4 启用' }}
+        {{ mockMode ? 'Mock 问答' : '在线' }}
       </el-tag>
     </div>
 
     <div ref="scrollRef" class="ai-messages">
       <div
-        v-for="(msg, i) in messages"
-        :key="i"
+        v-for="msg in allMessages"
+        :key="msg.id"
         class="msg"
-        :class="msg.role"
+        :class="[msg.role, msg.draftType ? 'draft' : '']"
       >
         {{ msg.text }}
       </div>
@@ -100,7 +115,7 @@ function onQuick(q) {
         发送
       </el-button>
     </div>
-    <p v-if="!mockMode" class="tip">关闭 Mock 后等待 P4 Spring AI 接入</p>
+    <p v-if="!mockMode" class="tip">关闭 Mock 后等待 Spring AI 接入</p>
   </div>
 </template>
 
@@ -140,6 +155,7 @@ function onQuick(q) {
   font-size: 13px;
   line-height: 1.5;
   max-width: 95%;
+  white-space: pre-wrap;
 }
 
 .msg.user {
@@ -152,6 +168,12 @@ function onQuick(q) {
   align-self: flex-start;
   background: #f1f5f9;
   color: #334155;
+}
+
+.msg.assistant.draft {
+  background: #ecfdf5;
+  border: 1px solid #99f6e4;
+  color: #134e4a;
 }
 
 .msg.muted {
