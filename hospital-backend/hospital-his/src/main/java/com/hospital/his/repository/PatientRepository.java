@@ -128,9 +128,46 @@ public class PatientRepository {
         return jdbcClient.sql("""
                         SELECT id FROM patient WHERE id_card = :idCard AND delmark = 0
                         """)
-                .param("idCard", idCard)
+                .param("idCard", idCard.trim())
                 .query(Long.class)
                 .optional();
+    }
+
+    public boolean hasWechatBinding(Long patientId) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*) FROM patient_wechat WHERE patient_id = :patientId
+                        """)
+                .param("patientId", patientId)
+                .query(Integer.class)
+                .single() > 0;
+    }
+
+    public Optional<String> findOpenidByPatientId(Long patientId) {
+        return jdbcClient.sql("""
+                        SELECT openid FROM patient_wechat WHERE patient_id = :patientId
+                        """)
+                .param("patientId", patientId)
+                .query(String.class)
+                .optional();
+    }
+
+    public void rebindWechatPatient(String openid, Long newPatientId) {
+        jdbcClient.sql("""
+                        UPDATE patient_wechat
+                        SET patient_id = :newPatientId, update_time = NOW()
+                        WHERE openid = :openid
+                        """)
+                .param("openid", openid)
+                .param("newPatientId", newPatientId)
+                .update();
+    }
+
+    public void softDeletePatient(Long patientId) {
+        jdbcClient.sql("""
+                        UPDATE patient SET delmark = 1, update_time = NOW() WHERE id = :id
+                        """)
+                .param("id", patientId)
+                .update();
     }
 
     public long insertFamilyPatient(String medicalRecordNo, String realName, Integer gender,

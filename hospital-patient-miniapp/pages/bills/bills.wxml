@@ -36,7 +36,7 @@
       <view class="row-between">
         <view>
           <view class="bill-title">{{item.billTitle}}</view>
-          <view class="muted">{{item.billNo}}</view>
+          <view class="muted">账单 #{{item.id}}</view>
         </view>
         <view class="price">¥{{item.amount}}</view>
       </view>
@@ -58,7 +58,7 @@
         <view class="bill-title">{{item.summary}}</view>
         <view class="price">¥{{item.amount}}</view>
       </view>
-      <view class="muted">支付单号 {{item.paymentNo}}</view>
+      <view class="muted">支付流水 #{{item.paymentId}}</view>
       <view class="muted">{{item.paidAt}} · {{item.channel}}</view>
     </view>
   </block>

@@ -71,7 +71,6 @@ Page({
       list = list.map(function (b) {
         return {
           id: b.id,
-          billNo: b.billNo,
           billTitle: b.billTitle || b.itemName,
           bizType: b.bizType,
           bizTypeLabel: billUtil.bizTypeLabel(b.bizType),
@@ -112,7 +111,7 @@ Page({
     var idSet = {}
     selectedIds.forEach(function (id) { idSet[id] = true })
     var bills = this.data.bills.map(function (b) {
-      return { id: b.id, billNo: b.billNo, billTitle: b.billTitle, bizType: b.bizType, bizTypeLabel: b.bizTypeLabel, amount: b.amount, registerId: b.registerId, checked: !!idSet[b.id] }
+      return { id: b.id, billTitle: b.billTitle, bizType: b.bizType, bizTypeLabel: b.bizTypeLabel, amount: b.amount, registerId: b.registerId, checked: !!idSet[b.id] }
     })
     var total = 0
     bills.forEach(function (b) {

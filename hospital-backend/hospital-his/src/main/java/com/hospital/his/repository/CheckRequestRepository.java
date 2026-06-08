@@ -53,19 +53,55 @@ public class CheckRequestRepository {
     }
 
     public Optional<Map<String, Object>> findById(Long id) {
+        return findDetailById(id);
+    }
+
+    public Optional<Map<String, Object>> findDetailById(Long id) {
         return jdbcClient.sql("""
-                        SELECT cr.id, cr.status
+                        SELECT cr.id, cr.register_id, cr.patient_id, cr.status,
+                               cr.purpose, cr.body_part, cr.remark,
+                               cr.result_text, cr.result_time, mt.item_name
                         FROM check_request cr
+                        JOIN medical_technology mt ON cr.medical_technology_id = mt.id
                         WHERE cr.id = :id AND cr.delmark = 0
                         """)
                 .param("id", id)
-                .query((rs, rowNum) -> {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("checkRequestId", rs.getLong("id"));
-                    row.put("status", rs.getInt("status"));
-                    return row;
-                })
+                .query((rs, rowNum) -> mapDetailRow(rs))
                 .optional();
+    }
+
+    /** 患者端：已出结果的检查报告列表 */
+    public java.util.List<Map<String, Object>> findResultsByPatient(Long patientId) {
+        return jdbcClient.sql("""
+                        SELECT cr.id, cr.register_id, cr.patient_id, cr.status,
+                               cr.purpose, cr.body_part,
+                               cr.result_text, cr.result_time, mt.item_name
+                        FROM check_request cr
+                        JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+                        WHERE cr.patient_id = :patientId
+                          AND cr.status >= :resultReady
+                          AND cr.delmark = 0
+                        ORDER BY cr.result_time DESC NULLS LAST, cr.update_time DESC
+                        """)
+                .param("patientId", patientId)
+                .param("resultReady", com.hospital.common.constant.InspectionRequestStatus.RESULT_READY)
+                .query((rs, rowNum) -> mapDetailRow(rs))
+                .list();
+    }
+
+    private Map<String, Object> mapDetailRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("checkRequestId", rs.getLong("id"));
+        row.put("registerId", rs.getLong("register_id"));
+        row.put("patientId", rs.getLong("patient_id"));
+        row.put("status", rs.getInt("status"));
+        row.put("purpose", rs.getString("purpose"));
+        row.put("bodyPart", rs.getString("body_part"));
+        row.put("remark", rs.getString("remark"));
+        row.put("resultText", rs.getString("result_text"));
+        row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+        row.put("itemName", rs.getString("item_name"));
+        return row;
     }
 
     public Optional<Map<String, Object>> findByIdAndDoctor(Long id, Long doctorId) {

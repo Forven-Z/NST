@@ -17,23 +17,26 @@ import java.util.Map;
 public class PatientRegisterQueryService {
 
     private final RegisterRepository registerRepository;
+    private final PatientFamilyService patientFamilyService;
 
-    public Map<String, Object> listRegisters(Integer visitState, int page, int pageSize) {
-        Long ownerId = AuthContextHolder.require().getPatientId();
+    public Map<String, Object> listRegisters(Integer visitState, int page, int pageSize, Long visitPatientId) {
+        Long operatorId = AuthContextHolder.require().getPatientId();
+        Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
         int offset = Math.max(page - 1, 0) * pageSize;
-        List<Map<String, Object>> list = registerRepository.findByOwnerPatientId(ownerId, visitState, offset, pageSize);
-        return Map.of("list", list, "page", page, "pageSize", pageSize);
+        List<Map<String, Object>> list = registerRepository.findByVisitPatientForOperator(
+                operatorId, visitId, visitState, offset, pageSize);
+        return Map.of("list", list, "page", page, "pageSize", pageSize, "visitPatientId", visitId);
     }
 
     public Map<String, Object> getRegister(Long registerId) {
-        Long ownerId = AuthContextHolder.require().getPatientId();
-        return registerRepository.findDetailForOwner(registerId, ownerId)
+        Long operatorId = AuthContextHolder.require().getPatientId();
+        return registerRepository.findDetailForOwner(registerId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
     }
 
     public Map<String, Object> getQueueStatus(Long registerId) {
-        Long ownerId = AuthContextHolder.require().getPatientId();
-        Map<String, Object> reg = registerRepository.findDetailForOwner(registerId, ownerId)
+        Long operatorId = AuthContextHolder.require().getPatientId();
+        Map<String, Object> reg = registerRepository.findDetailForOwner(registerId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
         int visitState = ((Number) reg.get("visitState")).intValue();
         int ahead = 0;

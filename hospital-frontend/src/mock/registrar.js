@@ -61,7 +61,6 @@ export function mockWindowRegister(body) {
     registerId,
     medicalRecordNo,
     billId: bill.id,
-    billNo: bill.billNo,
     amount: fee,
     visitState: 0,
     deptName: dept?.deptName,
@@ -79,7 +78,6 @@ export function mockWindowCharge(body) {
   const { paidAmount } = chargeBills(billIds)
   return mockResult({
     paymentId: 92001,
-    paymentNo: `P${Date.now()}`,
     paidAmount,
     message: paidAmount > 0 ? `收费成功，实收 ¥${paidAmount.toFixed(2)}` : '未找到可结算账单',
   })

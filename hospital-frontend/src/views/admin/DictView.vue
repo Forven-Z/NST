@@ -88,7 +88,9 @@ function onTabChange() {
 
         <el-table-column v-if="activeTab === 'drugs'" prop="drugCode" label="编码" width="120" />
         <el-table-column v-if="activeTab === 'drugs'" prop="drugName" label="药品" min-width="140" />
-        <el-table-column v-if="activeTab === 'drugs'" prop="specification" label="规格" min-width="120" />
+        <el-table-column v-if="activeTab === 'drugs'" prop="drugFormat" label="规格" min-width="120" />
+        <el-table-column v-if="activeTab === 'drugs'" prop="drugDosage" label="剂型" width="90" />
+        <el-table-column v-if="activeTab === 'drugs'" prop="drugType" label="类型" width="90" />
         <el-table-column v-if="activeTab === 'drugs'" label="零售价" width="90">
           <template #default="{ row }">¥{{ row.retailPrice }}</template>
         </el-table-column>

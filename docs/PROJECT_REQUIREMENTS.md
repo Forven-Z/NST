@@ -10,7 +10,7 @@
 | 项 | 说明 |
 |---|---|
 | **文档索引** | **[docs/README.md](./README.md)** — 全项目设计文档清单、权威范围、术语、端口 |
-| **协作执行** | **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**、**[PROGRESS.md](./PROGRESS.md)**、**[FRONTEND_API_MAP.md](./FRONTEND_API_MAP.md)** |
+| **协作执行** | **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**、**[PROGRESS.md](./PROGRESS.md)**、**[API.md](./API.md)** |
 | 参考来源 | 传统门诊信息化系统需求（挂号 → 看诊 → 检查/检验/处置 → 收费 → 发药） |
 | 本项目定位 | 在完整门诊业务链路上，叠加 **AI 问诊/导诊、AI 辅助诊疗、影像智能分析、智能排班分诊** 等能力 |
 | 架构约束 | 前后端分离、Java 微服务、**双前端**（患者微信小程序 + 医生/管理 PC）、Python FastAPI CNN，详见 §0.1 |
@@ -25,7 +25,7 @@
 | 层次 | 技术选型 | 说明 | 本仓库落地 |
 |------|----------|------|------------|
 | **前端** | Vue 3 + Element Plus + Pinia + Axios | **患者端**：**原生微信小程序**；**医生端、管理端**：PC 端 | 患者：`hospital-patient-miniapp/`；PC：`hospital-frontend/` → `views/doctor`、`views/admin` |
-| **后端核心** | Java 17 + Spring Boot 3.4.2 | 主体业务逻辑；**微服务**拆分 | `hospital-backend/` 各子模块 + Gateway 9000 |
+| **后端核心** | Java 17 + Spring Boot 3.2.4 | 主体业务逻辑；**微服务**拆分 | `hospital-backend/` 各子模块 + Gateway 9000 |
 | **大模型 / AI 框架** | **Spring AI** | AI 智能问诊、AI 助理医生、AI 分诊排班等 **LLM 交互** | `hospital-ai-bridge` |
 | **影像识别模型** | **CNN**（卷积神经网络） | 医学影像（CT、片检等）**识别与分类** | `hospital-ai/`（PyTorch CNN 推理，FastAPI 对外服务） |
 | **数据存储** | **PostgreSQL（pgvector）** | 关系型业务（挂号、处方、病历）+ **向量数据**（RAG 知识库） | 单库或同实例：`vector` 扩展 + 业务表；Spring AI VectorStore |
@@ -39,7 +39,7 @@
                 ---- hospital-gateway :9000 ----
                               |
         ┌─────────────────────┼─────────────────────┐
-        │ 业务微服务 Boot 3.4.2 │ hospital-ai-bridge │ hospital-ai │
+        │ 业务微服务 Boot 3.2.4 │ hospital-ai-bridge │ hospital-ai │
         │ auth/his/lis/pacs/    │ Spring AI + RAG    │ FastAPI+CNN │
         │ management            │                    │  PyTorch    │
         └──────────┬────────────┴──────────┬─────────┴─────────────┘
@@ -51,7 +51,7 @@
 
 | 项 | 约定 |
 |----|------|
-| 微服务治理 | Spring Cloud 2024.0.x + **Spring Cloud Alibaba**（Nacos 注册/配置）+ OpenFeign |
+| 微服务治理 | Spring Cloud 2023.0.x + **Spring Cloud Alibaba**（Nacos 注册/配置）+ OpenFeign |
 | 业务库访问 | MyBatis / MyBatis-Plus 访问 PostgreSQL 关系表 |
 | 对象存储 | **MinIO（必配）**：医学影像、CT 原图等大文件 |
 | 统一 API | `hospital-common` → `Result<T>` |
@@ -86,7 +86,7 @@
 
 | 类别 | 选型 |
 |------|------|
-| 语言与核心 | **Java 17** + **Spring Boot 3.4.2** |
+| 语言与核心 | **Java 17** + **Spring Boot 3.2.4** + **Spring AI 1.0.0-M7**（ai-bridge） |
 | 治理 | **Nacos**（注册 + 配置）、**Spring Cloud Gateway**（:9000，路由 / JWT / 限流）、**OpenFeign**（服务间调用） |
 | 实时通信 | 医生 AI 助理：**SSE**（Spring AI 流式）；CT 结果通知：SSE 或 WebSocket（二选一，首期可轮询） |
 
@@ -151,9 +151,9 @@ NST/
 | 老师说的 HIS/LIS/PACS？ | **三个 Java 微服务**：`hospital-his` / `hospital-lis` / `hospital-pacs`；CNN 在 **hospital-ai（FastAPI）** |
 | 微服务要做到什么程度？ | **M1～M10**、启动组合 **R-min～R-full**，见 **`MICROSERVICES.md`** |
 | 故障隔离？ | 设计目标：尤其 **停 AI/影像，门诊仍可用**；共享 PostgreSQL/Gateway 为已知单点 |
-| 逻辑子模块放哪？ | **his 内部包**（patient/outpatient/pharmacy 等），见 **`MICROSERVICES.md` §1.3** |
+| 逻辑子模块放哪？ | **his 内扁平 `controller.*` 包**（`patient` / `doctor` / `registrar` / `pharmacy`），见 **`MICROSERVICES.md` §2.3**；业务域分工见 **`TEAM_COLLABORATION.md` §9.3** |
 | 患者登录？ | **his** `/patient/auth/wechat` + **auth** `/internal/token/patient`（方案 C） |
-| 代码是否已完成？ | **否**（P0 骨架）；见 **`docs/README.md` §六** |
+| 代码是否已完成？ | **P3 核心已完成**（R-min～R-reversal 验收通过）；P4 AI/CNN 待做；见 **`PROGRESS.md`** |
 
 ---
 
@@ -264,17 +264,18 @@ NST/
 
 > `hospital-frontend` **不再承载患者端**；原 `views/patient/` 仅作占位，实现迁移至 miniapp。
 
-#### 后端 `hospital-backend/`（JDK 17，Spring Boot 3.4.2，Spring Cloud 2024.0.x）
+#### 后端 `hospital-backend/`（JDK 17，Spring Boot 3.2.4，Spring Cloud 2023.0.x，Spring AI 1.0.0-M7）
 
 | 模块 | 职责 |
 |------|------|
 | `hospital-common` | 统一响应 `Result<T>`、全局异常、公共工具 |
 | `hospital-gateway` | 网关，端口 **9000**，Nacos 注册发现 |
 | `hospital-auth` | 认证鉴权、JWT |
-| `hospital-his` | **HIS**：患者小程序、门诊医生、挂号收费、药房、处置开立（:9102） |
+| `hospital-his` | **HIS**：患者小程序、门诊医生、挂号收费、药房、**处置开立**（:9102） |
 | `hospital-lis` | **LIS**：检验申请队列、执行、结果录入（:9103） |
 | `hospital-pacs` | **PACS**：检查、影像任务、调 Python CNN（:9104） |
-| `hospital-management` | 管理端：基础数据、**Timefold 排班**（:9105） |
+| `hospital-disposal` | **处置执行**：队列、执行、结果录入（:9105，ADR-017） |
+| `hospital-management` | 管理端：基础数据、**Timefold 排班**（:9107） |
 | `hospital-ai-bridge` | **Spring AI**：问诊、助理、RAG（:9106） |
 
 #### 数据层（必用：PostgreSQL + pgvector）
@@ -545,7 +546,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 ### 3.2 微服务与参考单体模块映射
 
-参考文档原后端为 **common + outpatient(8092) + drugstage(8091)** 单体划分；本项目建议映射如下：
+参考文档原后端为 **common + outpatient(8092) + drugstage(8091)** 单体划分（`outpatient` 为老师参考工程名）；本项目建议映射如下：
+
+> **his 内部分包**（非独立 jar）：参考工程 `outpatient` 在代码中对应 **`controller.patient` + `controller.doctor` + `controller.registrar` + `controller.pharmacy`** 扁平结构，见 **`MICROSERVICES.md` §2.3**。
 
 | 参考模块 | 本仓库微服务 | 说明 |
 |----------|--------------|------|
@@ -612,8 +615,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 **病历 `medical_record`**
 
 - 主诉 `readme`、现病史 `present`、体格检查 `physique`、诊断 `diagnosis`、处理意见 `cure` 等（列级定义见 **`DATABASE_DESIGN.md` §5.2**）
+- **患者小程序仅可读 `status = 2`（已确诊提交）** 的病历（见 `DATABASE_DESIGN.md` §1.5 `medical_record_status`）
 
-> 建表 SQL 待编写时将依据 **`docs/DATABASE_DESIGN.md`** 生成至 `docs/sql/schema.sql`（**PostgreSQL** 方言）。
+> 建表脚本已交付：**`docs/sql/schema.sql`**（PostgreSQL，对齐 **DATABASE_DESIGN v1.14**）；执行说明见 **`docs/sql/README.md`**。
 
 ---
 

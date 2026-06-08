@@ -20,13 +20,12 @@ public class PaymentRepository {
         this.jdbcClient = jdbcClient;
     }
 
-    public long insertPayment(String paymentNo, Long patientId, BigDecimal totalAmount, String channel) {
+    public long insertPayment(Long patientId, BigDecimal totalAmount, String channel) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcClient.sql("""
-                        INSERT INTO payment_record (payment_no, patient_id, total_amount, channel, status, pay_time)
-                        VALUES (:paymentNo, :patientId, :totalAmount, :channel, 1, :now)
+                        INSERT INTO payment_record (patient_id, total_amount, channel, status, pay_time)
+                        VALUES (:patientId, :totalAmount, :channel, 1, :now)
                         """)
-                .param("paymentNo", paymentNo)
                 .param("patientId", patientId)
                 .param("totalAmount", totalAmount)
                 .param("channel", channel)
@@ -49,7 +48,7 @@ public class PaymentRepository {
     public Optional<Map<String, Object>> findPaymentLinkByBillId(Long billId) {
         return jdbcClient.sql("""
                         SELECT pb.payment_id, pb.amount AS bill_amount,
-                               pr.payment_no, pr.patient_id, pr.channel, pr.total_amount
+                               pr.patient_id, pr.channel, pr.total_amount
                         FROM payment_bill pb
                         JOIN payment_record pr ON pb.payment_id = pr.id
                         WHERE pb.bill_id = :billId
@@ -59,7 +58,6 @@ public class PaymentRepository {
                     Map<String, Object> row = new HashMap<>();
                     row.put("paymentId", rs.getLong("payment_id"));
                     row.put("billAmount", rs.getBigDecimal("bill_amount"));
-                    row.put("paymentNo", rs.getString("payment_no"));
                     row.put("patientId", rs.getLong("patient_id"));
                     row.put("channel", rs.getString("channel"));
                     row.put("totalAmount", rs.getBigDecimal("total_amount"));

@@ -2,7 +2,7 @@
 
 > **文档性质**：已拍板的技术与实现选择；编码与评审以本文为准。  
 > **文档索引**：[README.md](./README.md)  
-> **版本**：v1.5 | 2026-06
+> **版本**：v1.6 | 2026-06
 > **状态图例**：**已定稿** | **待定（P4+）**
 
 ---
@@ -16,7 +16,7 @@
 | ADR-003 | 开立检验/检查后的协同 | **已定稿** | his 写申请单行 + **Feign 通知** lis/pacs |
 | ADR-004 | 医技 API 路径演进 | **已定稿** | P2 起新接口用 `/lis/**`、`/pacs/**` |
 | ADR-005 | lis/pacs 读患者摘要 | **已定稿** | **共享库只读** + Feign 仅用于通知/可选校验 |
-| ADR-006 | 处置业务归属 | **已定稿** | 开立与结果录入均在 **his**（处置科 PC 菜单） |
+| ADR-006 | 处置业务归属 | **已修订** | 开立与缴费状态在 **his**；执行与结果在 **`hospital-disposal`**（见 ADR-017） |
 | ADR-007 | 影像/AI 结果推送 | **已定稿** | 首期 **HTTP 轮询** |
 | ADR-008 | Redis | **已定稿** | **P1 不依赖**；后期可选 |
 | ADR-009 | 微信支付 | **已定稿** | 开发期 **模拟支付**；生产再接微信回调 |
@@ -26,6 +26,8 @@
 | ADR-013 | 建表脚本 | **已定稿** | **P0.5 优先** 产出 `docs/sql/schema.sql` |
 | ADR-014 | 项目命名 | **已定稿** | 仓库 **NST** = Nexus Smart Treatment |
 | ADR-015 | AI 辅助开检查/检验/处置 | **已定稿** | **方案 A** `diagnosis/suggest` 分支 + **方案 B** ai-draft 三步（与处方对称） |
+| ADR-016 | 就诊人/家属业务模型 | **已定稿** | **方案 A**：JWT=操作者；`visitPatientId`=当前就诊人；本人不进 link |
+| ADR-017 | 处置微服务拆分 | **已定稿** | 镜像 LIS/PACS：`hospital-disposal`（:9105）负责队列/执行/结果 |
 
 ---
 
@@ -105,11 +107,24 @@
 - **定稿**：允许 JDBC **只读** `patient`、`register` 等（共享库）；**禁止 UPDATE** 他服务主写表。
 - Feign 用于：通知、可选的业务校验（如「挂号是否属于该患者」），非默认读路径。
 
-### ADR-006 处置业务归属
+### ADR-006 处置业务归属（已修订 · 见 ADR-017）
 
-- **定稿**：不增设第四微服务。
-- `disposal_request`：**his 开立**；处置科在 PC 端用 **处置医生角色** 录入结果（仍在 **his** 进程，菜单属医技/处置模块）。
-- 状态机与检查/检验相同（见 `BUSINESS_FLOW.md` §八）。
+- **原决策（v1.6 前）**：不增设第四微服务，开立与结果均在 **his**。
+- **现决策（ADR-017）**：处置 **执行侧** 拆为独立进程 **`hospital-disposal`**，与 LIS/PACS 对称；**his 仍负责** 医生开立、`bill` 关联、缴费/退费驱动 `disposal_request.status`（10/20/50）。
+- 处置科 PC 菜单路由 **`/api/v1/disposal/**`**；状态机与检查/检验相同（见 `BUSINESS_FLOW.md` §八）。
+
+### ADR-017 处置微服务拆分
+
+- **定稿**：新增 **`hospital-disposal`**（端口 **9105**），Gateway 前缀 **`/api/v1/disposal/**`**。
+- **职责划分**（共享表 `disposal_request`）：
+
+| 服务 | 写权限 |
+|------|--------|
+| **hospital-his** | 开立 INSERT（status=10）；缴费 → 20；退费 → 50 |
+| **hospital-disposal** | 执行 → 30；录入 `result_text` → 40 |
+
+- **患者报告**：`GET /patient/reports` 仍走 **his**（只读 `disposal_request`，`status >= 40`）。
+- **不做**：处置 **非** 第四课件子系统；仍为门诊医嘱的一种，仅运行形态与 LIS/PACS 对齐以便故障隔离。
 
 ### ADR-007 影像/AI 结果通知
 
@@ -143,6 +158,7 @@
 ### ADR-013 建表脚本
 
 - **定稿**：**P0.5 必须交付** `docs/sql/schema.sql`（由 `DATABASE_DESIGN.md` 导出，PostgreSQL 方言）。
+- **现状（2026-06）**：脚本已对齐 **DATABASE_DESIGN v1.14**；本地重建见 `docs/sql/README.md` §四。
 - 可选：`seed-dict.sql`、P4 `vector.sql`。
 
 ### ADR-014 项目命名（已定稿）
@@ -174,7 +190,7 @@
 
 - AI 只产出 **建议 / 草稿**；**医生可改、须确认后提交** 方为「已开立」。
 - **禁止** ai-bridge 或 LLM **直接写** `check_request` / `inspection_request` / `disposal_request` 为已开立。
-- 确认提交后由 **hospital-his** 落库并 Feign 通知 lis/pacs（ADR-003）；处置仅在 his（ADR-006）。
+- 确认提交后由 **hospital-his** 落库并 Feign 通知 lis/pacs（ADR-003）；**处置执行** 归 **hospital-disposal**（ADR-017）。
 
 ### 4.2 调用链（定稿）
 
@@ -213,7 +229,39 @@ PC 医生
 
 ---
 
-## 五、修订记录
+## 五、ADR-016 就诊人/家属业务模型（已定稿 · 方案 A）
+
+### 5.1 定稿结论
+
+| 概念 | 约定 |
+|------|------|
+| **操作者** | 微信 openid → `patient_wechat` → JWT **`patientId`**（固定，切换就诊人不变） |
+| **当前就诊人** | 首页切换 → Query/Body **`visitPatientId`**（省略 = 本人） |
+| **本人判定** | `visitPatientId == JWT patientId`；**不进** `patient_family_link` |
+| **link 表** | 只存操作者代管的 **非本人** 就诊人 |
+| **业务数据** | `register` / `bill` / 病历等挂在 **就诊人** `patient_id` |
+| **支付** | 操作者微信发起；`payment_record.patient_id` = 操作者；`bill.patient_id` = 就诊人 |
+
+### 5.2 典型场景
+
+- 妻子代张三挂号：妻子 JWT=李四，`visitPatientId=张三`；`register.patient_id=张三`
+- 张三用自己微信登录：JWT=张三，默认 `visitPatientId=张三`，可见妻子代挂的号（同一 `patient` 行；**身份证合并**见 §4.0.2 / `PatientIdentityMergeService`）
+
+### 5.3 明确拒绝
+
+- **非 B1**：切换就诊人时 **不** 修改 `patient_wechat`、**不** re-issue JWT 为就诊人 ID
+- **非 C**：操作者与就诊人始终分离建模，业务权限通过 link 或本人判定校验
+
+### 5.4 实现要点
+
+- his：`PatientFamilyService.resolveVisitPatientId` / `canAccessVisitPatient`
+- 患者端列表/待缴/支付/退费/病历：操作者 JWT + `visitPatientId` 过滤
+- 小程序：`patient-context.js` 存 `activeMemberPatientId`，请求传 Query `patientId`（与 `visitPatientId` 等价）
+- 身份证合并：`PatientIdentityMergeService`（登录可选 `idCard` 或档案补全触发）
+
+---
+
+## 六、修订记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -223,3 +271,5 @@ PC 医生
 | v1.3 | 2026-05 | **ADR-014 修订**：GitHub 仓库定名 NTS（Neural Treatment System） |
 | v1.4 | 2026-05 | **ADR-014 修订**：仓库定名 **NST**（Nexus Smart Treatment） |
 | v1.5 | 2026-06 | **ADR-015** AI 辅助开单：diagnosis/suggest + ai-draft 三步 |
+| v1.6 | 2026-06 | **ADR-016** 就诊人/家属：**方案 A**（操作者 JWT + visitPatientId） |
+| v1.7 | 2026-06 | **ADR-017** 处置拆为 **`hospital-disposal`**；**ADR-006 修订** |

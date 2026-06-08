@@ -4,7 +4,7 @@
 > **文档索引**：[README.md](./README.md)  
 > **适用对象**：项目全体开发人员（**Windows 10/11**，团队统一）  
 > **部署方式**：**不安装 Docker Desktop**；PostgreSQL / MinIO / Nacos 均在 **Windows 本机**安装与启动  
-> **关联**：[MICROSERVICES.md](./MICROSERVICES.md) §6.2（启动顺序）、`API.md` §〇、`PROJECT_REQUIREMENST.md` §0.1
+> **关联**：[MICROSERVICES.md](./MICROSERVICES.md) §6.2（启动顺序）、`API.md` §〇、`PROJECT_REQUIREMENTS.md` §0.1
 
 ---
 
@@ -1249,8 +1249,9 @@ jdbc:postgresql://127.0.0.1:5432/hospital
 | 9102        | hospital-his                          |
 | 9103        | hospital-lis                          |
 | 9104        | hospital-pacs                         |
-| 9105        | hospital-management                   |
+| 9105        | hospital-disposal                     |
 | 9106        | hospital-ai-bridge                    |
+| 9107        | hospital-management                   |
 
 
 检查端口占用（Windows）：
@@ -1288,7 +1289,7 @@ netstat -ano | findstr :9000
 3. 启动 MinIO：运行 `D:\dev\minio\start-minio.bat` 或 §6.3 命令
 4. （可选）确认 Redis：redis-cli ping → PONG
 5. IDEA 启动 hospital-gateway :9000
-6. 启动 auth → management → his → lis → pacs → ai-bridge（按分期，见 MICROSERVICES.md §6.2）
+6. 启动 auth → management → his → lis → pacs → **disposal** → ai-bridge（按分期，见 MICROSERVICES.md §6.2）
 7. npm run dev（hospital-frontend）
 8. 微信开发者工具打开 patient-miniapp
 9. hospital-ai :8000（P4 FastAPI，前期跳过）

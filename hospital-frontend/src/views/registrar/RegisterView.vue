@@ -428,7 +428,7 @@ function rowClassName({ row }) {
         <el-descriptions-item label="挂号费">
           <span class="fee-lg">¥{{ lastReceipt.amount }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="账单号">{{ lastReceipt.billNo }}</el-descriptions-item>
+        <el-descriptions-item label="账单ID">{{ lastReceipt.billId }}</el-descriptions-item>
       </el-descriptions>
       <el-alert
         type="success"

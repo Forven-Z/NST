@@ -81,6 +81,37 @@ public class InspectionRequestRepository {
                 .optional();
     }
 
+    /** 患者端：已出结果的检验报告列表 */
+    public java.util.List<Map<String, Object>> findResultsByPatient(Long patientId) {
+        return jdbcClient.sql("""
+                        SELECT ir.id, ir.register_id, ir.patient_id, ir.status,
+                               ir.purpose, ir.body_part,
+                               ir.result_text, ir.result_time, mt.item_name
+                        FROM inspection_request ir
+                        JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        WHERE ir.patient_id = :patientId
+                          AND ir.status >= :resultReady
+                          AND ir.delmark = 0
+                        ORDER BY ir.result_time DESC NULLS LAST, ir.update_time DESC
+                        """)
+                .param("patientId", patientId)
+                .param("resultReady", com.hospital.common.constant.InspectionRequestStatus.RESULT_READY)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("inspectionRequestId", rs.getLong("id"));
+                    row.put("registerId", rs.getLong("register_id"));
+                    row.put("patientId", rs.getLong("patient_id"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("resultText", rs.getString("result_text"));
+                    row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+                    row.put("itemName", rs.getString("item_name"));
+                    row.put("purpose", rs.getString("purpose"));
+                    row.put("bodyPart", rs.getString("body_part"));
+                    return row;
+                })
+                .list();
+    }
+
     private Map<String, Object> mapRow(java.sql.ResultSet rs) throws java.sql.SQLException {
         Map<String, Object> row = new HashMap<>();
         row.put("inspectionRequestId", rs.getLong("id"));

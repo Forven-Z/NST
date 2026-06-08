@@ -20,6 +20,7 @@ public class DoctorMedicalRecordService {
 
     private final RegisterRepository registerRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final PatientFamilyService patientFamilyService;
 
     public Map<String, Object> getMedicalRecord(Long registerId) {
         assertDoctorOwnsRegister(registerId);
@@ -56,11 +57,11 @@ public class DoctorMedicalRecordService {
     }
 
     public Map<String, Object> getPatientMedicalRecord(Long registerId) {
-        Long patientId = AuthContextHolder.require().getPatientId();
-        registerRepository.findByIdAndPatientId(registerId, patientId)
+        Long operatorId = AuthContextHolder.require().getPatientId();
+        registerRepository.findDetailForOwner(registerId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "无权查看该病历"));
-        return medicalRecordRepository.findByRegisterId(registerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "病历不存在"));
+        return medicalRecordRepository.findByRegisterId(registerId, true)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "病历不存在或未提交"));
     }
 
     private Map<String, Object> assertDoctorOwnsRegister(Long registerId) {

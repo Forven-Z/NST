@@ -19,6 +19,7 @@
         <button wx:if="{{item.visitState === 0}}" size="mini" class="btn-primary" bindtap="goPay">去支付</button>
         <button wx:if="{{item.canQueue}}" size="mini" bindtap="goQueue" data-id="{{item.registerId}}">排队情况</button>
         <button wx:if="{{item.canCancel}}" size="mini" bindtap="onCancel" data-id="{{item.registerId}}">退号</button>
+        <button wx:if="{{item.visitState >= 1}}" size="mini" bindtap="goOrders" data-id="{{item.registerId}}">医嘱进度</button>
         <button wx:if="{{item.visitState >= 2}}" size="mini" bindtap="goRecord" data-id="{{item.registerId}}">病历</button>
       </view>
     </view>

@@ -1,0 +1,38 @@
+.detail-page {
+  padding-bottom: 32rpx;
+}
+
+.head-card .title {
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.meta {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.line {
+  font-size: 26rpx;
+  color: #475569;
+  line-height: 1.6;
+  margin-bottom: 8rpx;
+}
+
+.result-text {
+  font-size: 28rpx;
+  color: #1e293b;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.empty {
+  padding: 48rpx;
+  text-align: center;
+}

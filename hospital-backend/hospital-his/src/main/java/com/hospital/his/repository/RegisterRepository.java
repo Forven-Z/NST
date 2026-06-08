@@ -264,12 +264,49 @@ public class RegisterRepository {
         return row;
     }
 
-    public List<Map<String, Object>> findByPatientId(Long patientId, Integer visitState, int offset, int limit) {
-        return findByOwnerPatientId(patientId, visitState, offset, limit);
-    }
-
-    public Optional<Map<String, Object>> findDetailByIdAndPatientId(Long registerId, Long patientId) {
-        return findDetailForOwner(registerId, patientId);
+    /** 方案 A：仅返回指定就诊人的挂号，且操作者须为本人或 link 授权 */
+    public List<Map<String, Object>> findByVisitPatientForOperator(Long operatorPatientId, Long visitPatientId,
+                                                                   Integer visitState, int offset, int limit) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        WHERE r.delmark = 0
+                          AND r.patient_id = :visitPatientId
+                          AND (
+                              :visitPatientId = :operatorId
+                              OR EXISTS (
+                                  SELECT 1 FROM patient_family_link l
+                                  WHERE l.owner_patient_id = :operatorId
+                                    AND l.member_patient_id = :visitPatientId
+                                    AND l.delmark = 0
+                              )
+                          )
+                          AND (CAST(:visitState AS INTEGER) IS NULL OR r.visit_state = CAST(:visitState AS INTEGER))
+                        ORDER BY r.create_time DESC
+                        LIMIT :limit OFFSET :offset
+                        """)
+                .param("operatorId", operatorPatientId)
+                .param("visitPatientId", visitPatientId)
+                .param("visitState", visitState)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query((rs, rowNum) -> mapRegisterRow(rs))
+                .list();
     }
 
     public int countAheadInQueue(Long registerId) {

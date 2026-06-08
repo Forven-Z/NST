@@ -17,18 +17,17 @@ public class RefundRepository {
         this.jdbcClient = jdbcClient;
     }
 
-    public long insertRefund(String refundNo, Long paymentId, Long billId, Long patientId,
+    public long insertRefund(Long paymentId, Long billId, Long patientId,
                              BigDecimal refundAmount, String channel, Long operatorId, String reason) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcClient.sql("""
-                        INSERT INTO refund_record (refund_no, payment_id, bill_id, patient_id,
+                        INSERT INTO refund_record (payment_id, bill_id, patient_id,
                                                    refund_amount, channel, status, operator_id,
                                                    refund_time, reason)
-                        VALUES (:refundNo, :paymentId, :billId, :patientId,
+                        VALUES (:paymentId, :billId, :patientId,
                                 :refundAmount, :channel, 1, :operatorId,
                                 :now, :reason)
                         """)
-                .param("refundNo", refundNo)
                 .param("paymentId", paymentId)
                 .param("billId", billId)
                 .param("patientId", patientId)

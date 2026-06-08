@@ -58,11 +58,12 @@ function pngRgb(w, h, r, g, b) {
 const dir = path.join(__dirname, '..', 'static', 'tab')
 const gray = [100, 116, 139]
 const blue = [22, 119, 255]
+const teal = [13, 148, 136]
 const pairs = [
   ['home.png', gray],
   ['home-active.png', blue],
-  ['message.png', gray],
-  ['message-active.png', blue],
+  ['report.png', gray],
+  ['report-active.png', teal],
   ['mine.png', gray],
   ['mine-active.png', blue],
 ]

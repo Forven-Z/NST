@@ -94,6 +94,9 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         if (path.startsWith("/api/v1/pacs/") && userType != UserType.STAFF && userType != UserType.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "需要医护身份");
         }
+        if (path.startsWith("/api/v1/disposal/") && userType != UserType.STAFF && userType != UserType.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "需要医护身份");
+        }
         if (path.startsWith("/api/v1/pharmacy/") && userType != UserType.STAFF && userType != UserType.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "需要医护身份");
         }

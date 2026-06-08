@@ -85,9 +85,9 @@ function fetchReports(params) {
   return get('/patient/reports', params)
 }
 
-function fetchMessages() {
-  if (useMock()) return store.listMessages()
-  return get('/patient/messages')
+function fetchReportDetail(type, requestId) {
+  if (useMock()) return store.getReportDetail(type, requestId)
+  return get('/patient/reports/' + type + '/' + requestId)
 }
 
 module.exports = {
@@ -108,5 +108,5 @@ module.exports = {
   cancelRegister,
   fetchMedicalRecord,
   fetchReports,
-  fetchMessages,
+  fetchReportDetail,
 }

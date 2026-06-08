@@ -4,15 +4,18 @@ import { ElMessage } from 'element-plus'
 import {
   callPatient,
   createCheckOrder,
+  createDisposalOrder,
   createInspectionOrder,
   createPrescription,
   fetchDoctorQueue,
-  fetchInspectionResult,
   fetchMedicalRecord,
   finishVisit,
   saveMedicalRecord,
 } from '../../api/doctor'
 import AiDiagnosisBar from '../../components/doctor/AiDiagnosisBar.vue'
+import DoctorPrescriptionDialog from '../../components/doctor/DoctorPrescriptionDialog.vue'
+import DoctorTechOrderDialog from '../../components/doctor/DoctorTechOrderDialog.vue'
+import RegisterOrdersPanel from '../../components/doctor/RegisterOrdersPanel.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -22,6 +25,11 @@ const queue = ref([])
 const visitStateFilter = ref('all')
 const currentRegisterId = ref(null)
 const currentPatient = ref(null)
+const ordersPanelRef = ref(null)
+
+const techDialogVisible = ref(false)
+const techOrderType = ref('INSPECTION')
+const rxDialogVisible = ref(false)
 
 const recordForm = reactive({
   readme: '',
@@ -35,13 +43,6 @@ const recordForm = reactive({
   checkAdvice: '',
   inspectionAdvice: '',
 })
-
-const orderingInspection = ref(false)
-const inspectionResult = ref(null)
-const lastInspectionId = ref(null)
-const orderingPrescription = ref(false)
-const orderingCheck = ref(false)
-const lastPrescription = ref(null)
 
 const visitStateMap = {
   0: { label: '待支付', type: 'info' },
@@ -77,6 +78,7 @@ async function onCall(row) {
     currentPatient.value = row
     await loadQueue()
     await loadMedicalRecord(row.registerId)
+    ordersPanelRef.value?.reload?.()
   } catch (err) {
     ElMessage.error(err.message || '叫号失败')
   } finally {
@@ -92,6 +94,7 @@ async function onSelectRow(row) {
   currentRegisterId.value = row.registerId
   currentPatient.value = row
   await loadMedicalRecord(row.registerId)
+  ordersPanelRef.value?.reload?.()
 }
 
 async function loadMedicalRecord(registerId) {
@@ -131,81 +134,41 @@ async function onSaveRecord() {
   }
 }
 
-async function onOrderInspection() {
+function openTechDialog(type) {
   if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
-  orderingInspection.value = true
-  inspectionResult.value = null
+  techOrderType.value = type
+  techDialogVisible.value = true
+}
+
+function openRxDialog() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
+  rxDialogVisible.value = true
+}
+
+async function onTechOrderConfirm(data) {
   try {
-    const res = await createInspectionOrder({
-      registerId: currentRegisterId.value,
-      medicalTechnologyId: 2,
-      purpose: '感染/贫血筛查',
-      bodyPart: '血液',
-    })
-    lastInspectionId.value = res.data?.inspectionRequestId
-    ElMessage.success(`已开立检验：${res.data?.itemName}，请患者至收费处缴费后至检验科采血`)
+    let res
+    if (techOrderType.value === 'CHECK') {
+      res = await createCheckOrder(data)
+    } else if (techOrderType.value === 'DISPOSAL') {
+      res = await createDisposalOrder(data)
+    } else {
+      res = await createInspectionOrder(data)
+    }
+    ElMessage.success(res.data?.message || `已开立：${res.data?.itemName}`)
+    ordersPanelRef.value?.reload?.()
   } catch (err) {
-    ElMessage.error(err.message || '开检验失败')
-  } finally {
-    orderingInspection.value = false
+    ElMessage.error(err.message || '开立失败')
   }
 }
 
-async function onOrderCheck() {
-  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
-  orderingCheck.value = true
+async function onPrescriptionConfirm(data) {
   try {
-    const res = await createCheckOrder({
-      registerId: currentRegisterId.value,
-      medicalTechnologyId: 1,
-      purpose: '排除颅内病变',
-      bodyPart: '头部',
-      fromAi: false,
-    })
-    ElMessage.success(`已开立检查：${res.data?.itemName || '头部 CT'}，请患者缴费后至放射科登记`)
-  } catch (err) {
-    ElMessage.error(err.message || '开检查失败')
-  } finally {
-    orderingCheck.value = false
-  }
-}
-
-async function onOrderPrescription() {
-  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
-  orderingPrescription.value = true
-  try {
-    const res = await createPrescription({
-      registerId: currentRegisterId.value,
-      remark: '门诊处方',
-      items: [{
-        drugId: 1,
-        quantity: 2,
-        usageMethod: '口服',
-        dosage: '0.5g',
-        frequency: 'tid',
-        days: 7,
-        entrust: '饭后服用',
-      }],
-    })
-    lastPrescription.value = res.data
-    ElMessage.success(`已开立处方：${res.data?.prescriptionNo}，请患者缴费后至药房取药`)
+    const res = await createPrescription(data)
+    ElMessage.success(`已开立处方 #${res.data?.prescriptionId}，请患者缴费后至药房取药`)
+    ordersPanelRef.value?.reload?.()
   } catch (err) {
     ElMessage.error(err.message || '开处方失败')
-  } finally {
-    orderingPrescription.value = false
-  }
-}
-
-async function onFetchInspectionResult() {
-  if (!lastInspectionId.value) return ElMessage.info('请先开立检验并完成缴费、检验科出报告')
-  try {
-    const res = await fetchInspectionResult(lastInspectionId.value)
-    inspectionResult.value = res.data
-    ElMessage.success('已获取检验结果')
-  } catch (err) {
-    ElMessage.error(err.message || '暂无检验结果')
-  } finally {
-    /* noop */
   }
 }
 
@@ -240,7 +203,7 @@ function formatGender(gender) {
       show-icon
       class="flow-tip"
       title="门诊流程"
-      description="患者挂号并缴费 → 医生叫号接诊 → 书写病历/开单 → 患者再次缴费 → 检验/检查/药房/处置 → 结束看诊"
+      description="患者挂号并缴费 → 医生叫号接诊 → 书写病历/开单 → 患者再次缴费 → 检验/检查/处置/药房 → 结束看诊"
     />
 
     <el-card shadow="never" class="section-card">
@@ -308,18 +271,10 @@ function formatGender(gender) {
             </template>
           </span>
           <div class="header-actions">
-            <el-button :disabled="!currentRegisterId" :loading="orderingCheck" @click="onOrderCheck">
-              开检查（头部 CT）
-            </el-button>
-            <el-button :disabled="!currentRegisterId" :loading="orderingInspection" @click="onOrderInspection">
-              开检验（血常规）
-            </el-button>
-            <el-button :disabled="!currentRegisterId" :loading="orderingPrescription" @click="onOrderPrescription">
-              开处方（阿莫西林）
-            </el-button>
-            <el-button :disabled="!lastInspectionId" @click="onFetchInspectionResult">
-              查看检验结果
-            </el-button>
+            <el-button :disabled="!currentRegisterId" @click="openTechDialog('CHECK')">开检查</el-button>
+            <el-button :disabled="!currentRegisterId" @click="openTechDialog('INSPECTION')">开检验</el-button>
+            <el-button :disabled="!currentRegisterId" @click="openTechDialog('DISPOSAL')">开处置</el-button>
+            <el-button :disabled="!currentRegisterId" @click="openRxDialog">开处方</el-button>
             <el-button type="primary" :loading="saving" :disabled="!currentRegisterId" @click="onSaveRecord">
               保存病历
             </el-button>
@@ -346,7 +301,12 @@ function formatGender(gender) {
           </el-col>
           <el-col :span="12">
             <el-form-item label="现病史">
-              <el-input v-model="recordForm.present" type="textarea" :rows="2" placeholder="起病情况、伴随症状、既往治疗" />
+              <el-input v-model="recordForm.present" type="textarea" :rows="2" placeholder="起病情况、伴随症状" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="现病治疗情况">
+              <el-input v-model="recordForm.presentTreat" placeholder="就诊前已接受治疗说明" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -356,7 +316,7 @@ function formatGender(gender) {
           </el-col>
           <el-col :span="12">
             <el-form-item label="过敏史">
-              <el-input v-model="recordForm.allergy" placeholder="无则填「无」；青霉素过敏等须醒目标注" />
+              <el-input v-model="recordForm.allergy" placeholder="无则填「无」" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -369,33 +329,39 @@ function formatGender(gender) {
               <el-input v-model="recordForm.diagnosis" placeholder="如：头痛待查" />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="检查建议">
+              <el-input v-model="recordForm.checkAdvice" placeholder="拟开检查项目说明" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="检验建议">
+              <el-input v-model="recordForm.inspectionAdvice" placeholder="拟开检验项目说明" />
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item label="处理意见">
               <el-input v-model="recordForm.cure" type="textarea" :rows="2" placeholder="进一步检查、用药、随访建议" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-alert
-          v-if="lastPrescription"
-          type="info"
-          :closable="false"
-          show-icon
-          :title="`处方 ${lastPrescription.prescriptionNo}`"
-          :description="`金额 ¥${lastPrescription.totalAmount}，状态：待患者缴费`"
-          class="result-alert"
-        />
-        <el-alert
-          v-if="inspectionResult"
-          type="success"
-          :closable="false"
-          show-icon
-          :title="`检验结果：${inspectionResult.itemName}`"
-          :description="inspectionResult.resultText"
-          class="result-alert"
-        />
       </el-form>
       <el-empty v-else description="从队列选择「接诊中」患者，或对「已挂号」患者点击叫号" />
+
+      <RegisterOrdersPanel ref="ordersPanelRef" :register-id="currentRegisterId" class="orders-panel" />
     </el-card>
+
+    <DoctorTechOrderDialog
+      v-model="techDialogVisible"
+      :order-type="techOrderType"
+      :register-id="currentRegisterId"
+      @confirm="onTechOrderConfirm"
+    />
+    <DoctorPrescriptionDialog
+      v-model="rxDialogVisible"
+      :register-id="currentRegisterId"
+      @confirm="onPrescriptionConfirm"
+    />
   </div>
 </template>
 
@@ -432,8 +398,8 @@ function formatGender(gender) {
   flex-wrap: wrap;
 }
 
-.result-alert {
-  margin-top: 12px;
+.orders-panel {
+  margin-top: 16px;
 }
 
 .filters {

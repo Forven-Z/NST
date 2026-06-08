@@ -36,7 +36,7 @@ async function loadList() {
 async function onDispense(row) {
   try {
     await ElMessageBox.confirm(
-      `请核对患者身份与处方内容后发药\n患者：${row.patientName}（${row.medicalRecordNo}）\n处方号：${row.prescriptionNo}`,
+      `请核对患者身份与处方内容后发药\n患者：${row.patientName}（${row.medicalRecordNo}）\n处方ID：${row.prescriptionId}`,
       '确认发药',
       { type: 'warning' },
     )
@@ -59,7 +59,7 @@ async function onDispense(row) {
 async function onReturn(row) {
   try {
     await ElMessageBox.confirm(
-      `退药后需至收费窗口退费\n处方 ${row.prescriptionNo} · ${row.patientName}`,
+      `退药后需至收费窗口退费\n处方 #${row.prescriptionId} · ${row.patientName}`,
       '确认退药',
       { type: 'warning' },
     )
@@ -108,7 +108,7 @@ function formatItems(row) {
       </template>
 
       <el-table v-loading="loading" :data="list" empty-text="暂无处方（Mock：李小红 MR202606040002 有待发药处方）">
-        <el-table-column prop="prescriptionNo" label="处方号" width="150" />
+        <el-table-column prop="prescriptionId" label="处方ID" width="100" />
         <el-table-column prop="medicalRecordNo" label="病历号" width="140" />
         <el-table-column prop="patientName" label="患者" width="100" />
         <el-table-column prop="doctorName" label="开方医生" width="100" />

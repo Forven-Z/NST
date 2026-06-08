@@ -1,5 +1,6 @@
 const { fetchProfile, updateProfile } = require('../../api/patient')
-const { clearSession } = require('../../utils/auth')
+const { clearSession, setSession } = require('../../utils/auth')
+const patientContext = require('../../utils/patient-context')
 
 Page({
   data: {
@@ -55,8 +56,24 @@ Page({
     if (this.data.saving) return
     this.setData({ saving: true })
     try {
-      await updateProfile(this.data.form)
-      wx.showToast({ title: '已保存', icon: 'success' })
+      const res = await updateProfile(this.data.form)
+      const p = res.data || {}
+      if (p.identityMerged && p.accessToken) {
+        setSession({
+          accessToken: p.accessToken,
+          patientId: p.id,
+          medicalRecordNo: p.medicalRecordNo,
+        })
+        patientContext.clearActiveMember()
+        patientContext.setOwnerFromLogin({
+          patientId: p.id,
+          realName: p.realName,
+          medicalRecordNo: p.medicalRecordNo,
+        })
+        wx.showToast({ title: '档案已合并', icon: 'success' })
+      } else {
+        wx.showToast({ title: '已保存', icon: 'success' })
+      }
     } catch (err) {
       wx.showToast({ title: err.message || '保存失败', icon: 'none' })
     } finally {

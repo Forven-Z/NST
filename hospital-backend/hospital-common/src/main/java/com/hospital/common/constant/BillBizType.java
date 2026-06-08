@@ -6,6 +6,7 @@ public final class BillBizType {
     public static final String INSPECTION = "INSPECTION";
     public static final String CHECK = "CHECK";
     public static final String PRESCRIPTION = "PRESCRIPTION";
+    public static final String DISPOSAL = "DISPOSAL";
 
     private BillBizType() {
     }

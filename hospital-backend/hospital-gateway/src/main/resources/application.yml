@@ -76,6 +76,13 @@ spring:
           filters:
             - StripPrefix=0
 
+        - id: hospital-disposal
+          uri: lb://hospital-disposal
+          predicates:
+            - Path=/api/v1/disposal/**
+          filters:
+            - StripPrefix=0
+
         # --- 管理 ---
         - id: hospital-management
           uri: lb://hospital-management
@@ -106,6 +113,8 @@ hospital:
       - path: /api/v1/lis/health
         methods: [GET]
       - path: /api/v1/pacs/health
+        methods: [GET]
+      - path: /api/v1/disposal/health
         methods: [GET]
       - path: /api/v1/admin/health
         methods: [GET]

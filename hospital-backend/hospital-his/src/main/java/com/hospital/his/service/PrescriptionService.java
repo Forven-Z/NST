@@ -11,7 +11,6 @@ import com.hospital.his.repository.DrugRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
-import com.hospital.his.util.BizNoGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,10 +68,8 @@ public class PrescriptionService {
             itemSnapshots.add(snapshot);
         }
 
-        String prescriptionNo = BizNoGenerator.prescriptionNo();
         long prescriptionId = prescriptionRepository.insertPrescription(
-                request.getRegisterId(), patientId, doctorId, prescriptionNo,
-                totalAmount, PrescriptionStatus.ORDERED, request.getRemark());
+                request.getRegisterId(), patientId, doctorId, totalAmount, PrescriptionStatus.ORDERED);
 
         for (Map<String, Object> snapshot : itemSnapshots) {
             @SuppressWarnings("unchecked")
@@ -84,7 +81,9 @@ public class PrescriptionService {
                     item.getDrugId(),
                     (String) drug.get("drugCode"),
                     (String) drug.get("drugName"),
-                    (String) drug.get("specification"),
+                    (String) drug.get("drugFormat"),
+                    (String) drug.get("drugDosage"),
+                    (String) drug.get("drugType"),
                     (BigDecimal) drug.get("retailPrice"),
                     item.getQuantity(),
                     (BigDecimal) snapshot.get("amount"),
@@ -96,18 +95,15 @@ public class PrescriptionService {
                     (Integer) snapshot.get("sortNo"));
         }
 
-        String billNo = BizNoGenerator.billNo();
         long billId = billRepository.insertBill(
-                billNo, patientId, request.getRegisterId(), BillBizType.PRESCRIPTION, prescriptionId,
-                "处方费-" + prescriptionNo, totalAmount);
+                patientId, request.getRegisterId(), BillBizType.PRESCRIPTION, prescriptionId,
+                "处方费 #" + prescriptionId, totalAmount);
 
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);
-        result.put("prescriptionNo", prescriptionNo);
         result.put("totalAmount", totalAmount);
         result.put("status", PrescriptionStatus.ORDERED);
         result.put("billId", billId);
-        result.put("billNo", billNo);
         return result;
     }
 }

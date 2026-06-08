@@ -22,7 +22,7 @@ public class SchedulingRepository {
                                                             Integer noonType, Long registLevelId) {
         return jdbcClient.sql("""
                         SELECT s.id AS scheduling_id,
-                               s.dept_id,
+                               e.dept_id,
                                d.dept_name,
                                s.employee_id,
                                e.real_name AS doctor_name,
@@ -31,17 +31,18 @@ public class SchedulingRepository {
                                rl.regist_fee,
                                (s.total_quota - s.used_quota) AS remain_quota
                         FROM scheduling s
-                        JOIN department d ON s.dept_id = d.id
                         JOIN employee e ON s.employee_id = e.id
+                        JOIN department d ON e.dept_id = d.id
                         JOIN regist_level rl ON s.regist_level_id = rl.id
-                        WHERE s.delmark = 0
-                          AND s.publish_status = 1
+                        WHERE s.publish_status = 1
+                          AND s.work_date >= CURRENT_DATE
                           AND s.work_date = :workDate
                           AND (s.total_quota - s.used_quota) > 0
-                          AND (CAST(:deptId AS BIGINT) IS NULL OR s.dept_id = CAST(:deptId AS BIGINT))
+                          AND e.delmark = 0
+                          AND (CAST(:deptId AS BIGINT) IS NULL OR e.dept_id = CAST(:deptId AS BIGINT))
                           AND (CAST(:noonType AS INTEGER) IS NULL OR s.noon_type = CAST(:noonType AS INTEGER))
                           AND (CAST(:registLevelId AS BIGINT) IS NULL OR s.regist_level_id = CAST(:registLevelId AS BIGINT))
-                        ORDER BY s.dept_id, s.noon_type, s.id
+                        ORDER BY e.dept_id, s.noon_type, s.id
                         """)
                 .param("workDate", workDate)
                 .param("deptId", deptId)
@@ -65,11 +66,12 @@ public class SchedulingRepository {
 
     public Optional<Map<String, Object>> findByIdForUpdate(Long schedulingId) {
         return jdbcClient.sql("""
-                        SELECT s.id, s.dept_id, s.employee_id, s.regist_level_id, s.work_date, s.noon_type,
+                        SELECT s.id, e.dept_id, s.employee_id, s.regist_level_id, s.work_date, s.noon_type,
                                s.total_quota, s.used_quota, rl.regist_fee
                         FROM scheduling s
+                        JOIN employee e ON s.employee_id = e.id
                         JOIN regist_level rl ON s.regist_level_id = rl.id
-                        WHERE s.id = :id AND s.delmark = 0 AND s.publish_status = 1
+                        WHERE s.id = :id AND s.publish_status = 1
                         FOR UPDATE
                         """)
                 .param("id", schedulingId)
