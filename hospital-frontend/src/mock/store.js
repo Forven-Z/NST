@@ -33,16 +33,11 @@ function nowIso() {
   return new Date().toISOString()
 }
 
-function billNo() {
-  return `B${Date.now()}${String(nextBillId).slice(-3)}`
-}
-
 function createBill({ medicalRecordNo, patientId, registerId, bizType, bizId, itemName, amount, status = 0 }) {
   nextBillId += 1
   const bill = {
     id: nextBillId,
     billId: nextBillId,
-    billNo: billNo(),
     medicalRecordNo,
     patientId,
     registerId,
@@ -175,7 +170,7 @@ function seedDemoPatients() {
     itemName: '血常规',
     itemPrice: 35,
     status: 20,
-    orderTime: nowIso(),
+    createTime: nowIso(),
     resultText: '',
   })
   createBill({
@@ -200,7 +195,7 @@ function seedDemoPatients() {
     itemName: '头部 CT',
     itemPrice: 280,
     status: 20,
-    orderTime: nowIso(),
+    createTime: nowIso(),
     resultText: '',
   })
   createBill({
@@ -219,14 +214,13 @@ function seedDemoPatients() {
   const rxId = nextPrescriptionId
   state.prescriptions.push({
     prescriptionId: rxId,
-    prescriptionNo: `RX${Date.now().toString().slice(-8)}`,
     registerId: r2,
     medicalRecordNo: 'MR202606040002',
     patientName: '李小红',
     doctorName: '王教授',
     totalAmount: 37,
     status: 20,
-    orderTime: nowIso(),
+    createTime: nowIso(),
     items: [{ drugName: '阿莫西林胶囊', quantity: 2, dosage: '0.5g tid', days: 7 }],
   })
   createBill({
@@ -405,7 +399,7 @@ function createTechOrder(registerId, techId, kind) {
       itemName: tech.itemName,
       itemPrice: tech.price,
       status: 10,
-      orderTime: nowIso(),
+      createTime: nowIso(),
       resultText: '',
     }
     state.inspectionRequests.push(row)
@@ -431,7 +425,7 @@ function createTechOrder(registerId, techId, kind) {
       itemName: tech.itemName,
       itemPrice: tech.price,
       status: 10,
-      orderTime: nowIso(),
+      createTime: nowIso(),
       resultText: '',
     }
     state.checkRequests.push(row)
@@ -457,7 +451,7 @@ function createTechOrder(registerId, techId, kind) {
       itemName: tech.itemName,
       itemPrice: tech.price,
       status: 10,
-      orderTime: nowIso(),
+      createTime: nowIso(),
       resultText: '',
     }
     state.disposalRequests.push(row)
@@ -500,6 +494,118 @@ export function getInspectionResult(inspectionRequestId) {
   }
 }
 
+export function getCheckResult(checkRequestId) {
+  const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
+  if (!row) throw new Error('检查申请不存在')
+  if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
+  return {
+    checkRequestId: row.checkRequestId,
+    itemName: row.itemName,
+    resultText: row.resultText,
+    reportTime: nowIso(),
+  }
+}
+
+export function getDisposalResult(disposalRequestId) {
+  const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(disposalRequestId))
+  if (!row) throw new Error('处置申请不存在')
+  if (row.status < 40) throw new Error('处置记录尚未出具，请待处置科录入')
+  return {
+    disposalRequestId: row.disposalRequestId,
+    itemName: row.itemName,
+    resultText: row.resultText,
+    reportTime: nowIso(),
+  }
+}
+
+const ORDER_STATUS_LABEL = {
+  10: '已开立',
+  20: '已缴费',
+  30: '执行完成',
+  40: '已出结果',
+  50: '已退费',
+}
+
+const RX_STATUS_LABEL = {
+  10: '已开立',
+  20: '已缴费',
+  30: '已发药',
+  40: '已退药',
+  50: '已退费',
+}
+
+export function getRegisterOrders(registerId) {
+  const rid = Number(registerId)
+  const list = []
+
+  for (const row of state.inspectionRequests.filter((r) => r.registerId === rid)) {
+    list.push({
+      kind: 'inspection',
+      typeLabel: '检验',
+      requestId: row.inspectionRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      statusLabel: ORDER_STATUS_LABEL[row.status] ?? String(row.status),
+    })
+  }
+  for (const row of state.checkRequests.filter((r) => r.registerId === rid)) {
+    list.push({
+      kind: 'check',
+      typeLabel: '检查',
+      requestId: row.checkRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      statusLabel: ORDER_STATUS_LABEL[row.status] ?? String(row.status),
+    })
+  }
+  for (const row of state.disposalRequests.filter((r) => r.registerId === rid)) {
+    list.push({
+      kind: 'disposal',
+      typeLabel: '处置记录',
+      requestId: row.disposalRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      statusLabel: ORDER_STATUS_LABEL[row.status] ?? String(row.status),
+    })
+  }
+  for (const row of state.prescriptions.filter((r) => r.registerId === rid)) {
+    list.push({
+      kind: 'prescription',
+      typeLabel: '处方',
+      requestId: row.prescriptionId,
+      itemName: row.items?.map((i) => i.drugName).join('、') || '处方',
+      status: row.status,
+      statusLabel: RX_STATUS_LABEL[row.status] ?? String(row.status),
+    })
+  }
+
+  return {
+    registerId: rid,
+    list,
+    checks: state.checkRequests.filter((r) => r.registerId === rid),
+    inspections: state.inspectionRequests.filter((r) => r.registerId === rid),
+    disposals: state.disposalRequests.filter((r) => r.registerId === rid),
+    prescriptions: state.prescriptions.filter((r) => r.registerId === rid),
+  }
+}
+
+export function getImagingStudies(params = {}) {
+  const status = params.status
+  let list = state.checkRequests.map((row) => ({
+    studyId: row.checkRequestId,
+    checkRequestId: row.checkRequestId,
+    patientName: row.patientName,
+    medicalRecordNo: row.medicalRecordNo,
+    itemName: row.itemName,
+    modality: row.itemName?.includes('CT') ? 'CT' : 'XR',
+    status: row.status >= 40 ? 'COMPLETED' : row.status >= 20 ? 'IN_PROGRESS' : 'PENDING',
+    uploadStatus: row.status >= 20 ? 'UPLOADED' : 'WAITING',
+    resultReady: row.status >= 40,
+  }))
+  if (status) list = list.filter((s) => s.status === status)
+  return list
+}
+
 export function createPrescription(data) {
   const reg = getRegisterById(data.registerId)
   if (!reg) throw new Error('挂号记录不存在')
@@ -519,14 +625,13 @@ export function createPrescription(data) {
   nextPrescriptionId += 1
   const rx = {
     prescriptionId: nextPrescriptionId,
-    prescriptionNo: `RX${Date.now().toString().slice(-8)}`,
     registerId: reg.registerId,
     medicalRecordNo: reg.medicalRecordNo,
     patientName: reg.patientName,
     doctorName: reg.doctorName,
     totalAmount: Math.round(totalAmount * 100) / 100,
     status: 10,
-    orderTime: nowIso(),
+    createTime: nowIso(),
     items,
   }
   state.prescriptions.push(rx)

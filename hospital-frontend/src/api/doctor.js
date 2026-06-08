@@ -7,8 +7,11 @@ import {
   mockCreateInspectionOrder,
   mockCreatePrescription,
   mockDoctorQueue,
+  mockFetchCheckResult,
+  mockFetchDisposalResult,
   mockFetchInspectionResult,
   mockFetchMedicalRecord,
+  mockFetchRegisterOrders,
   mockFinishVisit,
   mockSaveMedicalRecord,
 } from '../mock/doctor'
@@ -61,6 +64,21 @@ export function createDisposalOrder(data) {
 export function fetchInspectionResult(inspectionRequestId) {
   if (useMock()) return mockFetchInspectionResult(inspectionRequestId)
   return request.get(`/doctor/inspection-requests/${inspectionRequestId}/result`)
+}
+
+export function fetchCheckResult(checkRequestId) {
+  if (useMock()) return mockFetchCheckResult(checkRequestId)
+  return request.get(`/doctor/check-requests/${checkRequestId}/result`)
+}
+
+export function fetchDisposalResult(disposalRequestId) {
+  if (useMock()) return mockFetchDisposalResult(disposalRequestId)
+  return request.get(`/doctor/disposal-requests/${disposalRequestId}/result`)
+}
+
+export function fetchRegisterOrders(registerId) {
+  if (useMock()) return mockFetchRegisterOrders(registerId)
+  return request.get(`/doctor/registers/${registerId}/orders`)
 }
 
 export function createPrescription(data) {

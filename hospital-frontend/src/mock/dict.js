@@ -253,9 +253,9 @@ export const MOCK_MEDICAL_TECHNOLOGIES = [
 ]
 
 export const MOCK_DRUGS = [
-  { id: 1, drugCode: 'DRG-001', drugName: '阿莫西林胶囊', specification: '0.25g×24粒', unit: '盒', retailPrice: 18.5, stockQty: 100 },
-  { id: 2, drugCode: 'DRG-002', drugName: '布洛芬缓释胶囊', specification: '0.3g×20粒', unit: '盒', retailPrice: 22, stockQty: 80 },
-  { id: 3, drugCode: 'DRG-003', drugName: '对乙酰氨基酚片', specification: '0.5g×20片', unit: '盒', retailPrice: 8.5, stockQty: 200 },
+  { id: 1, drugCode: 'DRG-001', drugName: '阿莫西林胶囊', drugFormat: '0.25g×24粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 18.5, stockQty: 100 },
+  { id: 2, drugCode: 'DRG-002', drugName: '布洛芬缓释胶囊', drugFormat: '0.3g×20粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 22, stockQty: 80 },
+  { id: 3, drugCode: 'DRG-003', drugName: '对乙酰氨基酚片', drugFormat: '0.5g×20片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 8.5, stockQty: 200 },
 ]
 
 export function getMedicalTechById(id) {

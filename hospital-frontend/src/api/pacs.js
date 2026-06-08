@@ -1,6 +1,7 @@
 import request from './request'
 import { useMock } from '../utils/mock'
 import { mockPacsExecute, mockPacsQueue, mockPacsSaveResult } from '../mock/pacs'
+import { mockImagingStudies } from '../mock/pacs-imaging'
 
 export function fetchPacsQueue(params) {
   if (useMock()) return mockPacsQueue(params)
@@ -15,4 +16,9 @@ export function executePacsRequest(id) {
 export function savePacsResult(id, data) {
   if (useMock()) return mockPacsSaveResult(id, data)
   return request.post(`/pacs/requests/${id}/result`, data)
+}
+
+export function fetchImagingStudies(params) {
+  if (useMock()) return mockImagingStudies(params)
+  return request.get('/pacs/imaging-studies', { params })
 }

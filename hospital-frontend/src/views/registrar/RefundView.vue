@@ -50,7 +50,7 @@ function fillDemo(mr) {
 async function onRefund(row) {
   try {
     await ElMessageBox.confirm(
-      `确认为账单 ${row.billNo}（${row.itemName || row.billTitle}）退费 ¥${row.amount}？\n未执行的检验/检查/处置/未发药处方方可退费。`,
+      `确认为账单 #${row.id}（${row.itemName || row.billTitle}）退费 ¥${row.amount}？\n未执行的检验/检查/处置/未发药处方方可退费。`,
       '确认退费',
       { type: 'warning' },
     )
@@ -100,7 +100,7 @@ async function onRefund(row) {
       <p v-if="patientId" class="hint">患者 ID：{{ patientId }}</p>
 
       <el-table v-loading="loading" :data="bills" empty-text="输入病历号查询全部账单（含已支付）">
-        <el-table-column prop="billNo" label="账单号" width="160" />
+        <el-table-column prop="id" label="账单ID" width="100" />
         <el-table-column label="项目" min-width="160">
           <template #default="{ row }">{{ row.itemName || row.billTitle }}</template>
         </el-table-column>

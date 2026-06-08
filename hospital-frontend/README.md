@@ -22,7 +22,14 @@ npm run dev
 | registrar01 | 收费员 | `/registrar/*` |
 | admin | 管理员 | `/admin/*`（可进所有受保护路由） |
 
-处置科 `/disposal/queue`：暂无 seed 账号，使用 Mock 演示；admin 可访问。
+## Mock 与联调
+
+默认 **`VITE_USE_MOCK=true`**（见 `.env.development`），无需后端即可演示全角色界面。
+
+- 契约详见 [`docs/API_INTERFACE_SPEC.md`](../docs/API_INTERFACE_SPEC.md)
+- 联调真库：改 `VITE_USE_MOCK=false` 并启动 Gateway + 微服务
+
+处置科 `/disposal/queue`：Mock 账号 `disposal01` / `123456`；`admin` 可访问各角色菜单。
 
 ## Mock
 
