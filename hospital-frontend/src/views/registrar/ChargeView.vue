@@ -117,7 +117,7 @@ async function onCharge() {
         @selection-change="(rows) => (selectedRows = rows)"
       >
         <el-table-column type="selection" width="48" />
-        <el-table-column prop="billNo" label="账单号" min-width="150" />
+        <el-table-column prop="id" label="账单ID" min-width="100" />
         <el-table-column prop="itemName" label="费用项目" min-width="160" />
         <el-table-column prop="bizType" label="类型" width="110">
           <template #default="{ row }">

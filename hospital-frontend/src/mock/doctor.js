@@ -7,10 +7,13 @@ import {
   createInspectionOrder,
   createPrescription,
   finishRegister,
+  getCheckResult,
+  getDisposalResult,
   getDoctorQueue,
   getInspectionResult,
   getMedicalRecord,
   getRegisterById,
+  getRegisterOrders,
   saveMedicalRecord,
 } from './store'
 
@@ -42,7 +45,7 @@ export function mockCreateInspectionOrder(data) {
     inspectionRequestId: row.inspectionRequestId,
     itemName: row.itemName,
     status: row.status,
-    message: '已开立检验，请患者至收费窗口缴费后至检验科',
+    message: `已开立检验：${row.itemName}，请患者缴费后至检验科`,
   })
 }
 
@@ -52,7 +55,7 @@ export function mockCreateCheckOrder(data) {
     checkRequestId: row.checkRequestId,
     itemName: row.itemName,
     status: row.status,
-    message: '已开立检查，请患者缴费后至放射科登记',
+    message: `已开立检查：${row.itemName}，请患者缴费后至放射科`,
   })
 }
 
@@ -62,7 +65,7 @@ export function mockCreateDisposalOrder(data) {
     disposalRequestId: row.disposalRequestId,
     itemName: row.itemName,
     status: row.status,
-    message: '已开立处置，请患者缴费后至处置科',
+    message: `已开立处置：${row.itemName}，请患者缴费后至处置科`,
   })
 }
 
@@ -70,11 +73,22 @@ export function mockFetchInspectionResult(id) {
   return mockResult(getInspectionResult(id))
 }
 
+export function mockFetchCheckResult(id) {
+  return mockResult(getCheckResult(id))
+}
+
+export function mockFetchDisposalResult(id) {
+  return mockResult(getDisposalResult(id))
+}
+
+export function mockFetchRegisterOrders(registerId) {
+  return mockResult(getRegisterOrders(registerId))
+}
+
 export function mockCreatePrescription(data) {
   const rx = createPrescription(data)
   return mockResult({
     prescriptionId: rx.prescriptionId,
-    prescriptionNo: rx.prescriptionNo,
     totalAmount: rx.totalAmount,
     status: rx.status,
     message: '处方已开立，请患者缴费后至药房取药',
