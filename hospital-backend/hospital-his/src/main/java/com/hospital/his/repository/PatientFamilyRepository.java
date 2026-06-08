@@ -53,7 +53,7 @@ public class PatientFamilyRepository {
     }
 
     public long insertLink(Long ownerPatientId, Long memberPatientId, int relationType) {
-        Optional<Long> existing = findLinkId(ownerPatientId, memberPatientId);
+        Optional<Long> existing = findLinkIdAny(ownerPatientId, memberPatientId);
         if (existing.isPresent()) {
             jdbcClient.sql("""
                             UPDATE patient_family_link
@@ -82,6 +82,18 @@ public class PatientFamilyRepository {
         return jdbcClient.sql("""
                         SELECT id FROM patient_family_link
                         WHERE owner_patient_id = :ownerId AND member_patient_id = :memberId AND delmark = 0
+                        """)
+                .param("ownerId", ownerPatientId)
+                .param("memberId", memberPatientId)
+                .query(Long.class)
+                .optional();
+    }
+
+    /** 含已解绑行，用于重新绑定（唯一约束下 UPDATE 复活） */
+    public Optional<Long> findLinkIdAny(Long ownerPatientId, Long memberPatientId) {
+        return jdbcClient.sql("""
+                        SELECT id FROM patient_family_link
+                        WHERE owner_patient_id = :ownerId AND member_patient_id = :memberId
                         """)
                 .param("ownerId", ownerPatientId)
                 .param("memberId", memberPatientId)

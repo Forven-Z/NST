@@ -1,13 +1,25 @@
-<view class="container">
+<view class="reports-page">
+  <view class="member-bar card row-between" bindtap="goHomeSwitch">
+    <view>
+      <view class="member-label muted">当前就诊人</view>
+      <view class="member-name">{{activeMemberName}}</view>
+    </view>
+    <text class="member-link">去首页切换 ›</text>
+  </view>
+
   <view class="tab-row card">
     <view class="tab-chip {{tab === 'all' ? 'active' : ''}}" data-tab="all" bindtap="onTab">全部</view>
     <view class="tab-chip {{tab === 'lab' ? 'active' : ''}}" data-tab="lab" bindtap="onTab">检验</view>
     <view class="tab-chip {{tab === 'exam' ? 'active' : ''}}" data-tab="exam" bindtap="onTab">检查</view>
+    <view class="tab-chip {{tab === 'disposal' ? 'active' : ''}}" data-tab="disposal" bindtap="onTab">处置</view>
   </view>
 
-  <view wx:if="{{loading}}" class="empty">加载中…</view>
-  <view wx:elif="{{!list.length}}" class="empty">暂无报告，完成检查后可在此查看</view>
-  <view wx:else>
+  <view wx:if="{{loading}}" class="empty card">加载中…</view>
+  <view wx:elif="{{!list.length}}" class="empty card">
+    <view class="empty-title">暂无报告</view>
+    <view class="muted">医生开单并完成检验/检查/处置后，结果将显示在此</view>
+  </view>
+  <view wx:else class="list-wrap">
     <view
       wx:for="{{list}}"
       wx:key="id"
@@ -17,10 +29,11 @@
     >
       <view class="row-between">
         <text class="report-name">{{item.reportName}}</text>
-        <text class="tag">{{item.typeLabel}}</text>
+        <text class="tag tag-{{item.type}}">{{item.typeLabel}}</text>
       </view>
-      <view class="muted">{{item.patientName}} · {{item.reportTime}}</view>
+      <view class="muted meta">{{item.patientName}} · {{item.reportTime}}</view>
       <view class="summary">{{item.summary}}</view>
+      <view class="row-link">查看详情 ›</view>
     </view>
   </view>
 </view>

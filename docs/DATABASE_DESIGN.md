@@ -40,6 +40,7 @@
 |------|--------|------|
 | A. 基础字典 | 8 | `department`, `regist_level`, `settle_category`, `employee`, `scheduling`, `drug_info`, `disease`, `medical_technology` |
 | B. 患者与认证 | 3 | `patient`, `patient_wechat`, `sys_user` |
+| B′. 患者扩展 | 1 | `patient_family_link`（小程序家属；DDL 见 `schema.sql`） |
 | C. 挂号就诊 | 3 | `register`, `medical_record`, `medical_record_disease` |
 | D. 医技医嘱 | 3 | `check_request`, `inspection_request`, `disposal_request` |
 | E. 处方 | 3 | `prescription`, `prescription_item`, `ai_prescription_draft` |
@@ -47,7 +48,7 @@
 | G. 影像 AI | 2 | `imaging_study`, `ai_chat_session` |
 | H. 向量/RAG | — | 见 **§十**（由 Spring AI 管理，本文仅说明） |
 
-**合计：26 张业务关系表**（不含向量表）。
+**合计：26 张核心业务关系表 + 1 张扩展表 `patient_family_link`**（不含向量表）。
 
 ### 1.4 微服务与表写归属矩阵
 
@@ -56,10 +57,10 @@
 | 表名 | 主写服务 | 说明 |
 |------|----------|------|
 | `sys_user` | hospital-auth | 员工登录账号 |
-| `patient`, `patient_wechat` | hospital-his | 患者主数据与微信绑定 |
+| `patient`, `patient_wechat`, `patient_family_link` | hospital-his | 患者主数据、微信绑定与家属关系 |
 | `register`, `medical_record`, `medical_record_disease` | hospital-his | 挂号与病历 |
 | `prescription`, `prescription_item`, `ai_prescription_draft` | hospital-his | 处方（开立、发药状态由 his 协调） |
-| `disposal_request` | hospital-his | 处置开立与结果录入均在 **his**（ADR-006） |
+| `disposal_request` | hospital-his + hospital-disposal | **his**：开立与 status 10/20/50；**disposal**：执行与结果 30/40（ADR-017） |
 | `bill`, `payment_record`, `payment_bill`, `refund_record` | hospital-his | 待缴与支付流水 |
 | `inspection_request` | hospital-lis | 全生命周期写；**开立字段**由 his 创建时写入 |
 | `check_request`, `imaging_study` | hospital-pacs | 检查单与影像任务；开立由 his Feign 触发 |
@@ -393,7 +394,37 @@ disease ──N:M── medical_record (medical_record_disease)
 
 ---
 
-### 4.3 `sys_user` — 系统用户表（员工/管理员登录）
+### 4.3 `patient_family_link` — 家属就诊人关系表（小程序扩展）
+
+> **业务定位（ADR-016 · 方案 A）**：微信登录用户为 **操作者**（`owner_patient_id` = JWT `patientId`）；`patient_family_link` **仅存储** 操作者代管的 **非本人** 就诊人（`member_patient_id`）。本人出现在 `/family-members` 列表中但 **不写入本表**。代挂号、代缴费时通过 Query `visitPatientId` 或 Body `memberPatientId` 指定 **就诊人**；业务单（`register`/`bill` 等）挂在就诊人 `patient_id`，支付流水记在操作者。
+
+| 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
+|--------|----------|----|--------|-----|------|
+| id | BIGSERIAL | N | — | PK | 主键。 |
+| owner_patient_id | BIGINT | N | — | FK → patient(id), IX | 账号持有人（微信登录对应的 `patient.id`）。 |
+| member_patient_id | BIGINT | N | — | FK → patient(id) | 就诊人（家属或本人，均指向 `patient` 主表）。 |
+| relation_type | SMALLINT | N | 4 | — | 与本人关系，见下表；API 字段 `relationType`。 |
+| delmark | SMALLINT | N | 0 | — | 逻辑删除；解绑置 1，重新绑定可置回 0。 |
+| create_time | TIMESTAMPTZ | N | NOW() | — | 绑定创建时间。 |
+| update_time | TIMESTAMPTZ | N | NOW() | — | 最后更新时间。 |
+
+**唯一约束**：`UNIQUE (owner_patient_id, member_patient_id)` — 同一持有人下同一就诊人仅一条有效绑定。
+
+**`relation_type` 枚举（与 `API.md` §4.1.3 一致）**
+
+| 值 | 含义 |
+|----|------|
+| 0 | 本人（仅 API 展示用，**不写入 link 表**） |
+| 1 | 父母 |
+| 2 | 配偶 |
+| 3 | 子女 |
+| 4 | 其他（缺省） |
+
+**接口**：`GET/POST /api/v1/patient/family-members`（`hospital-his` · `controller.patient`）。
+
+---
+
+### 4.4 `sys_user` — 系统用户表（员工/管理员登录）
 
 | 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
 |--------|----------|----|--------|-----|------|
@@ -496,7 +527,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | body_part | VARCHAR(64) | Y | NULL | — | 检查部位；如头部、胸部（检查类常用）。 |
 | remark | VARCHAR(256) | Y | NULL | — | 医嘱备注；补充说明。 |
 | status | SMALLINT | N | 10 | IX | 医嘱执行状态；10 已开立→20 已缴费→30 执行完成→40 已出结果，见 §1.5。 |
-| order_time | TIMESTAMPTZ | N | NOW() | — | 处方开立时间；医生确认提交后 status=已开立。 |
+| order_time | TIMESTAMPTZ | N | NOW() | — | 医嘱开立时间；医生确认提交后 status=已开立。 |
 | executor_id | BIGINT | Y | NULL | — | FK → employee(id)；执行人；医技科室执行检查/检验/处置的医护。 |
 | execute_time | TIMESTAMPTZ | Y | NULL | — | 执行完成时间；标本采集或检查完成时刻。 |
 | result_input_id | BIGINT | Y | NULL | — | FK → employee(id)；结果录入人；对结果负责的医护。 |
@@ -895,8 +926,8 @@ disease ──N:M── medical_record (medical_record_disease)
 | v1.11 | 2026-06 | 修正 **`sys_user` / `bill` / `ai_prescription_draft` / `refund_record` / `imaging_study`** 的 `status` 业务说明误贴；§1.5 增补对应枚举 |
 | v1.12 | 2026-06 | `prescription_item` 移除 **`create_time`**；开立时间以 `prescription.create_time` 为准 |
 | v1.13 | 2026-06 | 移除 **`bill_no`**、**`payment_no`**、**`refund_no`**；费用/支付/退款业务标识统一为各表 **`id`**（§八 约定） |
-| v1.14 | 2026-06 | **表结构定稿不再改动**；§1.1 业务标识、§2 ER 脚注、§8.5 展示字段、§11 对照与 v1.4～v1.13 表变更对齐；注明 `schema.sql` 滞后 |
+| v1.14 | 2026-06 | **表结构定稿不再改动**；§1.1 业务标识、§2 ER 脚注、§8.5 展示字段、§11 对照与 v1.4～v1.13 对齐；**`docs/sql/schema.sql` 已重写对齐**；§4.3 补全 **`patient_family_link`** 字段说明 |
 
 ---
 
-*本文档 **v1.14** 为业务表设计权威说明（非建表脚本）。`docs/sql/schema.sql` 仍对应 **v1.3 及更早** 字段（如 `bill_no`、`prescription_no`、`scheduling.dept_id` 等），**后续建表脚本阶段将按本文重写**，届时以脚本为准校验字段一致性。*
+*本文档 **v1.14** 为业务表设计权威说明（非建表脚本）。建表脚本见 **`docs/sql/schema.sql`**（已对齐 v1.14，含 `patient_family_link`）。*

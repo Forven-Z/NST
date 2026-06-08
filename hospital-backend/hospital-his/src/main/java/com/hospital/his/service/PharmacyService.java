@@ -61,7 +61,6 @@ public class PharmacyService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);
-        result.put("prescriptionNo", prescription.get("prescriptionNo"));
         result.put("status", PrescriptionStatus.DISPENSED);
         result.put("items", items);
         return result;
@@ -88,7 +87,6 @@ public class PharmacyService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);
-        result.put("prescriptionNo", prescription.get("prescriptionNo"));
         result.put("status", PrescriptionStatus.RETURNED);
         result.put("items", items);
         result.put("message", "退药成功，请至收费窗口办理退费");

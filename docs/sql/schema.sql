@@ -1,6 +1,6 @@
 -- 智慧云脑诊疗平台 — 业务库 DDL
 -- PostgreSQL 15+
--- 依据：docs/DATABASE_DESIGN.md v1.3
+-- 依据：docs/DATABASE_DESIGN.md v1.14
 -- 用法：psql -U postgres -d hospital -f docs/sql/schema.sql
 
 SET client_encoding = 'UTF8';
@@ -57,9 +57,9 @@ CREATE TABLE IF NOT EXISTS employee (
 CREATE INDEX IF NOT EXISTS ix_employee_role_type ON employee(role_type);
 CREATE INDEX IF NOT EXISTS ix_employee_dept_id ON employee(dept_id);
 
+-- 出诊科室经 employee.dept_id 推导；作废用 publish_status=2（无 delmark）
 CREATE TABLE IF NOT EXISTS scheduling (
     id              BIGSERIAL PRIMARY KEY,
-    dept_id         BIGINT       NOT NULL REFERENCES department(id),
     employee_id     BIGINT       NOT NULL REFERENCES employee(id),
     regist_level_id BIGINT       NOT NULL REFERENCES regist_level(id),
     work_date       DATE         NOT NULL,
@@ -67,17 +67,22 @@ CREATE TABLE IF NOT EXISTS scheduling (
     total_quota     INTEGER      NOT NULL DEFAULT 0,
     used_quota      INTEGER      NOT NULL DEFAULT 0,
     publish_status  SMALLINT     NOT NULL DEFAULT 0,
-    delmark         SMALLINT     NOT NULL DEFAULT 0,
     create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS ix_scheduling_work_date ON scheduling(work_date, dept_id, employee_id, noon_type);
+CREATE INDEX IF NOT EXISTS ix_scheduling_work_date ON scheduling(work_date, employee_id, noon_type);
+CREATE INDEX IF NOT EXISTS ix_scheduling_publish_work_date ON scheduling(publish_status, work_date);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_scheduling_active_slot
+    ON scheduling (work_date, employee_id, noon_type, regist_level_id)
+    WHERE publish_status <> 2;
 
 CREATE TABLE IF NOT EXISTS drug_info (
     id              BIGSERIAL PRIMARY KEY,
     drug_code       VARCHAR(32)  NOT NULL UNIQUE,
     drug_name       VARCHAR(128) NOT NULL,
-    specification   VARCHAR(64),
+    drug_format     VARCHAR(255),
+    drug_dosage     VARCHAR(64),
+    drug_type       VARCHAR(64),
     unit            VARCHAR(16),
     retail_price    NUMERIC(10,2) NOT NULL,
     manufacturer    VARCHAR(128),
@@ -87,6 +92,7 @@ CREATE TABLE IF NOT EXISTS drug_info (
     update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ix_drug_info_name ON drug_info(drug_name);
+CREATE INDEX IF NOT EXISTS ix_drug_info_drug_type ON drug_info(drug_type);
 
 CREATE TABLE IF NOT EXISTS disease (
     id              BIGSERIAL PRIMARY KEY,
@@ -146,6 +152,20 @@ CREATE TABLE IF NOT EXISTS patient_wechat (
     create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+
+-- 小程序家属就诊人（扩展表；已纳入 DATABASE_DESIGN §1.3 B′）
+CREATE TABLE IF NOT EXISTS patient_family_link (
+    id                  BIGSERIAL PRIMARY KEY,
+    owner_patient_id    BIGINT       NOT NULL REFERENCES patient(id),
+    member_patient_id   BIGINT       NOT NULL REFERENCES patient(id),
+    relation_type       SMALLINT     NOT NULL DEFAULT 4,
+    delmark             SMALLINT     NOT NULL DEFAULT 0,
+    create_time         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    update_time         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (owner_patient_id, member_patient_id)
+);
+CREATE INDEX IF NOT EXISTS ix_patient_family_owner ON patient_family_link(owner_patient_id);
+COMMENT ON COLUMN patient_family_link.relation_type IS '0本人 1父母 2配偶 3子女 4其他';
 
 CREATE TABLE IF NOT EXISTS sys_user (
     id              BIGSERIAL PRIMARY KEY,
@@ -309,25 +329,6 @@ CREATE INDEX IF NOT EXISTS ix_disposal_request_status ON disposal_request(status
 -- E. 处方
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS prescription (
-    id              BIGSERIAL PRIMARY KEY,
-    register_id     BIGINT       NOT NULL REFERENCES register(id),
-    patient_id      BIGINT       NOT NULL REFERENCES patient(id),
-    doctor_id       BIGINT       NOT NULL REFERENCES employee(id),
-    prescription_no VARCHAR(32)  NOT NULL UNIQUE,
-    total_amount    NUMERIC(10,2) NOT NULL DEFAULT 0,
-    status          SMALLINT     NOT NULL DEFAULT 10,
-    order_time      TIMESTAMPTZ,
-    pharmacist_id   BIGINT REFERENCES employee(id),
-    dispense_time   TIMESTAMPTZ,
-    ai_draft_id     BIGINT,
-    remark          VARCHAR(256),
-    delmark         SMALLINT     NOT NULL DEFAULT 0,
-    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS ix_prescription_status ON prescription(status);
-
 CREATE TABLE IF NOT EXISTS ai_prescription_draft (
     id                      BIGSERIAL PRIMARY KEY,
     register_id             BIGINT       NOT NULL REFERENCES register(id),
@@ -340,11 +341,23 @@ CREATE TABLE IF NOT EXISTS ai_prescription_draft (
     update_time             TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE prescription
-    DROP CONSTRAINT IF EXISTS fk_prescription_ai_draft;
-ALTER TABLE prescription
-    ADD CONSTRAINT fk_prescription_ai_draft
-    FOREIGN KEY (ai_draft_id) REFERENCES ai_prescription_draft(id);
+-- 业务 ID 即 id；开立/发药时间见 create_time / update_time
+CREATE TABLE IF NOT EXISTS prescription (
+    id              BIGSERIAL PRIMARY KEY,
+    register_id     BIGINT       NOT NULL REFERENCES register(id),
+    patient_id      BIGINT       NOT NULL REFERENCES patient(id),
+    doctor_id       BIGINT       NOT NULL REFERENCES employee(id),
+    total_amount    NUMERIC(10,2) NOT NULL DEFAULT 0,
+    status          SMALLINT     NOT NULL DEFAULT 10,
+    pharmacist_id   BIGINT REFERENCES employee(id),
+    ai_draft_id     BIGINT REFERENCES ai_prescription_draft(id),
+    delmark         SMALLINT     NOT NULL DEFAULT 0,
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_prescription_status ON prescription(status);
+CREATE INDEX IF NOT EXISTS ix_prescription_register_id ON prescription(register_id);
+CREATE INDEX IF NOT EXISTS ix_prescription_patient_id ON prescription(patient_id);
 
 CREATE TABLE IF NOT EXISTS prescription_item (
     id              BIGSERIAL PRIMARY KEY,
@@ -352,7 +365,9 @@ CREATE TABLE IF NOT EXISTS prescription_item (
     drug_id         BIGINT       NOT NULL REFERENCES drug_info(id),
     drug_code       VARCHAR(32)  NOT NULL,
     drug_name       VARCHAR(128) NOT NULL,
-    specification   VARCHAR(64),
+    drug_format     VARCHAR(255),
+    drug_dosage     VARCHAR(64),
+    drug_type       VARCHAR(64),
     unit_price      NUMERIC(10,2) NOT NULL,
     quantity        NUMERIC(10,2) NOT NULL,
     amount          NUMERIC(10,2) NOT NULL,
@@ -361,18 +376,16 @@ CREATE TABLE IF NOT EXISTS prescription_item (
     frequency       VARCHAR(64),
     days            INTEGER,
     entrust         VARCHAR(256),
-    sort_no         INTEGER      DEFAULT 0,
-    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    sort_no         INTEGER      DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_prescription_item_prescription_id ON prescription_item(prescription_id);
 
 -- =============================================================================
--- F. 收费支付
+-- F. 收费支付（按单付 · 无余额；业务单号即各表 id）
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS bill (
     id              BIGSERIAL PRIMARY KEY,
-    bill_no         VARCHAR(32)  NOT NULL UNIQUE,
     patient_id      BIGINT       NOT NULL REFERENCES patient(id),
     register_id     BIGINT REFERENCES register(id),
     biz_type        VARCHAR(16)  NOT NULL,
@@ -386,12 +399,12 @@ CREATE TABLE IF NOT EXISTS bill (
     UNIQUE (biz_type, biz_id)
 );
 CREATE INDEX IF NOT EXISTS ix_bill_patient_id ON bill(patient_id);
+CREATE INDEX IF NOT EXISTS ix_bill_register_id ON bill(register_id);
 CREATE INDEX IF NOT EXISTS ix_bill_biz ON bill(biz_type, biz_id);
 CREATE INDEX IF NOT EXISTS ix_bill_status ON bill(status);
 
 CREATE TABLE IF NOT EXISTS payment_record (
     id                  BIGSERIAL PRIMARY KEY,
-    payment_no          VARCHAR(32)  NOT NULL UNIQUE,
     patient_id          BIGINT       NOT NULL REFERENCES patient(id),
     total_amount        NUMERIC(10,2) NOT NULL,
     channel             VARCHAR(16)  NOT NULL,
@@ -405,6 +418,7 @@ CREATE TABLE IF NOT EXISTS payment_record (
 );
 CREATE INDEX IF NOT EXISTS ix_payment_record_patient_id ON payment_record(patient_id);
 CREATE INDEX IF NOT EXISTS ix_payment_record_status ON payment_record(status);
+CREATE INDEX IF NOT EXISTS ix_payment_record_third_party ON payment_record(third_party_trade_no);
 
 CREATE TABLE IF NOT EXISTS payment_bill (
     id              BIGSERIAL PRIMARY KEY,
@@ -419,7 +433,6 @@ CREATE INDEX IF NOT EXISTS ix_payment_bill_bill_id ON payment_bill(bill_id);
 
 CREATE TABLE IF NOT EXISTS refund_record (
     id                  BIGSERIAL PRIMARY KEY,
-    refund_no           VARCHAR(32)  NOT NULL UNIQUE,
     payment_id          BIGINT       NOT NULL REFERENCES payment_record(id),
     bill_id             BIGINT REFERENCES bill(id),
     patient_id          BIGINT       NOT NULL REFERENCES patient(id),
@@ -434,6 +447,7 @@ CREATE TABLE IF NOT EXISTS refund_record (
     update_time         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ix_refund_record_payment_id ON refund_record(payment_id);
+CREATE INDEX IF NOT EXISTS ix_refund_record_patient_id ON refund_record(patient_id);
 
 -- =============================================================================
 -- G. 影像与 AI 会话

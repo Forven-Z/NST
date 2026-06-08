@@ -48,7 +48,7 @@ public class PatientFamilyService {
         }
         patientRepository.updateProfile(memberId, request.getRealName(), request.getGender(),
                 null, request.getPhone(), request.getIdCard(), null, null);
-        int relation = request.getRelationType() != null ? request.getRelationType() : 4;
+        int relation = normalizeRelationType(request.getRelationType());
         familyRepository.insertLink(ownerId, memberId, relation);
         Map<String, Object> row = new HashMap<>();
         row.put("memberPatientId", memberId);
@@ -58,11 +58,33 @@ public class PatientFamilyService {
         return row;
     }
 
-    public void assertCanRegisterFor(Long memberPatientId) {
-        Long ownerId = AuthContextHolder.require().getPatientId();
-        if (!familyRepository.isLinked(ownerId, memberPatientId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权为该就诊人挂号");
+    /**
+     * 方案 A：JWT {@code patientId} = 操作者（微信绑定）；{@code visitPatientId} = 当前就诊人（首页切换，可不传）。
+     */
+    public Long resolveVisitPatientId(Long visitPatientId) {
+        Long operatorId = AuthContextHolder.require().getPatientId();
+        if (visitPatientId == null || visitPatientId.equals(operatorId)) {
+            return operatorId;
         }
+        if (!familyRepository.isLinked(operatorId, visitPatientId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权以该就诊人身份操作");
+        }
+        return visitPatientId;
+    }
+
+    public void assertCanAccessVisitPatient(Long visitPatientId) {
+        resolveVisitPatientId(visitPatientId);
+    }
+
+    public boolean canAccessVisitPatient(Long operatorPatientId, Long visitPatientId) {
+        if (visitPatientId == null || operatorPatientId.equals(visitPatientId)) {
+            return true;
+        }
+        return familyRepository.isLinked(operatorPatientId, visitPatientId);
+    }
+
+    public void assertCanRegisterFor(Long memberPatientId) {
+        assertCanAccessVisitPatient(memberPatientId);
     }
 
     private Map<String, Object> selfRow(Long id, String name, String mrn, Integer gender,
@@ -86,5 +108,16 @@ public class PatientFamilyService {
             list.add(row);
         }
         return list;
+    }
+
+    /** 0本人 1父母 2配偶 3子女 4其他；缺省与历史值 6 均归并为 4 */
+    private static int normalizeRelationType(Integer relationType) {
+        if (relationType == null || relationType == 6) {
+            return 4;
+        }
+        if (relationType < 0 || relationType > 4) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "无效的关系类型");
+        }
+        return relationType;
     }
 }

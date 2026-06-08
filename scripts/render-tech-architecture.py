@@ -30,6 +30,7 @@ C_JAVA_BORDER = "#3B82F6"
 C_HIS = "#DBEAFE"
 C_LIS = "#E0E7FF"
 C_PACS = "#EDE9FE"
+C_DISPOSAL = "#FEF3C7"
 C_AI_PY = "#FFF7ED"
 C_AI_BORDER = "#EA580C"
 C_INFRA = "#F0FDF4"
@@ -71,7 +72,7 @@ def layer_band(y, h, label):
 
 # Title
 text(W / 2, H - 0.45, "智慧云脑诊疗平台 技术架构图", size=20, weight="bold", color=C_TITLE)
-text(W / 2, H - 0.85, "NST · Nexus Smart Treatment  |  8×Java jar + 1×Python  |  Gateway :9000", size=11, color=C_MUTED)
+text(W / 2, H - 0.85, "NST · Nexus Smart Treatment  |  9×Java jar + 1×Python  |  Gateway :9000", size=11, color=C_MUTED)
 
 # --- Layer 1: Frontend ---
 layer1_y = 8.55
@@ -95,14 +96,14 @@ text(8.0, layer2_y + 0.32, "统一入口 · JWT 校验 · 路由  |  :9000", siz
 layer3_y = 3.55
 layer_band(layer3_y, 3.55, "微服务层")
 
-text(4.35, layer3_y + 3.15, "Java 微服务集群（Spring Boot 3.4 · Java 17）", size=11, weight="bold", color="#1D4ED8")
+text(4.35, layer3_y + 3.15, "Java 微服务集群（Spring Boot 3.2 · Java 17）", size=11, weight="bold", color="#1D4ED8")
 box(0.65, layer3_y + 0.35, 8.4, 2.55, C_JAVA, C_JAVA_BORDER, lw=1.5)
 
 # Platform services row
 svc_w, svc_h = 1.85, 0.95
 platform = [
     ("hospital-auth", ":9101", "认证 · JWT 签发"),
-    ("hospital-management", ":9105", "字典 · 排班"),
+    ("hospital-management", ":9107", "字典 · 排班"),
 ]
 for i, (name, port, desc) in enumerate(platform):
     x = 1.0 + i * 2.05
@@ -117,6 +118,7 @@ business = [
     ("hospital-his", ":9102", "HIS 门诊主业务", C_HIS, "#2563EB"),
     ("hospital-lis", ":9103", "LIS 检验执行", C_LIS, "#4F46E5"),
     ("hospital-pacs", ":9104", "PACS 检查执行", C_PACS, "#7C3AED"),
+    ("hospital-disposal", ":9105", "处置执行", C_DISPOSAL, "#D97706"),
 ]
 for i, (name, port, desc, fc, ec) in enumerate(business):
     x = 1.0 + i * 2.05
@@ -127,7 +129,7 @@ for i, (name, port, desc, fc, ec) in enumerate(business):
     text(x + svc_w / 2, y + 0.18, desc, size=7.5, color=C_MUTED)
 
 # his internal modules note
-text(4.35, layer3_y + 0.22, "his 内含：patient · doctor · pharmacy · registrar · disposal", size=8, color=C_MUTED)
+text(4.35, layer3_y + 0.22, "his 内含：patient · doctor · pharmacy · registrar（处置开立）", size=8, color=C_MUTED)
 
 # AI bridge
 box(5.15, layer3_y + 1.65, 1.85, 0.95, "#FFFFFF", C_JAVA_BORDER)

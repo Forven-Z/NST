@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — 启动、联调与验收手册
 
-> **版本**：v2.0 | 2026-05  
+> **版本**：v2.1 | 2026-06  
 > **用途**：日常 **开什么、怎么开**；**R-min～R-full 联调验收**（原 INTEGRATION_CHECKLIST 已并入本文 §十二）。  
 > **环境安装**（首次装软件）：见 [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md)  
 > **实现进度**：见 [PROGRESS.md](./PROGRESS.md)  
@@ -146,7 +146,8 @@ P1～P3 可不启。需要时确保 `redis-cli ping` → `PONG`。
 | hospital-his | 9102 | 患者/门诊/收费/药房 |
 | hospital-lis | 9103 | 检验 |
 | hospital-pacs | 9104 | 检查/影像 |
-| hospital-management | 9105 | 管理/字典/排班 |
+| hospital-disposal | 9105 | 门诊处置执行 |
+| hospital-management | 9107 | 管理/字典/排班 |
 | hospital-ai-bridge | 9106 | Spring AI（P4） |
 | hospital-ai（Python） | 8000 | CNN 推理（P4，不经 Gateway） |
 
@@ -160,13 +161,14 @@ P1～P3 可不启。需要时确保 `redis-cli ping` → `PONG`。
 | --- | --- | --- | --- |
 | **R-min**（P1） | gateway + auth + **his** + management（或仅 seed，见 ADR-012） | PG + Nacos | 医护/患者登录、挂号、接诊、病历 |
 | **R-lis**（P2） | R-min + **lis** | 同上 | + 检验开单与结果 |
+| **R-disposal**（P2～P3） | R-min + **disposal** | 同上 | + 处置开单与结果 |
 | **R-pacs**（P3） | R-min + **pacs** | + **MinIO** | + 检查、影像上传 |
 | **R-full**（P4） | R-pacs + **ai-bridge** + **hospital-ai** | + pgvector（可选） | + AI 问诊、CNN |
 
 **推荐启动顺序**（Java 部分）：
 
 ```text
-auth (9101) → management (9105) → his (9102) → [lis] → [pacs] → [ai-bridge] → gateway (9000) 最后
+auth (9101) → management (9107) → his (9102) → [lis] → [pacs] → [disposal] → [ai-bridge] → gateway (9000) 最后
 ```
 
 Gateway 放最后，避免前端连上时后端路由未就绪。
@@ -306,14 +308,14 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 
 ### 12.1 环境准备（每次联调前）
 
-- [ ] PostgreSQL 运行，`hospital` 库已执行 `schema.sql` + `seed-dict.sql`
+- [ ] PostgreSQL 运行，`hospital` 库已执行 **`schema.sql`（v1.14）** + `seed-dict.sql`（旧库须 DROP SCHEMA 重建，见 [sql/README.md §四](./sql/README.md)）
 - [ ] Nacos standalone 运行（8848）
 - [ ] 各服务 `NACOS_SERVER_ADDR=127.0.0.1:8848`、JDBC 指向 `hospital`
 - [ ] Gateway **9000** 未被 MinIO 占用（MinIO 用 **9001**）
 
 ### 12.2 R-min — P1 门诊最小链
 
-**启动进程**：auth(9101) → management(9105，可跳过) → his(9102) → gateway(9000)
+**启动进程**：auth(9101) → management(9107，可跳过) → his(9102) → gateway(9000)
 
 | 场景 | 步骤 | 预期 |
 |------|------|------|
@@ -372,7 +374,7 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md) | 装软件、配 Path、MinIO license |
 | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | 分期任务、开发动机（附录） |
 | [TEAM_COLLABORATION.md](./TEAM_COLLABORATION.md) | 分工、Mock、契约变更 |
-| [FRONTEND_API_MAP.md](./FRONTEND_API_MAP.md) | 页面调哪个 API |
+| [API.md](./API.md) | 接口路径、报文、页面速查（附录 A） |
 | [API.md](./API.md) | 接口路径与报文 |
 | [MICROSERVICES.md](./MICROSERVICES.md) | 服务边界、架构图、M1～M10 |
 
@@ -384,3 +386,4 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | --- | --- | --- |
 | v1.0 | 2026-05 | 首版：基础设施 + 分阶段 Java 组合 + 客户端 |
 | v2.0 | 2026-05 | 合并原 INTEGRATION_CHECKLIST；§5.5 改链 PROGRESS |
+| v2.1 | 2026-06 | §12.1 标注 schema **v1.14** 重建说明 |

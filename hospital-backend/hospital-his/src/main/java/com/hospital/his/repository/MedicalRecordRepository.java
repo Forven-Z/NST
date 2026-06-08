@@ -19,13 +19,19 @@ public class MedicalRecordRepository {
     }
 
     public Optional<Map<String, Object>> findByRegisterId(Long registerId) {
+        return findByRegisterId(registerId, null);
+    }
+
+    /** @param patientVisibleOnly true 时仅返回 status=2（患者端） */
+    public Optional<Map<String, Object>> findByRegisterId(Long registerId, Boolean patientVisibleOnly) {
+        String statusClause = Boolean.TRUE.equals(patientVisibleOnly) ? " AND status = 2" : "";
         return jdbcClient.sql("""
                         SELECT id, register_id, patient_id, doctor_id,
                                readme, present, present_treat, history, allergy, physique,
                                diagnosis, cure, check_advice, inspection_advice, status
                         FROM medical_record
                         WHERE register_id = :registerId AND delmark = 0
-                        """)
+                        """ + statusClause)
                 .param("registerId", registerId)
                 .query((rs, rowNum) -> {
                     Map<String, Object> row = new HashMap<>();

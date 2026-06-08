@@ -2,7 +2,8 @@
 
 > **更新频率**：建议 **每周** 或里程碑完成时更新。  
 > **状态**：⬜ 未开始 · 🟨 进行中 · ✅ 已完成 · ⏸ 阻塞  
-> **版本**：2026-05-26
+> **版本**：2026-06-04  
+> **数据模型对齐**：文档 + 后端 + 前端 Mock + 小程序 Mock 已同步 **DATABASE_DESIGN v1.14**（业务单号即表 `id`；药品 `drugFormat`/`drugDosage`/`drugType`）
 
 ---
 
@@ -22,7 +23,7 @@
 | 任务 | 状态 | 负责人 | 备注 |
 |------|------|--------|------|
 | PostgreSQL + 库 `hospital` | ✅ | | 联调已连通 |
-| `schema.sql` 已执行 | ✅ | | |
+| `schema.sql` 已执行（**v1.14**） | 🟨 | | 本地若仍用旧表须 DROP SCHEMA 重建 |
 | `seed-dict.sql` 已执行 | ✅ | | 排班含当日数据 |
 | Nacos 2.2.3 standalone | ✅ | | 8848 |
 | MinIO（P3 前可跳过） | ⬜ | | |
@@ -50,12 +51,14 @@
 | hospital-his · 药房发药 | API §5.6 | ✅ | | `GET /pharmacy/pending`, `POST .../dispense`, `return-drug` |
 | hospital-his · 退号/退费 | API §5.9 | ✅ | | `/registrar/refunds`, `/registrar/registers/{id}/cancel` |
 | hospital-lis · 队列/结果 | API §5.7 | ✅ | | `GET /lis/queue`, `POST /lis/requests/{id}/result` |
+| hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | `GET /disposal/queue`, `POST /disposal/requests/{id}/result` |
 | hospital-management · 字典只读 | API §6 | ✅ | | `GET /admin/departments` 等 |
 | hospital-pacs · 队列/结果 | API §5.7 | ✅ | | `GET /pacs/queue`, 影像 upload STUB |
 | hospital-ai-bridge · STUB | API §7 | ✅ | | `/ai/health`, triage/assistant 占位 |
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
+| hospital-disposal | MICRO §2.5a | ✅ | | :9105 |
 | hospital-pacs | MICRO §2.5 | ✅ | | :9104 |
-| hospital-management | MICRO §2.6 | ✅ | | :9105 字典只读 |
+| hospital-management | MICRO §2.6 | ✅ | | :9107 字典只读 |
 | hospital-ai-bridge | MICRO §2.7 | ✅ | | :9106 STUB |
 | hospital-ai (Python) | API §8 | ⬜ | | P4 |
 
@@ -65,12 +68,14 @@
 
 | 模块 | 文档 | 状态 | 负责人 | 备注 |
 |------|------|------|--------|------|
-| PC · 登录页 | FRONTEND_API_MAP §2.1 | ✅ | | `/login` |
-| PC · 医生队列/病历 | §2.2 | ✅ | | 7:3 布局 + 叫号/病历 + 开检验/开处方 |
+| PC · 登录页 | API.md §二 | ✅ | | `/login` |
+| PC · 医生队列/病历 | API.md §五 | ✅ | | 开单对话框 + 医嘱面板 + 完整病历字段 |
 | PC · 药师发药 | §2.6 | ✅ | | `/pharmacy/pending` 待发药 + 发药/退药 |
 | PC · 收费员退费 | §2.3 | ✅ | | `/registrar/refund` 按病历号查询 + 退费 |
+| PC · PACS 影像任务 | §2.5 | ✅ | | `/pacs/imaging` Mock 列表 |
 | 小程序 · 登录/挂号 | §一 | ✅ | | `hospital-patient-miniapp/` |
 | 小程序 · 支付 | §一 | ✅ | | 待缴列表 + 模拟支付 |
+| 小程序 · 报告/医嘱 | §一 | ✅ | | 报告 Tab + `pages/orders` 医嘱进度 |
 
 ---
 
@@ -99,6 +104,9 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
+| 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
+| 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |
 | 2026-06-04 | ADR-015：AI 开单 suggest + ai-draft；`TEAM_COLLABORATION` §九 六人分工 |
 | 2026-05-31 | 文档精简：合并 INTEGRATION/RATIONALE/TECH 至 RUNBOOK/IMPLEMENTATION/MICROSERVICES |
 | 2026-05-31 | 退号/退费/退药：患者退号、窗口退费、药师退药+退费；验收 4/4 PASS |

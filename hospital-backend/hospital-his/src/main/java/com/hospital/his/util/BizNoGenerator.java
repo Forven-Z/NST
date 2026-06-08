@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * 院内业务编号生成（v1.14：bill/payment/refund/prescription 业务标识统一用表 id，此处仅保留病历号等档案编号）。
+ */
 public final class BizNoGenerator {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -14,25 +17,5 @@ public final class BizNoGenerator {
     public static String medicalRecordNo() {
         return "MR" + DATE_FMT.format(LocalDate.now())
                 + String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
-    }
-
-    public static String billNo() {
-        return "B" + DATE_FMT.format(LocalDate.now())
-                + System.currentTimeMillis() % 100000;
-    }
-
-    public static String paymentNo() {
-        return "P" + DATE_FMT.format(LocalDate.now())
-                + System.currentTimeMillis() % 100000;
-    }
-
-    public static String refundNo() {
-        return "R" + DATE_FMT.format(LocalDate.now())
-                + System.currentTimeMillis() % 100000;
-    }
-
-    public static String prescriptionNo() {
-        return "RX" + DATE_FMT.format(LocalDate.now())
-                + String.format("%05d", ThreadLocalRandom.current().nextInt(100000));
     }
 }

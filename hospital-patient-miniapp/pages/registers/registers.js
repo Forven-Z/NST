@@ -65,6 +65,11 @@ Page({
     wx.navigateTo({ url: `/pages/medical-record/medical-record?registerId=${id}` })
   },
 
+  goOrders(e) {
+    const id = e.currentTarget.dataset.id
+    wx.navigateTo({ url: `/pages/orders/orders?registerId=${id}` })
+  },
+
   async onCancel(e) {
     const id = e.currentTarget.dataset.id
     const ok = await new Promise((resolve) => {

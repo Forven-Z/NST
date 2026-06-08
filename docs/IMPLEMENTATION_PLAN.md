@@ -2,7 +2,7 @@
 
 > **用途**：成员共享、按阶段分工、对齐 Definition of Done。  
 > **文档索引**：[README.md](./README.md)  
-> **版本**：v2.0 | 2026-05  
+> **版本**：v2.1 | 2026-06  
 > **联调验收**：见 [RUNBOOK.md](./RUNBOOK.md) §十二  
 > **协作约定**：见 [TEAM_COLLABORATION.md](./TEAM_COLLABORATION.md)
 ---
@@ -40,7 +40,7 @@
 ```text
 common (Result, JWT DTO)
   → auth (staff login + internal/token/patient)
-  → his (patient 微信 + 挂号 + outpatient)
+  → his (controller.patient 微信/挂号 + controller.doctor 队列病历)
   → management 只读字典 API（或直接用 seed 数据）
   → gateway 路由 + JWT 过滤器
   → 小程序 / PC 联调
@@ -75,7 +75,7 @@ common (Result, JWT DTO)
 | 1.F4 | PC 医生 | 登录 | `POST /auth/staff/login` |
 | 1.F5 | PC 医生 | 队列、叫号、病历 | `/doctor/**` |
 
-详见 [FRONTEND_API_MAP.md](./FRONTEND_API_MAP.md)。
+详见 [API.md](./API.md) 附录 A。
 
 ### 3.4 P1 Definition of Done（DoD）
 
@@ -93,7 +93,7 @@ common (Result, JWT DTO)
 |---|------|------|------|
 | 2.1 | his | 开立检验 + `bill` + Feign 通知 lis | ADR-003 |
 | 2.2 | lis | `GET /lis/queue`, 执行、录入结果 | `inspection_request` 写 |
-| 2.3 | his | 窗口收费/退费（registrar） | ADR-009 可仍模拟 |
+| 2.3 | his | 窗口收费/退费（`controller.registrar`；Gateway `/registrar/**`） | ADR-009 可仍模拟 |
 | 2.4 | 前端 | 检验科菜单 + 医生开检验单 | `/lis/**` 新路径 |
 
 **DoD**：医生开检验 → 患者缴费 → 检验科录入结果 → 医生可见 `status=40`。
@@ -200,3 +200,4 @@ common → auth → his → [management] → gateway → 前端联调
 |------|------|------|
 | v1.0 | 2026-05 | 首版 P0.5～P4 任务与 P1 DoD |
 | v2.0 | 2026-05 | 合并 DEVELOPMENT_RATIONALE；协作约定链 TEAM_COLLABORATION |
+| v2.1 | 2026-06 | §3.1 HIS 包命名与 `MICROSERVICES.md` §2.3 扁平 `controller.*` 对齐 |

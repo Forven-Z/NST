@@ -8,8 +8,6 @@ import com.hospital.his.dto.patient.CreateRegisterRequest;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
-import com.hospital.his.security.AuthContextHolder;
-import com.hospital.his.util.BizNoGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +28,7 @@ public class RegisterService {
 
     @Transactional
     public Map<String, Object> createRegister(CreateRegisterRequest request) {
-        Long ownerPatientId = AuthContextHolder.require().getPatientId();
-        Long patientId = request.getMemberPatientId() != null ? request.getMemberPatientId() : ownerPatientId;
-        if (!patientId.equals(ownerPatientId)) {
-            patientFamilyService.assertCanRegisterFor(patientId);
-        }
+        Long patientId = patientFamilyService.resolveVisitPatientId(request.getMemberPatientId());
 
         Map<String, Object> scheduling = schedulingRepository.findByIdForUpdate(request.getSchedulingId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "排班不存在或已停诊"));
@@ -69,14 +63,12 @@ public class RegisterService {
 
         schedulingRepository.incrementUsedQuota(request.getSchedulingId());
 
-        String billNo = BizNoGenerator.billNo();
         long billId = billRepository.insertBill(
-                billNo, patientId, registerId, BillBizType.REGISTER, registerId, "挂号费", registFee);
+                patientId, registerId, BillBizType.REGISTER, registerId, "挂号费", registFee);
 
         Map<String, Object> result = new HashMap<>();
         result.put("registerId", registerId);
         result.put("billId", billId);
-        result.put("billNo", billNo);
         result.put("amount", registFee);
         result.put("visitState", VisitState.PENDING_PAYMENT);
         result.put("message", "请完成支付后进入已挂号状态");

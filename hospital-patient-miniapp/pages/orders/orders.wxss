@@ -1,0 +1,51 @@
+.orders-page {
+  padding: 24rpx;
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.tag {
+  font-size: 24rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+
+.tag-inspection { background: #ecfdf5; color: #059669; }
+.tag-check { background: #eff6ff; color: #2563eb; }
+.tag-disposal { background: #fef3c7; color: #d97706; }
+.tag-prescription { background: #f3e8ff; color: #7c3aed; }
+
+.muted {
+  color: #64748b;
+  font-size: 26rpx;
+  margin-top: 8rpx;
+}
+
+.row-link {
+  margin-top: 12rpx;
+  color: #1677ff;
+  font-size: 26rpx;
+}
+
+.empty {
+  text-align: center;
+  color: #64748b;
+}

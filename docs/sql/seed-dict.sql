@@ -55,10 +55,10 @@ ON CONFLICT (username) DO NOTHING;
 
 SELECT setval('sys_user_id_seq', (SELECT COALESCE(MAX(id), 1) FROM sys_user));
 
--- 排班（未来 7 天内科普通号，已发布）
-INSERT INTO scheduling (dept_id, employee_id, regist_level_id, work_date, noon_type, total_quota, used_quota, publish_status)
+-- 排班（未来 7 天内科张医生普通号，已发布；科室经 employee.dept_id=内科推导）
+INSERT INTO scheduling (employee_id, regist_level_id, work_date, noon_type, total_quota, used_quota, publish_status)
 SELECT
-    1, 1, 1,
+    1, 1,
     (CURRENT_DATE + d)::date,
     n.noon_type,
     30, 0, 1
@@ -66,8 +66,11 @@ FROM generate_series(0, 6) AS d
 CROSS JOIN (VALUES (1), (2)) AS n(noon_type)
 WHERE NOT EXISTS (
     SELECT 1 FROM scheduling s
-    WHERE s.dept_id = 1 AND s.employee_id = 1 AND s.regist_level_id = 1
-      AND s.work_date = (CURRENT_DATE + d)::date AND s.noon_type = n.noon_type
+    WHERE s.employee_id = 1
+      AND s.regist_level_id = 1
+      AND s.work_date = (CURRENT_DATE + d)::date
+      AND s.noon_type = n.noon_type
+      AND s.publish_status <> 2
 );
 
 -- 疾病字典（示例）
@@ -84,9 +87,9 @@ INSERT INTO medical_technology (item_code, item_name, tech_type, price, dept_id)
 ON CONFLICT (item_code) DO NOTHING;
 
 -- 药品（P3 预置）
-INSERT INTO drug_info (drug_code, drug_name, specification, unit, retail_price, stock_qty) VALUES
-    ('DRG-001', '阿莫西林胶囊', '0.25g*24粒', '盒', 18.50, 100),
-    ('DRG-002', '布洛芬缓释胶囊', '0.3g*20粒', '盒', 22.00, 80)
+INSERT INTO drug_info (drug_code, drug_name, drug_format, drug_dosage, drug_type, unit, retail_price, stock_qty) VALUES
+    ('DRG-001', '阿莫西林胶囊', '0.25g×24粒', '胶囊', '处方药', '盒', 18.50, 100),
+    ('DRG-002', '布洛芬缓释胶囊', '0.3g×20粒', '胶囊', '处方药', '盒', 22.00, 80)
 ON CONFLICT (drug_code) DO NOTHING;
 
 COMMIT;

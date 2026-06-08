@@ -2,7 +2,7 @@
 
 > **用途**：约定「前端 + 库表先行、后端分模块并行」的协作方式，减少接口漂移与联调返工。  
 > **适用对象**：全员（前端负责人、各后端模块负责人、联调/答辩）  
-> **配套**：[FRONTEND_API_MAP.md](./FRONTEND_API_MAP.md) · [API.md](./API.md) · [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) · [MICROSERVICES.md](./MICROSERVICES.md) · [PROGRESS.md](./PROGRESS.md)
+> **配套**：[API.md](./API.md) · [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) · [MICROSERVICES.md](./MICROSERVICES.md) · [PROGRESS.md](./PROGRESS.md)
 
 ---
 
@@ -12,7 +12,7 @@
 
 ```text
 阶段 A（前端 + 数据负责人）
-  定稿/维护：页面、路由、交互、Mock、schema.sql、DATABASE_DESIGN、API.md、FRONTEND_API_MAP
+  定稿/维护：页面、路由、交互、Mock、schema.sql、DATABASE_DESIGN、**API.md**（唯一 HTTP 契约）
   产出：可独立演示的前端（Mock 或已联调接口）
 
 阶段 B（后端模块负责人，可并行）
@@ -30,10 +30,9 @@
 1. `DESIGN_DECISIONS.md`（ADR 已定稿）
 2. `MICROSERVICES.md`（服务边界、端口、表写归属）
 3. `DATABASE_DESIGN.md`（表、字段、状态枚举）
-4. `API.md`（HTTP 路径、Request/Response）
+4. `API.md`（HTTP 路径、Request/Response、实现状态、附录 A 页面速查）
 5. `BUSINESS_FLOW.md`（业务流程与状态迁移）
-6. `FRONTEND_API_MAP.md`（页面 ↔ API 对照）
-7. `PROJECT_REQUIREMENTS.md`（需求范围）
+6. `PROJECT_REQUIREMENTS.md`（需求范围）
 
 ---
 
@@ -42,7 +41,7 @@
 
 | 角色                                 | 主要职责                                       | 主要产出                                                                                        |
 | ---------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| **前端 + 库表负责人**                     | PC / 小程序全页面；库表与 API 契约维护；Mock 层；联调清单       | `hospital-frontend/`、`hospital-patient-miniapp/`、`docs/sql/`、`API.md`、`FRONTEND_API_MAP.md` |
+| **前端 + 库表负责人**                     | PC / 小程序全页面；库表与 API 契约维护；Mock 层；联调清单       | `hospital-frontend/`、`hospital-patient-miniapp/`、`docs/sql/`、**`API.md`** |
 | **hospital-his 负责人**               | 门诊、患者端、挂号收费、药房、医嘱开立、registrar              | `hospital-his` 代码、`scripts/r-*-acceptance.ps1`（his 相关）                                      |
 | **hospital-lis 负责人**               | 检验队列、执行、结果录入                               | `hospital-lis`、LIS 验收脚本                                                                     |
 | **hospital-pacs 负责人**              | 检查队列、执行、结果、影像上传                            | `hospital-pacs`、PACS 验收脚本                                                                   |
@@ -74,7 +73,7 @@
 | 角色    | `employee.role_type` | 路由前缀            | 用例图对应         |
 | ----- | -------------------- | --------------- | ------------- |
 | 门诊医生  | `OUTPATIENT_DOCTOR`  | `/doctor/`**    | 叫号、病历、开单、确诊   |
-| 检验医生  | `LAB_DOCTOR` 等       | `/lis/**`       | 检验队列、执行、录入结果  |
+| 检验医生  | `LAB_DOCTOR` 等       | `/lis/`**       | 检验队列、执行、录入结果  |
 | 检查医生  | `CHECK_DOCTOR` 等     | `/pacs/**`      | 检查队列、执行、录入结果  |
 | 处置医生  | `DISPOSAL_DOCTOR` 等  | `/disposal/**`  | 处置队列、执行、录入结果  |
 | 药师    | `PHARMACIST`         | `/pharmacy/**`  | 发药、退药         |
@@ -88,7 +87,7 @@
 
 每个页面需满足：
 
-- 在 `FRONTEND_API_MAP.md` 有一行对照（Method + Path + 服务 + 阶段）  
+- 在 `API.md` §二 总览或附录 A 有一行对照（Method + Path + 服务 + 阶段 + 实现状态）  
 - 有对应 `src/api/*.js` 封装（路径与 `API.md` 一致）  
 - 后端未实现时：**Mock 可演示**（见 §3.4）  
 - 列表/表单字段与 `API.md` Response 示例一致（含 `status` 数字与文案）  
@@ -97,6 +96,7 @@
 ### 3.3 库表完成标准
 
 - 变更先改 `DATABASE_DESIGN.md`，再改 `docs/sql/schema.sql`  
+- **当前定稿**：`DATABASE_DESIGN.md` **v1.14**（业务单号即各表 `id`；无 `bill_no`/`payment_no`/`prescription_no`/`refund_no`）  
 - 状态枚举与 `BUSINESS_FLOW.md` §八一致（挂号、检查、检验、处方、处置）  
 - 新表在 `MICROSERVICES.md` §表写归属中登记  
 - 本地执行 `schema.sql` + `seed-dict.sql` 无报错  
@@ -117,7 +117,7 @@ VITE_USE_MOCK=false
 1. Mock 数据放在 `hospital-frontend/src/mock/`，按模块分文件（如 `doctor.js`、`lis.js`）。
 2. Mock 返回结构必须与 `API.md` 中 `Result<T>` 一致：`{ code, message, data, success }`。
 3. 在 `src/api/request.js` 或各 API 文件中：当 `VITE_USE_MOCK=true` 且接口标记为 `PENDING` 时走 Mock。
-4. 在 `FRONTEND_API_MAP.md` 用 `**PENDING`** 标记后端未实现的 API；实现后改为 `**DONE**` 并关 Mock。
+4. 在 `API.md` §二 用 ⬜ 标记后端未实现的 API；实现后改为 ✅ 并关 Mock。
 
 **禁止**：Mock 字段与 `API.md` 不一致（例如 Mock 用 `id` 而契约用 `registerId`）。
 
@@ -169,7 +169,7 @@ VITE_USE_MOCK=false
 
 ```text
 1. 提 Issue / 站会说明原因
-2. 先改 API.md + FRONTEND_API_MAP.md（+ DATABASE_DESIGN 若涉及表）
+2. 先改 **API.md**（+ DATABASE_DESIGN 若涉及表）
 3. 前端负责人 Review 通过后，后端再改代码
 4. PROGRESS.md 变更记录写一行
 ```
@@ -184,7 +184,7 @@ VITE_USE_MOCK=false
 
 ### 6.1 规则
 
-- 在 `**feature/*`、`fix/*`、`docs/***` 上开发并 push；**合并进 `main` 须走 GitHub Pull Request**（不能 `push origin main`）。
+- 在 `**feature/*`、`fix/*`、`docs/*`** 上开发并 push；**合并进 `main` 须走 GitHub Pull Request**（不能 `push origin main`）。
 - Merge 前确认 `**main` 仍可运行**（相关服务能启、对应 `scripts/r-*-acceptance.ps1` 能过；改表则同步 `schema.sql` / `API.md`）。
 
 ### 6.2 分支命名
@@ -309,7 +309,7 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 | #   | 交付物                       | 位置                                               |
 | --- | ------------------------- | ------------------------------------------------ |
-| 1   | 页面 ↔ API 对照（含 PENDING 标记） | `FRONTEND_API_MAP.md`                            |
+| 1   | 页面 ↔ API 对照（含 ⬜ 实现状态） | `API.md` §二、附录 A |
 | 2   | HTTP 契约                   | `API.md`                                         |
 | 3   | 表结构定稿                     | `DATABASE_DESIGN.md` + `docs/sql/schema.sql`     |
 | 4   | 可演示前端                     | `hospital-frontend/`、`hospital-patient-miniapp/` |
@@ -329,33 +329,37 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 ### 9.1 模块认领表
 
 
-| 模块 | 端口 | 负责人 | 状态 | 验收脚本 |
-|------|------|--------|------|----------|
-| `hospital-common` | —（jar） | **zcl** | ✅ | 随各 `r-*` |
-| `hospital-gateway` | 9000 | **zcl** | ✅ | r-min 依赖 |
-| `hospital-auth` | 9101 | **zcl** | ✅ | r-min A1/A2 |
-| `hospital-his` | 9102 | **zcl** | ✅ | r-min, r-pharmacy, r-reversal |
-| `hospital-lis` | 9103 | **lzr** | ✅ | r-lis |
-| `hospital-pacs` | 9104 | **lzr** | 🟨 | r-pacs（upload 待完善） |
-| `hospital-management` | 9105 | **lzr** | 🟨 | r-modules-smoke；**P5 排班必做** |
-| `hospital-ai-bridge` | 9106 | **lml** | 🟨 | r-modules-smoke → r-full |
-| `hospital-ai`（Python CNN） | 8000 | **wsh** | ⬜ | P4 / r-full |
-| PC 前端 `hospital-frontend/` | — | **zcl** | 🟨 | RUNBOOK §十二 |
-| 患者小程序 | — | **zcl** | ✅ | r-min B/C/D |
-| 契约 / SQL / 架构文档 | — | **zcl** | 持续 | 评审 |
-| 测试与验收 | — | **zty** | 持续 | 全部 `r-*` |
+| 模块                         | 端口     | 负责人     | 状态  | 验收脚本                          |
+| -------------------------- | ------ | ------- | --- | ----------------------------- |
+| `hospital-common`          | —（jar） | **zcl** | ✅   | 随各 `r-*`                      |
+| `hospital-gateway`         | 9000   | **zcl** | ✅   | r-min 依赖                      |
+| `hospital-auth`            | 9101   | **zcl** | ✅   | r-min A1/A2                   |
+| `hospital-his`             | 9102   | **zcl** | ✅   | r-min, r-pharmacy, r-reversal |
+| `hospital-lis`             | 9103   | **lzr** | ✅   | r-lis                         |
+| `hospital-pacs`            | 9104   | **lzr** | 🟨  | r-pacs（upload 待完善）            |
+| `hospital-disposal`        | 9105   | **zcl** | ✅   | 处置队列/执行/结果                    |
+| `hospital-management`      | 9107   | **lzr** | 🟨  | r-modules-smoke；**P5 排班必做**   |
+| `hospital-ai-bridge`       | 9106   | **lml** | 🟨  | r-modules-smoke → r-full      |
+| `hospital-ai`（Python CNN）  | 8000   | **wsh** | ⬜   | P4 / r-full                   |
+| PC 前端 `hospital-frontend/` | —      | **zcl** | 🟨  | RUNBOOK §十二                   |
+| 患者小程序                      | —      | **zcl** | ✅   | r-min B/C/D                   |
+| 契约 / SQL / 架构文档            | —      | **zcl** | 持续  | 评审                            |
+| 测试与验收                      | —      | **zty** | 持续  | 全部 `r-*`                      |
+
 
 ### 9.2 AI 辅助开单（ADR-015 · 已定稿）
 
-| 步骤 | 方案 | 接口 | 主负责人 |
-|------|------|------|----------|
-| 1. 是否开检查/检验/处置 | **A** 分支判断 | `POST /ai/diagnosis/suggest` | **lml**（bridge） |
-| 2. 生成草稿 | **B** 三步之① | `POST /doctor/*-requests/ai-draft` | **lml** 生成 JSON；**zcl** his 落草稿 |
-| 3. 医生编辑 | **B** 三步之② | `PUT /doctor/*-requests/ai-draft/{id}` | **zcl** |
-| 4. 确认已开立 | **B** 三步之③ | `POST /doctor/*-requests/ai-draft/{id}/confirm` | **zcl**（写单 + bill + Feign） |
-| 5. 处方（同模式） | **B** | `/prescriptions/ai-draft/**` | **lml** + **zcl** |
 
-`*` = `check` | `inspection` | `disposal`。缴费后执行：**lzr**（lis/pacs）；处置执行：**zcl**（his）。
+| 步骤             | 方案         | 接口                                              | 主负责人                            |
+| -------------- | ---------- | ----------------------------------------------- | ------------------------------- |
+| 1. 是否开检查/检验/处置 | **A** 分支判断 | `POST /ai/diagnosis/suggest`                    | **lml**（bridge）                 |
+| 2. 生成草稿        | **B** 三步之① | `POST /doctor/*-requests/ai-draft`              | **lml** 生成 JSON；**zcl** his 落草稿 |
+| 3. 医生编辑        | **B** 三步之② | `PUT /doctor/*-requests/ai-draft/{id}`          | **zcl**                         |
+| 4. 确认已开立       | **B** 三步之③ | `POST /doctor/*-requests/ai-draft/{id}/confirm` | **zcl**（写单 + bill + Feign）      |
+| 5. 处方（同模式）     | **B**      | `/prescriptions/ai-draft/`**                    | **lml** + **zcl**               |
+
+
+`*` = `check` | `inspection` | `disposal`。缴费后执行：**lzr**（lis/pacs）；处置执行：**zcl**（**disposal** 微服务）。
 
 ### 9.3 各人任务摘要
 
@@ -363,8 +367,8 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 - **平台**：gateway 路由/JWT、auth、common；新前缀 PR 统一 Review。
 - **his**：门诊/患者/registrar/pharmacy/**处置**；PENDING 补全（窗口挂号收费、确诊、finish、patient 列表等）；**§5.3～5.5 ai-draft 实现**。
-- **前端**：PC 全角色（含 **处置科 `/disposal/**`**、检验/检查/管理员）；小程序；Mock；**医生工作台 AI 诊断 + 草稿 UI**。
-- **文档**：`API.md`、`FRONTEND_API_MAP.md`、`schema.sql` 变更。
+- **前端**：小程序；**草稿 UI 设计**。
+- **文档**：`API.md`、`schema.sql` 变更。
 
 #### lzr — LIS + PACS + 管理
 
@@ -383,7 +387,9 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 - `hospital-ai/` FastAPI：训练、推理 job、MinIO 结果；与 **lzr** pacs callback 联调。
 - **不负责** LLM 开单（归 lml）。
 
-#### zty — 测试
+#### zty — 前端 + 测试
+
+- 前端：PC 全角色（含 **处置科** `/disposal/`**、检验/检查/管理员）实现和优化；Mock。
 
 - 维护用例表、缺陷台账；跑通 `r-min`～`r-reversal`、**r-full**（P4 牵头扩展）。
 - 里程碑签字；PR 前冒烟（改哪模块跑哪脚本）；**ADR-015** 场景：suggest → 草稿 → 改 → 确认 → 缴费 → 医技/处置。
@@ -399,27 +405,30 @@ wsh  = hospital-ai（Python CNN，内网）
 
 跨模块：**Feign + API 契约**；改契约 **zcl 先改文档** → 全员 Ack → 再编码。
 
-## 十、当前实现与 PENDING 摘要（2026-05）
+## 十、当前实现与 PENDING 摘要（2026-06）
 
-便于后端认领时对齐；**以代码与 PROGRESS 为准**，本文仅作协作快照。
+便于后端认领时对齐；**以代码与 [PROGRESS.md](./PROGRESS.md) 为准**，本文仅作协作快照。
 
 ### 10.1 已有后端接口（可关 Mock 联调）
 
-- 患者：微信登录、挂号、模拟支付、退号、退费、档案、病历  
+> **说明**：本节是 **接口级快照**；各人待办与优先级以 **§9.3** 为准。
+
+- 患者：微信登录、档案、**家属就诊人**（`GET/POST /patient/family-members`）、线上挂号、模拟支付、退号、病历  
 - 医生：队列、叫号、病历、开检验/检查/处方、查结果  
-- 检验/检查：`/lis/`**、`/pacs/**` 队列、execute、result  
+- 检验/检查：`/lis/**`、`/pacs/**` 队列、execute、result  
 - 药房：待发药、发药、退药  
-- 收费员：按病历号查账单、退费、退号  
+- 收费员（**部分**）：按病历号查账单、退费、退号（`controller.registrar`；**窗口挂号/收费结算仍 PENDING**，见 §9.3）  
 - 管理：字典只读
 
 ### 10.2 文档有、后端 PENDING（前端可 Mock）
 
+> 与 **§9.3** 任务列表一致；实现后移入 §10.1 并关 Mock。
 
 | 能力 | 典型 API | 负责人 |
 |------|----------|--------|
-| 窗口挂号/收费 | `POST /registrar/registers`、`POST /registrar/charges` | zcl · his |
+| **窗口挂号 / 收费结算** | `POST /registrar/registers`、`POST /registrar/charges`（或等价 settle） | zcl · his（§9.3） |
 | 门诊确诊 / 结束看诊 | `POST .../medical-record/confirm`、`POST .../finish` | zcl · his |
-| **处置全流程（必做）** | `/disposal-requests/**`、处置科 execute/result | zcl · his |
+| **处置全流程（必做）** | `/doctor/disposal-requests/**`（his 开立）、`/disposal/**`（disposal 执行/结果） | zcl · his + disposal |
 | **AI 分支诊断** | `POST /ai/diagnosis/suggest` | lml · ai-bridge |
 | **AI 检查/检验/处置草稿** | `POST/PUT/confirm …/ai-draft/**` | lml 生成 + zcl · his |
 | AI 处方草稿 | `/prescriptions/ai-draft/**` | lml + zcl |
@@ -429,7 +438,7 @@ wsh  = hospital-ai（Python CNN，内网）
 | AI SSE / RAG | `/ai/assistant/stream`、`/ai/rag/**` | lml |
 
 
-前端做这些页面时，在 `FRONTEND_API_MAP.md` 标 **PENDING** 并启用 Mock。
+前端做这些页面时，在 `API.md` §二 标 ⬜ 并启用 Mock。
 
 ---
 
@@ -448,9 +457,11 @@ wsh  = hospital-ai（Python CNN，内网）
 ## 十二、修订记录
 
 
-| 日期 | 说明 |
-|------|------|
+| 日期      | 说明                                             |
+| ------- | ---------------------------------------------- |
+| 2026-06 | §2.3 扁平 `controller.*` 定稿；DATABASE §4.3 **`patient_family_link`** 字段说明 |
+| 2026-06 | §3.3 标注 DATABASE **v1.14** 定稿；§十 与 §9.3 分工对齐 |
 | 2026-06 | §九 六人分工定稿；ADR-015 AI 开单（suggest + ai-draft 三步） |
-| 2026-05 | 首版及后续协作/Git 约定迭代 |
+| 2026-05 | 首版及后续协作/Git 约定迭代                               |
 
 

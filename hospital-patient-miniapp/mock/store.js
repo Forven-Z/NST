@@ -26,7 +26,6 @@ function ok(data) {
 function normalizeBill(b) {
   return {
     id: b.id,
-    billNo: b.billNo,
     billTitle: b.billTitle || b.itemName || '费用项',
     bizType: b.bizType,
     amount: b.amount,
@@ -77,7 +76,6 @@ function seedRegisters() {
   })
   payments.push({
     paymentId: 90001,
-    paymentNo: 'P202606040001',
     paidAt: '2026-06-03 09:30:00',
     amount: 20,
     channel: '模拟支付',
@@ -169,7 +167,6 @@ function createRegister(body) {
   registers.unshift(reg)
   bills.unshift({
     id: nextBillId,
-    billNo: 'B' + Date.now(),
     billTitle: sched.levelName + ' · ' + sched.deptName,
     itemName: sched.levelName + ' · ' + sched.deptName,
     bizType: 'REGIST',
@@ -182,7 +179,6 @@ function createRegister(body) {
   return ok({
     registerId: reg.registerId,
     billId: nextBillId,
-    billNo: bills[0].billNo,
     amount: sched.registFee,
     visitState: 0,
     message: '请完成支付后进入已挂号状态',
@@ -257,7 +253,6 @@ function mockPay(billIds) {
     const titles = paidBills.map((b) => b.billTitle || b.itemName).join('、')
     payments.unshift({
       paymentId: nextPaymentId,
-      paymentNo: 'P' + Date.now(),
       paidAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       amount: Math.round(paid * 100) / 100,
       channel: '模拟支付',
@@ -277,7 +272,6 @@ function addExamBillForDemo(registerId) {
   nextBillId += 1
   bills.unshift({
     id: nextBillId,
-    billNo: 'B' + Date.now(),
     billTitle: '血常规',
     itemName: '血常规',
     bizType: 'LIS',
@@ -309,61 +303,146 @@ function getMedicalRecord(registerId) {
 
 const REPORTS = [
   {
-    id: 1,
+    id: 5001,
+    requestId: 5001,
+    patientId: 10001,
     type: 'lab',
     typeLabel: '检验',
     reportName: '血常规',
-    patientName: '王小明',
+    patientName: '微信用户',
     reportTime: '2026-06-04 11:20',
     summary: '白细胞略高，其余指标未见明显异常。',
+    purpose: '发热查因',
+    bodyPart: '',
+    resultText: '白细胞 11.2×10^9/L（略高），中性粒细胞比例正常；血红蛋白、血小板均在参考范围内。建议结合临床随访。',
+    registerId: 3001,
   },
   {
-    id: 2,
+    id: 6001,
+    requestId: 6001,
+    patientId: 10001,
     type: 'exam',
     typeLabel: '检查',
     reportName: '头部 CT 平扫',
-    patientName: '王小明',
+    patientName: '微信用户',
     reportTime: '2026-06-04 15:40',
     summary: '未见明显占位性病变，建议结合临床。',
+    purpose: '头痛查因',
+    bodyPart: '头部',
+    resultText: '颅脑 CT 平扫：脑实质密度未见明显异常，脑室系统形态正常，中线结构居中。未见明显占位性病变及出血灶。建议结合临床。',
+    registerId: 3001,
+  },
+  {
+    id: 7001,
+    requestId: 7001,
+    patientId: 10001,
+    type: 'disposal',
+    typeLabel: '处置记录',
+    reportName: '洗胃',
+    patientName: '微信用户',
+    reportTime: '2026-06-04 16:10',
+    summary: '洗胃完成，患者生命体征平稳。',
+    purpose: '急性中毒',
+    bodyPart: '',
+    resultText: '洗胃完成，出入量记录完整，洗出液清亮；洗胃后生命体征平稳，未诉明显不适。嘱观察后离院。',
+    registerId: 3001,
   },
 ]
 
 function listReports(params) {
-  let list = [...REPORTS]
-  const type = params && params.type
-  if (type && type !== 'all') list = list.filter((r) => r.type === type)
-  return ok({ list })
+  params = params || {}
+  let list = REPORTS.map(function (r) {
+    return {
+      id: r.id,
+      requestId: r.requestId,
+      type: r.type,
+      typeLabel: r.typeLabel,
+      reportName: r.reportName,
+      patientName: r.patientName,
+      reportTime: r.reportTime,
+      summary: r.summary,
+      registerId: r.registerId,
+    }
+  })
+  if (params.patientId) {
+    list = list.filter(function (r) {
+      var full = REPORTS.find(function (x) { return x.id === r.id })
+      return full && full.patientId === Number(params.patientId)
+    })
+  }
+  const type = params.type
+  if (type && type !== 'all') list = list.filter(function (r) { return r.type === type })
+  return ok({ list: list })
 }
 
-const MESSAGES = [
-  {
-    id: 1,
-    title: '挂号成功提醒',
-    content: '您已成功预约内科 · 张医生普通号，请尽快完成缴费。',
-    timeLabel: '今天 09:12',
-    read: false,
-    link: '/pages/bills/bills',
-  },
-  {
-    id: 2,
-    title: '候诊提醒',
-    content: '您当前前面还有 2 人候诊，请留意叫号屏。',
-    timeLabel: '今天 10:05',
-    read: false,
-    link: '/pages/queue/queue?registerId=3001',
-  },
-  {
-    id: 3,
-    title: '报告已出',
-    content: '血常规报告已出，可在「报告查询」中查看。',
-    timeLabel: '昨天 16:30',
-    read: true,
-    link: '/pages/reports/reports',
-  },
-]
+function getReportDetail(type, requestId) {
+  var row = REPORTS.find(function (r) {
+    return r.type === type && r.requestId === Number(requestId)
+  })
+  if (!row) return Promise.reject(new Error('报告不存在'))
+  return ok({
+    requestId: row.requestId,
+    type: row.type,
+    typeLabel: row.typeLabel,
+    reportName: row.reportName,
+    registerId: row.registerId,
+    patientId: row.patientId,
+    purpose: row.purpose,
+    bodyPart: row.bodyPart,
+    resultText: row.resultText,
+    reportTime: row.reportTime,
+    status: 40,
+  })
+}
 
-function listMessages() {
-  return ok({ list: MESSAGES })
+function getRegisterOrders(registerId) {
+  var rid = Number(registerId)
+  var list = [
+    {
+      kind: 'inspection',
+      typeLabel: '检验',
+      requestId: 5001,
+      itemName: '血常规',
+      status: 40,
+      statusLabel: '已出结果',
+      registerId: rid,
+    },
+    {
+      kind: 'check',
+      typeLabel: '检查',
+      requestId: 6001,
+      itemName: '头部 CT 平扫',
+      status: 20,
+      statusLabel: '已缴费',
+      registerId: rid,
+    },
+    {
+      kind: 'disposal',
+      typeLabel: '处置记录',
+      requestId: 7001,
+      itemName: '洗胃',
+      status: 40,
+      statusLabel: '已出结果',
+      registerId: rid,
+    },
+    {
+      kind: 'prescription',
+      typeLabel: '处方',
+      requestId: 64001,
+      itemName: '阿莫西林胶囊',
+      status: 20,
+      statusLabel: '已缴费',
+      registerId: rid,
+    },
+  ]
+  return ok({
+    registerId: rid,
+    list: list,
+    checks: list.filter(function (o) { return o.kind === 'check' }),
+    inspections: list.filter(function (o) { return o.kind === 'inspection' }),
+    disposals: list.filter(function (o) { return o.kind === 'disposal' }),
+    prescriptions: list.filter(function (o) { return o.kind === 'prescription' }),
+  })
 }
 
 module.exports = {
@@ -384,7 +463,8 @@ module.exports = {
   cancelRegister,
   getMedicalRecord,
   listReports,
-  listMessages,
+  getReportDetail,
+  getRegisterOrders,
   setProfileFromLogin(data) {
     if (data.patientId) patientId = data.patientId
     if (data.medicalRecordNo) profile.medicalRecordNo = data.medicalRecordNo

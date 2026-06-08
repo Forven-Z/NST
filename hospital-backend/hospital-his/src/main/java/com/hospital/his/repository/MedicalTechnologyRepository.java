@@ -28,6 +28,10 @@ public class MedicalTechnologyRepository {
         return findByTechType(id, "CHECK");
     }
 
+    public Optional<Map<String, Object>> findDisposalItem(Long id) {
+        return findByTechType(id, "DISPOSAL");
+    }
+
     private Optional<Map<String, Object>> findByTechType(Long id, String techType) {
         return jdbcClient.sql("""
                         SELECT id, item_code, item_name, tech_type, price

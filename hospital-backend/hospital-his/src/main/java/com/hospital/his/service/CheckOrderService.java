@@ -11,7 +11,6 @@ import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.MedicalTechnologyRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
-import com.hospital.his.util.BizNoGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,16 +55,14 @@ public class CheckOrderService {
                 price, request.getPurpose(), request.getBodyPart(), request.getRemark(),
                 InspectionRequestStatus.ORDERED);
 
-        String billNo = BizNoGenerator.billNo();
         long billId = billRepository.insertBill(
-                billNo, patientId, request.getRegisterId(), BillBizType.CHECK, checkId,
+                patientId, request.getRegisterId(), BillBizType.CHECK, checkId,
                 "检查费-" + item.get("itemName"), price);
 
         Map<String, Object> result = new HashMap<>();
         result.put("checkRequestId", checkId);
         result.put("status", InspectionRequestStatus.ORDERED);
         result.put("billId", billId);
-        result.put("billNo", billNo);
         result.put("amount", price);
         result.put("itemName", item.get("itemName"));
         return result;

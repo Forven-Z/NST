@@ -8,23 +8,31 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class PatientWechatService {
 
     private final PatientRepository patientRepository;
+    private final PatientIdentityMergeService identityMergeService;
 
     @Transactional
     public WechatAuthService.PatientSession upsertSession(String openid, WechatLoginRequest request) {
-        boolean isNewPatient = false;
         Long patientId = patientRepository.findPatientIdByOpenid(openid).orElse(null);
+        boolean isNewPatient = false;
 
         if (patientId == null) {
-            isNewPatient = true;
-            String medicalRecordNo = BizNoGenerator.medicalRecordNo();
-            String realName = StringUtils.hasText(request.getNickName()) ? request.getNickName() : "微信用户";
-            patientId = patientRepository.insertPatient(medicalRecordNo, realName);
-            patientRepository.upsertWechatBinding(patientId, openid);
+            Optional<Long> mergedId = identityMergeService.resolvePatientIdForNewLogin(openid, request.getIdCard());
+            if (mergedId.isPresent()) {
+                patientId = mergedId.get();
+            } else {
+                isNewPatient = true;
+                String medicalRecordNo = BizNoGenerator.medicalRecordNo();
+                String realName = StringUtils.hasText(request.getNickName()) ? request.getNickName() : "微信用户";
+                patientId = patientRepository.insertPatient(medicalRecordNo, realName);
+                patientRepository.upsertWechatBinding(patientId, openid);
+            }
         } else {
             patientRepository.upsertWechatBinding(patientId, openid);
         }

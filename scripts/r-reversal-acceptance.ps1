@@ -53,7 +53,7 @@ Invoke-RestMethod -Uri "$base/patient/payments" -Method POST -Headers $h2 -Conte
 $registrar = Invoke-RestMethod -Uri "$base/auth/staff/login" -Method POST -ContentType 'application/json' -Body '{"username":"registrar01","password":"123456"}'
 $rh = @{ Authorization = "Bearer $($registrar.data.accessToken)" }
 $refund = Invoke-RestMethod -Uri "$base/registrar/refunds" -Method POST -Headers $rh -ContentType 'application/json' -Body "{`"billId`":$($rx.data.billId),`"reason`":`"not dispensed`"}"
-Test-Step 'refund prescription' ($refund.code -eq 200 -and $refund.data.refundNo) ($refund | ConvertTo-Json -Compress)
+Test-Step 'refund prescription' ($refund.code -eq 200 -and $refund.data.refundId) ($refund | ConvertTo-Json -Compress)
 
 # --- 3. Return drug + refund ---
 $code3 = "dev-return-$(Get-Random)"

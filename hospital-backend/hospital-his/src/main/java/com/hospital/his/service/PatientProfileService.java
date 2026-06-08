@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 public class PatientProfileService {
 
     private final PatientRepository patientRepository;
+    private final PatientIdentityMergeService identityMergeService;
 
     public PatientProfileResponse getProfile() {
         Long patientId = AuthContextHolder.require().getPatientId();
@@ -23,16 +24,23 @@ public class PatientProfileService {
 
     public PatientProfileResponse updateProfile(PatientProfileUpdateRequest request) {
         Long patientId = AuthContextHolder.require().getPatientId();
-        patientRepository.updateProfile(
+        PatientIdentityMergeService.MergeResult merge = identityMergeService.mergeOnProfileIdCard(
                 patientId,
+                request.getIdCard(),
                 request.getRealName(),
                 request.getGender(),
                 request.getBirthDate(),
                 request.getPhone(),
-                request.getIdCard(),
                 request.getAddress(),
                 request.getSettleCategoryId()
         );
-        return getProfile();
+        PatientProfileResponse profile = patientRepository.findProfileById(merge.patientId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "患者档案不存在"));
+        if (merge.merged()) {
+            profile.setIdentityMerged(true);
+            profile.setAccessToken(merge.accessToken());
+            profile.setExpiresIn(merge.expiresIn());
+        }
+        return profile;
     }
 }

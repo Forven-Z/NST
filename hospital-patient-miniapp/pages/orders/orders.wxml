@@ -1,0 +1,14 @@
+<view class="orders-page">
+  <view wx:if="{{loading}}" class="empty card">加载中…</view>
+  <view wx:elif="{{!list.length}}" class="empty card">本次就诊暂无医嘱</view>
+  <view wx:else class="list-wrap">
+    <view wx:for="{{list}}" wx:key="requestId" class="card order-row">
+      <view class="row-between">
+        <text class="item-name">{{item.itemName}}</text>
+        <text class="tag tag-{{item.kind}}">{{item.typeLabel}}</text>
+      </view>
+      <view class="muted">状态：{{item.statusLabel}}</view>
+      <view wx:if="{{item.status >= 40 && item.kind !== 'prescription'}}" class="row-link" data-item="{{item}}" bindtap="goReport">查看报告 ›</view>
+    </view>
+  </view>
+</view>

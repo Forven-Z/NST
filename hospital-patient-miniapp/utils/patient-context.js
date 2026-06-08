@@ -1,3 +1,7 @@
+/**
+ * ADR-016 方案 A：JWT patientId = 操作者（微信绑定）；activeMemberPatientId = 当前就诊人。
+ * 业务请求 Query 传 patientId（等价 visitPatientId）；省略时后端视为本人。
+ */
 const MEMBER_ID_KEY = 'activeMemberPatientId'
 const MEMBER_NAME_KEY = 'activeMemberName'
 const MEMBER_MRN_KEY = 'activeMemberMrn'

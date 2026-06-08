@@ -19,4 +19,8 @@ public class PatientProfileResponse {
     private String address;
     private Long settleCategoryId;
     private String settleCategoryName;
+    /** 身份证合并后需更换 Token 时为 true */
+    private Boolean identityMerged;
+    private String accessToken;
+    private Integer expiresIn;
 }

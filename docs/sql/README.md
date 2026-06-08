@@ -1,8 +1,9 @@
 # 数据库脚本说明
 
 > **业务库**：PostgreSQL 15+，库名 `hospital`  
-> **设计依据**：[`DATABASE_DESIGN.md`](../DATABASE_DESIGN.md) v1.3  
-> **执行顺序**：`schema.sql` → `seed-dict.sql`（P1 联调必跑 seed）
+> **设计依据**：[`DATABASE_DESIGN.md`](../DATABASE_DESIGN.md) **v1.14**  
+> **执行顺序**：`schema.sql` → `seed-dict.sql`（P1 联调必跑 seed）  
+> **说明**：`patient_family_link` 已并入 `schema.sql`（小程序家属）；`patch-family-link.sql` 仅用于旧库增量升级。
 
 ---
 
@@ -20,7 +21,7 @@ cd /d C:\Users\你的用户名\Desktop\NST
 REM 0. 创建库（已存在可跳过）
 psql -U postgres -h localhost -c "CREATE DATABASE hospital ENCODING 'UTF8';"
 
-REM 1. 建表（26 张业务表）
+REM 1. 建表（26 张核心表 + patient_family_link）
 psql -U postgres -d hospital -f docs\sql\schema.sql
 
 REM 2. 灌入 P1 字典与测试账号（ADR-012）
@@ -63,7 +64,13 @@ psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 
 若曾失败过，数据可能未写入（事务已 `ROLLBACK`），修复编码后**再执行一次** `seed-dict.sql` 即可。
 
-**`schema.sql` 中的 NOTICE**：首次执行可能出现「约束 fk_prescription_ai_draft 不存在」之类提示，属 `DROP CONSTRAINT IF EXISTS` 的正常现象，可忽略。
+**v1.14 相对旧库的主要 DDL 变更**（须 **DROP SCHEMA 重建** 或自行写 migration，勿直接覆盖旧表）：
+
+- 移除 `bill_no` / `payment_no` / `refund_no` / `prescription_no`
+- `scheduling` 移除 `dept_id`、`delmark`；增加部分唯一索引 `ux_scheduling_active_slot`
+- `prescription` 移除 `order_time` / `dispense_time` / `remark`
+- `drug_info` / `prescription_item`：`specification` → `drug_format`，增补 `drug_dosage`、`drug_type`
+- `prescription_item` 移除 `create_time`
 
 **pgvector（P4 再装）**：完整分步见 [`DEV_ENV_SETUP.md`](../DEV_ENV_SETUP.md) **§6.1.6**（下载 zip → 停服务 → 复制到 PG 目录 → `CREATE EXTENSION vector`）。
 
@@ -75,8 +82,10 @@ psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 
 | 文件 | 用途 | 阶段 |
 |------|------|------|
-| `schema.sql` | 全量 DDL（26 表 + 索引） | P0.5 必跑 |
+| `schema.sql` | 全量 DDL（26 表 + `patient_family_link` + 索引） | P0.5 必跑 |
 | `seed-dict.sql` | 科室、号别、员工、排班、测试登录 | P1 联调 |
+| `patch-family-link.sql` | 旧库补家属表（新环境勿单独跑） | 增量 |
+| `patch-family-link-relation-type.sql` | 旧库：`relation_type` 6→4、默认改 4 | 增量 |
 | `vector.sql` | RAG 向量表（待 Spring AI 版本确定） | P4 |
 
 ---
@@ -110,3 +119,5 @@ psql -U postgres -d hospital -f docs/sql/seed-dict.sql
 | v1.0 | 2026-05 | 首版 schema + seed，对齐 DATABASE_DESIGN |
 | v1.1 | 2026-05 | 对齐 DEV_ENV_SETUP §6.1.3～6.1.5；CMD 示例与口令说明 |
 | v1.2 | 2026-05 | `seed-dict.sql` 增加 `\encoding UTF8`；§一 Windows GBK/UTF8 排错 |
+| v1.3 | 2026-06 | **对齐 DATABASE_DESIGN v1.14**：重写 `schema.sql` / `seed-dict.sql`；家属表并入 schema |
+| v1.4 | 2026-06 | 文档全库对齐 v1.14（与 `API.md` v1.4 同步） |

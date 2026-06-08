@@ -1,7 +1,32 @@
+.reports-page {
+  padding-bottom: 32rpx;
+}
+
+.member-bar {
+  margin-bottom: 16rpx;
+  padding: 24rpx 28rpx;
+}
+
+.member-label {
+  font-size: 24rpx;
+}
+
+.member-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-top: 8rpx;
+}
+
+.member-link {
+  font-size: 26rpx;
+  color: #1677ff;
+}
+
 .tab-row {
   display: flex;
   gap: 16rpx;
   padding: 20rpx 24rpx;
+  margin-bottom: 16rpx;
 }
 
 .tab-chip {
@@ -17,9 +42,25 @@
   color: #fff;
 }
 
+.empty {
+  padding: 48rpx 32rpx;
+  text-align: center;
+}
+
+.empty-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
 .report-name {
   font-size: 30rpx;
   font-weight: 600;
+}
+
+.meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
 }
 
 .summary {
@@ -29,6 +70,31 @@
   line-height: 1.5;
 }
 
+.row-link {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #1677ff;
+}
+
+.tag-lab {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.tag-exam {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.tag-disposal {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 .report-row:active {
   opacity: 0.85;
+}
+
+.list-wrap .card {
+  margin-bottom: 16rpx;
 }

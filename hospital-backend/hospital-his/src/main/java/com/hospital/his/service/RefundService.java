@@ -9,6 +9,7 @@ import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.CheckRequestRepository;
+import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RefundRepository;
@@ -17,7 +18,6 @@ import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
 import com.hospital.his.security.AuthContext;
 import com.hospital.his.security.AuthContextHolder;
-import com.hospital.his.util.BizNoGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,8 +37,10 @@ public class RefundService {
     private final RegisterRepository registerRepository;
     private final InspectionRequestRepository inspectionRequestRepository;
     private final CheckRequestRepository checkRequestRepository;
+    private final DisposalRequestRepository disposalRequestRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final SchedulingRepository schedulingRepository;
+    private final PatientFamilyService patientFamilyService;
 
     @Transactional
     public Map<String, Object> refundByPatient(Long billId, String reason) {
@@ -68,7 +70,8 @@ public class RefundService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "账单不存在"));
 
         if (patientInitiated) {
-            if (!patientId.equals(((Number) bill.get("patientId")).longValue())) {
+            Long billPatientId = ((Number) bill.get("patientId")).longValue();
+            if (!patientFamilyService.canAccessVisitPatient(patientId, billPatientId)) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "无权操作该账单");
             }
         }
@@ -85,9 +88,7 @@ public class RefundService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST, "未找到支付记录"));
 
         BigDecimal refundAmount = (BigDecimal) bill.get("amount");
-        String refundNo = BizNoGenerator.refundNo();
         long refundId = refundRepository.insertRefund(
-                refundNo,
                 ((Number) paymentLink.get("paymentId")).longValue(),
                 billId,
                 ((Number) bill.get("patientId")).longValue(),
@@ -102,7 +103,6 @@ public class RefundService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("refundId", refundId);
-        result.put("refundNo", refundNo);
         result.put("billId", billId);
         result.put("refundAmount", refundAmount);
         result.put("bizType", bizType);
@@ -142,6 +142,13 @@ public class RefundService {
                     throw new BusinessException(ErrorCode.BAD_REQUEST, "处方状态不允许退费");
                 }
             }
+            case BillBizType.DISPOSAL -> {
+                Map<String, Object> req = disposalRequestRepository.findById(bizId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处置申请不存在"));
+                if (((Number) req.get("status")).intValue() != InspectionRequestStatus.PAID) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "处置已执行或已退费，不可退款");
+                }
+            }
             default -> throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的业务类型: " + bizType);
         }
     }
@@ -159,6 +166,7 @@ public class RefundService {
             case BillBizType.INSPECTION -> inspectionRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
             case BillBizType.CHECK -> checkRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
             case BillBizType.PRESCRIPTION -> prescriptionRepository.updateStatus(bizId, PrescriptionStatus.REFUNDED);
+            case BillBizType.DISPOSAL -> disposalRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
             default -> {
             }
         }

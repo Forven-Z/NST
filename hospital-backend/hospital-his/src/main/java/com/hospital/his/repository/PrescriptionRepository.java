@@ -21,36 +21,34 @@ public class PrescriptionRepository {
         this.jdbcClient = jdbcClient;
     }
 
-    public long insertPrescription(Long registerId, Long patientId, Long doctorId, String prescriptionNo,
-                                   BigDecimal totalAmount, int status, String remark) {
+    public long insertPrescription(Long registerId, Long patientId, Long doctorId,
+                                   BigDecimal totalAmount, int status) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcClient.sql("""
-                        INSERT INTO prescription (register_id, patient_id, doctor_id, prescription_no,
-                                                  total_amount, status, order_time, remark)
-                        VALUES (:registerId, :patientId, :doctorId, :prescriptionNo,
-                                :totalAmount, :status, :orderTime, :remark)
+                        INSERT INTO prescription (register_id, patient_id, doctor_id, total_amount, status)
+                        VALUES (:registerId, :patientId, :doctorId, :totalAmount, :status)
                         """)
                 .param("registerId", registerId)
                 .param("patientId", patientId)
                 .param("doctorId", doctorId)
-                .param("prescriptionNo", prescriptionNo)
                 .param("totalAmount", totalAmount)
                 .param("status", status)
-                .param("orderTime", OffsetDateTime.now())
-                .param("remark", remark)
                 .update(keyHolder, "id");
         return keyHolder.getKey().longValue();
     }
 
     public void insertItem(Long prescriptionId, Long drugId, String drugCode, String drugName,
-                           String specification, BigDecimal unitPrice, BigDecimal quantity, BigDecimal amount,
+                           String drugFormat, String drugDosage, String drugType,
+                           BigDecimal unitPrice, BigDecimal quantity, BigDecimal amount,
                            String usageMethod, String dosage, String frequency, Integer days, String entrust,
                            int sortNo) {
         jdbcClient.sql("""
-                        INSERT INTO prescription_item (prescription_id, drug_id, drug_code, drug_name, specification,
+                        INSERT INTO prescription_item (prescription_id, drug_id, drug_code, drug_name,
+                                                       drug_format, drug_dosage, drug_type,
                                                        unit_price, quantity, amount, usage_method, dosage,
                                                        frequency, days, entrust, sort_no)
-                        VALUES (:prescriptionId, :drugId, :drugCode, :drugName, :specification,
+                        VALUES (:prescriptionId, :drugId, :drugCode, :drugName,
+                                :drugFormat, :drugDosage, :drugType,
                                 :unitPrice, :quantity, :amount, :usageMethod, :dosage,
                                 :frequency, :days, :entrust, :sortNo)
                         """)
@@ -58,7 +56,9 @@ public class PrescriptionRepository {
                 .param("drugId", drugId)
                 .param("drugCode", drugCode)
                 .param("drugName", drugName)
-                .param("specification", specification)
+                .param("drugFormat", drugFormat)
+                .param("drugDosage", drugDosage)
+                .param("drugType", drugType)
                 .param("unitPrice", unitPrice)
                 .param("quantity", quantity)
                 .param("amount", amount)
@@ -83,7 +83,7 @@ public class PrescriptionRepository {
 
     public Optional<Map<String, Object>> findByIdForUpdate(Long prescriptionId) {
         return jdbcClient.sql("""
-                        SELECT id, register_id, patient_id, doctor_id, prescription_no, total_amount, status
+                        SELECT id, register_id, patient_id, doctor_id, total_amount, status, create_time
                         FROM prescription
                         WHERE id = :id AND delmark = 0
                         FOR UPDATE
@@ -95,9 +95,9 @@ public class PrescriptionRepository {
                     row.put("registerId", rs.getLong("register_id"));
                     row.put("patientId", rs.getLong("patient_id"));
                     row.put("doctorId", rs.getLong("doctor_id"));
-                    row.put("prescriptionNo", rs.getString("prescription_no"));
                     row.put("totalAmount", rs.getBigDecimal("total_amount"));
                     row.put("status", rs.getInt("status"));
+                    row.put("createTime", rs.getObject("create_time", OffsetDateTime.class));
                     return row;
                 })
                 .optional();
@@ -106,11 +106,10 @@ public class PrescriptionRepository {
     public List<Map<String, Object>> findPending(Integer status, int offset, int limit) {
         return jdbcClient.sql("""
                         SELECT p.id AS prescription_id,
-                               p.prescription_no,
                                p.register_id,
                                p.total_amount,
                                p.status,
-                               p.order_time,
+                               p.create_time,
                                pt.medical_record_no,
                                pt.real_name AS patient_name,
                                e.real_name AS doctor_name
@@ -119,7 +118,7 @@ public class PrescriptionRepository {
                         JOIN employee e ON p.doctor_id = e.id
                         WHERE p.delmark = 0
                           AND (CAST(:status AS INTEGER) IS NULL OR p.status = CAST(:status AS INTEGER))
-                        ORDER BY p.order_time
+                        ORDER BY p.create_time
                         LIMIT :limit OFFSET :offset
                         """)
                 .param("status", status)
@@ -128,11 +127,10 @@ public class PrescriptionRepository {
                 .query((rs, rowNum) -> {
                     Map<String, Object> row = new HashMap<>();
                     row.put("prescriptionId", rs.getLong("prescription_id"));
-                    row.put("prescriptionNo", rs.getString("prescription_no"));
                     row.put("registerId", rs.getLong("register_id"));
                     row.put("totalAmount", rs.getBigDecimal("total_amount"));
                     row.put("status", rs.getInt("status"));
-                    row.put("orderTime", rs.getObject("order_time", OffsetDateTime.class));
+                    row.put("createTime", rs.getObject("create_time", OffsetDateTime.class));
                     row.put("medicalRecordNo", rs.getString("medical_record_no"));
                     row.put("patientName", rs.getString("patient_name"));
                     row.put("doctorName", rs.getString("doctor_name"));
@@ -164,12 +162,11 @@ public class PrescriptionRepository {
     public void markDispensed(Long prescriptionId, Long pharmacistId) {
         jdbcClient.sql("""
                         UPDATE prescription
-                        SET status = 30, pharmacist_id = :pharmacistId, dispense_time = :now, update_time = NOW()
+                        SET status = 30, pharmacist_id = :pharmacistId, update_time = NOW()
                         WHERE id = :id
                         """)
                 .param("id", prescriptionId)
                 .param("pharmacistId", pharmacistId)
-                .param("now", OffsetDateTime.now())
                 .update();
     }
 

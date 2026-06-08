@@ -11,7 +11,6 @@ import com.hospital.his.repository.InspectionRequestRepository;
 import com.hospital.his.repository.MedicalTechnologyRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
-import com.hospital.his.util.BizNoGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,9 +62,7 @@ public class InspectionOrderService {
                 InspectionRequestStatus.ORDERED
         );
 
-        String billNo = BizNoGenerator.billNo();
         long billId = billRepository.insertBill(
-                billNo,
                 patientId,
                 request.getRegisterId(),
                 BillBizType.INSPECTION,
@@ -78,7 +75,6 @@ public class InspectionOrderService {
         result.put("inspectionRequestId", inspectionId);
         result.put("status", InspectionRequestStatus.ORDERED);
         result.put("billId", billId);
-        result.put("billNo", billNo);
         result.put("amount", price);
         result.put("itemName", item.get("itemName"));
         return result;

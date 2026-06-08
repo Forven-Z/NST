@@ -26,7 +26,7 @@ npm run dev
 
 默认 **`VITE_USE_MOCK=true`**（见 `.env.development`），无需后端即可演示全角色界面。
 
-- 契约详见 [`docs/API_INTERFACE_SPEC.md`](../docs/API_INTERFACE_SPEC.md)
+- 契约详见 [`docs/API.md`](../docs/API.md)（§〇 路径定稿 · 附录 A 页面速查）
 - 联调真库：改 `VITE_USE_MOCK=false` 并启动 Gateway + 微服务
 
 处置科 `/disposal/queue`：Mock 账号 `disposal01` / `123456`；`admin` 可访问各角色菜单。
@@ -46,4 +46,4 @@ npm run dev
 | **4** | AI 助理 SSE（lml 联调）、草稿逐步编辑弹窗 | 待做 |
 | **5** | 管理员排班 + Timefold（P5） | 占位 |
 
-对照 [FRONTEND_API_MAP.md](../docs/FRONTEND_API_MAP.md) · [TEAM_COLLABORATION.md](../docs/TEAM_COLLABORATION.md) §九。
+对照 [API.md](../docs/API.md) 附录 A · [TEAM_COLLABORATION.md](../docs/TEAM_COLLABORATION.md) §九。
