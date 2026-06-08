@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import ResultReportSections from '../medical/ResultReportSections.vue'
 import {
   fetchCheckResult,
   fetchDisposalResult,
@@ -14,7 +15,8 @@ const props = defineProps({
 
 const loading = ref(false)
 const orders = ref(null)
-const resultPreview = ref(null)
+const resultDialogVisible = ref(false)
+const resultDetail = ref(null)
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
@@ -27,7 +29,8 @@ const statusMap = {
 watch(
   () => props.registerId,
   (id) => {
-    resultPreview.value = null
+    resultDialogVisible.value = false
+    resultDetail.value = null
     if (id) loadOrders()
     else orders.value = null
   },
@@ -60,8 +63,8 @@ async function onViewResult(row) {
     } else {
       return ElMessage.info('处方无文字报告，请至药房查看发药状态')
     }
-    resultPreview.value = { ...row, ...res.data }
-    ElMessage.success('已加载结果')
+    resultDetail.value = { ...row, ...res.data }
+    resultDialogVisible.value = true
   } catch (err) {
     ElMessage.warning(err.message || '结果尚未出具')
   }
@@ -104,16 +107,22 @@ defineExpose({ reload: loadOrders })
       </el-table-column>
     </el-table>
 
-    <el-alert
-      v-if="resultPreview"
-      type="success"
-      :closable="true"
-      show-icon
-      class="result-alert"
-      :title="`${resultPreview.typeLabel} · ${resultPreview.itemName}`"
-      :description="resultPreview.resultText"
-      @close="resultPreview = null"
-    />
+    <el-dialog
+      v-model="resultDialogVisible"
+      :title="`${resultDetail?.typeLabel || ''} · ${resultDetail?.itemName || ''}`"
+      width="680px"
+      destroy-on-close
+    >
+      <ResultReportSections
+        v-if="resultDetail"
+        :instrument-data="resultDetail.instrumentData"
+        :ai-report-text="resultDetail.aiReportText"
+        :doctor-report-text="resultDetail.doctorReportText"
+        :ai-report-status="resultDetail.aiReportStatus || 'READY'"
+        :editable-ai="false"
+        :editable-doctor="false"
+      />
+    </el-dialog>
   </el-card>
 </template>
 
@@ -126,9 +135,5 @@ defineExpose({ reload: loadOrders })
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.result-alert {
-  margin-top: 12px;
 }
 </style>

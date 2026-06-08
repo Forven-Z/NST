@@ -1,5 +1,11 @@
 import { mockResult } from '../utils/mock'
-import { executeDisposal, getDisposalQueue, saveDisposalResult } from './store'
+import {
+  executeDisposal,
+  generateTechAiReport,
+  getDisposalQueue,
+  getTechResultDetail,
+  saveDisposalResult,
+} from './store'
 
 export function mockDisposalQueue(params) {
   const list = getDisposalQueue(params?.status ?? 20)
@@ -12,6 +18,21 @@ export function mockDisposalExecute(id) {
 }
 
 export function mockDisposalResult(id, body) {
-  const row = saveDisposalResult(id, body?.resultText)
-  return mockResult({ disposalRequestId: row.disposalRequestId, status: row.status, resultText: row.resultText })
+  const row = saveDisposalResult(id, body)
+  return mockResult({
+    disposalRequestId: row.disposalRequestId,
+    status: row.status,
+    resultText: row.resultText,
+    instrumentData: row.instrumentData,
+    aiReportText: row.aiReportText,
+    doctorReportText: row.doctorReportText,
+  })
+}
+
+export function mockDisposalResultDetail(id) {
+  return mockResult(getTechResultDetail('DISPOSAL', id))
+}
+
+export function mockDisposalGenerateAiReport(id) {
+  return mockResult(generateTechAiReport('DISPOSAL', id))
 }

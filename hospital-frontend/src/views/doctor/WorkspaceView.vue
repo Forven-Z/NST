@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   callPatient,
@@ -16,6 +16,8 @@ import AiDiagnosisBar from '../../components/doctor/AiDiagnosisBar.vue'
 import DoctorPrescriptionDialog from '../../components/doctor/DoctorPrescriptionDialog.vue'
 import DoctorTechOrderDialog from '../../components/doctor/DoctorTechOrderDialog.vue'
 import RegisterOrdersPanel from '../../components/doctor/RegisterOrdersPanel.vue'
+import { TRIAGE_LEVEL_MAP } from '../../config/integrations'
+import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -27,9 +29,15 @@ const currentRegisterId = ref(null)
 const currentPatient = ref(null)
 const ordersPanelRef = ref(null)
 
+const workspace = useDoctorWorkspaceStore()
+
 const techDialogVisible = ref(false)
 const techOrderType = ref('INSPECTION')
 const rxDialogVisible = ref(false)
+const aiDiagnosisText = ref('')
+
+const techPreselectedIds = computed(() => workspace.getPreselectedTechIds(techOrderType.value))
+const rxPreselectedDrugIds = computed(() => workspace.getPreselectedDrugIds())
 
 const recordForm = reactive({
   readme: '',
@@ -76,6 +84,8 @@ async function onCall(row) {
     ElMessage.success(`已开始接诊：${row.patientName}`)
     currentRegisterId.value = row.registerId
     currentPatient.value = row
+    workspace.clearForNewPatient()
+    aiDiagnosisText.value = ''
     await loadQueue()
     await loadMedicalRecord(row.registerId)
     ordersPanelRef.value?.reload?.()
@@ -93,6 +103,8 @@ async function onSelectRow(row) {
   }
   currentRegisterId.value = row.registerId
   currentPatient.value = row
+  workspace.clearForNewPatient()
+  aiDiagnosisText.value = ''
   await loadMedicalRecord(row.registerId)
   ordersPanelRef.value?.reload?.()
 }
@@ -113,6 +125,7 @@ async function loadMedicalRecord(registerId) {
       checkAdvice: data.checkAdvice || '',
       inspectionAdvice: data.inspectionAdvice || '',
     })
+    aiDiagnosisText.value = data.diagnosis || ''
   } catch (err) {
     ElMessage.error(err.message || '加载病历失败')
   }
@@ -125,7 +138,10 @@ async function onSaveRecord() {
   }
   saving.value = true
   try {
-    await saveMedicalRecord(currentRegisterId.value, { ...recordForm })
+    await saveMedicalRecord(currentRegisterId.value, {
+      ...recordForm,
+      diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
+    })
     ElMessage.success('病历已保存')
   } catch (err) {
     ElMessage.error(err.message || '保存失败')
@@ -146,26 +162,45 @@ function openRxDialog() {
 }
 
 async function onTechOrderConfirm(data) {
+  const items = data.items || []
+  if (!items.length) return
   try {
-    let res
-    if (techOrderType.value === 'CHECK') {
-      res = await createCheckOrder(data)
-    } else if (techOrderType.value === 'DISPOSAL') {
-      res = await createDisposalOrder(data)
-    } else {
-      res = await createInspectionOrder(data)
+    let lastRes
+    for (const item of items) {
+      const payload = { registerId: data.registerId, ...item }
+      if (techOrderType.value === 'CHECK') {
+        lastRes = await createCheckOrder(payload)
+      } else if (techOrderType.value === 'DISPOSAL') {
+        lastRes = await createDisposalOrder(payload)
+      } else {
+        lastRes = await createInspectionOrder(payload)
+      }
     }
-    ElMessage.success(res.data?.message || `已开立：${res.data?.itemName}`)
+    const count = items.length
+    ElMessage.success(
+      count > 1
+        ? `已开立 ${count} 项医嘱`
+        : lastRes?.data?.message || `已开立：${lastRes?.data?.itemName}`,
+    )
     ordersPanelRef.value?.reload?.()
   } catch (err) {
     ElMessage.error(err.message || '开立失败')
   }
 }
 
+function getTechDraftMeta(techId) {
+  return workspace.getDraftItemMeta(techOrderType.value, techId)
+}
+
 async function onPrescriptionConfirm(data) {
   try {
     const res = await createPrescription(data)
-    ElMessage.success(`已开立处方 #${res.data?.prescriptionId}，请患者缴费后至药房取药`)
+    const itemCount = data.items?.length ?? 1
+    ElMessage.success(
+      itemCount > 1
+        ? `已开立处方 #${res.data?.prescriptionId}（${itemCount} 种药品），请患者缴费后至药房取药`
+        : `已开立处方 #${res.data?.prescriptionId}，请患者缴费后至药房取药`,
+    )
     ordersPanelRef.value?.reload?.()
   } catch (err) {
     ElMessage.error(err.message || '开处方失败')
@@ -180,6 +215,8 @@ async function onFinishVisit() {
     ElMessage.success('看诊已结束')
     currentRegisterId.value = null
     currentPatient.value = null
+    aiDiagnosisText.value = ''
+    workspace.clearForNewPatient()
     await loadQueue()
   } catch (err) {
     ElMessage.error(err.message || '操作失败')
@@ -235,6 +272,19 @@ function formatGender(gender) {
         </el-table-column>
         <el-table-column prop="age" label="年龄" width="70" />
         <el-table-column prop="registLevelName" label="号别" width="90" />
+        <el-table-column label="AI 分诊" width="100">
+          <template #default="{ row }">
+            <el-tooltip v-if="row.triageNote" :content="row.triageNote" placement="top">
+              <el-tag
+                size="small"
+                :type="TRIAGE_LEVEL_MAP[row.triageLevel]?.type || 'info'"
+              >
+                {{ TRIAGE_LEVEL_MAP[row.triageLevel]?.label || '待分诊' }}
+              </el-tag>
+            </el-tooltip>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="noonLabel" label="午别" width="72" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -290,7 +340,12 @@ function formatGender(gender) {
         </div>
       </template>
 
-      <AiDiagnosisBar :register-id="currentRegisterId" :disabled="!currentRegisterId" />
+      <AiDiagnosisBar
+        v-model:ai-diagnosis="aiDiagnosisText"
+        :register-id="currentRegisterId"
+        :record-form="recordForm"
+        :disabled="!currentRegisterId"
+      />
 
       <el-form v-if="currentRegisterId" label-position="top" class="record-form">
         <el-row :gutter="16">
@@ -355,11 +410,14 @@ function formatGender(gender) {
       v-model="techDialogVisible"
       :order-type="techOrderType"
       :register-id="currentRegisterId"
+      :preselected-ids="techPreselectedIds"
+      :get-draft-meta="getTechDraftMeta"
       @confirm="onTechOrderConfirm"
     />
     <DoctorPrescriptionDialog
       v-model="rxDialogVisible"
       :register-id="currentRegisterId"
+      :preselected-drug-ids="rxPreselectedDrugIds"
       @confirm="onPrescriptionConfirm"
     />
   </div>

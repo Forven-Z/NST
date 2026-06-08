@@ -10,8 +10,8 @@ const DRAFT_ITEMS = {
   DISPOSAL: [{ medicalTechnologyId: 5, itemName: '洗胃', purpose: '急性中毒', bodyPart: '', remark: '' }],
 }
 
-export function mockDiagnosisSuggest(registerId) {
-  return mockDiagnosisSuggestForRegister(registerId)
+export function mockDiagnosisSuggest(payload) {
+  return mockDiagnosisSuggestForRegister(payload.registerId, payload)
 }
 
 export function mockClinicalAiDraft(type, registerId) {

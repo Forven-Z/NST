@@ -14,11 +14,12 @@ import {
     title="检验待执行队列"
     tech-type="INSPECTION"
     request-id-key="inspectionRequestId"
-    workflow-hint="流程：AI 分诊分配医生 → 患者缴费 → 开始执行后 AI 自动生成智能检测报告（无需影像）→ 检验师在 AI 报告上修改补充 → 录入发布。仪器原始数据不可改。"
+    workflow-hint="流程：AI 分诊负载均衡分配 → 患者缴费 → 开始执行（仪器数据只读上传）→ 智能体组生成 AI 检验报告 → 检验师核对修改后录入发布。无 CT 影像。"
     :fetch-queue="fetchLisQueue"
     :execute-request="executeLisRequest"
     :save-result="saveLisResult"
     :fetch-result-detail="fetchLisResultDetail"
     :generate-ai-report="generateLisAiReport"
+    show-triage
   />
 </template>

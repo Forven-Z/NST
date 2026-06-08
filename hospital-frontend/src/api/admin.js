@@ -1,6 +1,11 @@
 import request from './request'
 import { useMock } from '../utils/mock'
 import {
+  mockAiSchedulingSuggest,
+  mockApplyAiSchedulingReplace,
+  mockUpdateAdminSchedule,
+} from '../mock/admin-ai'
+import {
   mockAdminDepartments,
   mockAdminDrugs,
   mockAdminMedicalTechnologies,
@@ -31,4 +36,22 @@ export function fetchMedicalTechnologies(params) {
 export function fetchAdminSchedules(params) {
   if (useMock()) return mockAdminSchedules(params)
   return request.get('/admin/scheduling', { params })
+}
+
+/** AI 智能排班建议（智能体组实现，前端仅展示） */
+export function fetchAiSchedulingSuggest(params) {
+  if (useMock()) return mockAiSchedulingSuggest(params)
+  return request.post('/admin/scheduling/ai-suggest', params || {})
+}
+
+/** 应用 AI 推荐排班替换当前排班 */
+export function applyAiSchedulingReplace(schedulingId, proposedSchedule) {
+  if (useMock()) return mockApplyAiSchedulingReplace(schedulingId, proposedSchedule)
+  return request.post(`/admin/scheduling/${schedulingId}/ai-replace`, proposedSchedule)
+}
+
+/** 手工编辑排班 */
+export function updateAdminSchedule(schedulingId, data) {
+  if (useMock()) return mockUpdateAdminSchedule(schedulingId, data)
+  return request.put(`/admin/scheduling/${schedulingId}`, data)
 }

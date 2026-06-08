@@ -2,6 +2,7 @@
  * Mock 统一业务状态：挂号 → 收费 → 叫号 → 开单 → 医技/药房
  * 各模块 mock 共享此内存状态，演示完整门诊链路。
  */
+import { mockAiReportText, mockInstrumentData } from './ai-reports'
 import {
   consumeScheduleQuota,
   getDeptById,
@@ -9,6 +10,29 @@ import {
   getDrugById,
   getMedicalTechById,
 } from './dict'
+
+function buildPublishedResultText({ instrumentData = '', aiReportText = '', doctorReportText = '' }) {
+  const parts = []
+  if (instrumentData) parts.push(instrumentData)
+  if (aiReportText) parts.push(aiReportText)
+  if (doctorReportText) parts.push(`【医师意见】\n${doctorReportText}`)
+  return parts.join('\n\n')
+}
+
+function initResultFields(row, techType) {
+  row.instrumentData = ''
+  row.aiReportText = ''
+  row.doctorReportText = ''
+  row.aiReportStatus = 'PENDING'
+  row.techType = techType
+}
+
+function ensureInstrumentData(row, techType) {
+  if (!row.instrumentData) {
+    row.instrumentData = mockInstrumentData(techType, row.itemName)
+  }
+  return row.instrumentData
+}
 
 let nextPatientId = 100
 let nextRegisterId = 30000
@@ -80,6 +104,9 @@ function seedDemoPatients() {
     registTime: nowIso(),
     workDate: new Date().toISOString().slice(0, 10),
     noonLabel: '上午',
+    triageLevel: 'NORMAL',
+    triageNote: 'AI 分诊：常见病初诊，分配普通门诊',
+    assignedByAi: true,
   })
   createBill({
     medicalRecordNo: 'MR202606040001',
@@ -115,6 +142,9 @@ function seedDemoPatients() {
     registTime: nowIso(),
     workDate: new Date().toISOString().slice(0, 10),
     noonLabel: '上午',
+    triageLevel: 'URGENT',
+    triageNote: 'AI 分诊：反复头痛，优先接诊',
+    assignedByAi: true,
   })
   createBill({
     medicalRecordNo: 'MR202606040002',
@@ -159,6 +189,9 @@ function seedDemoPatients() {
     registLevelName: '普通号',
     visitState: 2,
     registTime: nowIso(),
+    triageLevel: 'NORMAL',
+    triageNote: 'AI 分诊：老年慢病复诊',
+    assignedByAi: true,
   })
   nextInspectionId += 1
   const inspId = nextInspectionId
@@ -173,6 +206,7 @@ function seedDemoPatients() {
     createTime: nowIso(),
     resultText: '',
   })
+  initResultFields(state.inspectionRequests[state.inspectionRequests.length - 1], 'INSPECTION')
   createBill({
     medicalRecordNo: 'MR202606040003',
     patientId: p3,
@@ -198,6 +232,7 @@ function seedDemoPatients() {
     createTime: nowIso(),
     resultText: '',
   })
+  initResultFields(state.checkRequests[state.checkRequests.length - 1], 'CHECK')
   createBill({
     medicalRecordNo: 'MR202606040003',
     patientId: p3,
@@ -402,6 +437,7 @@ function createTechOrder(registerId, techId, kind) {
       createTime: nowIso(),
       resultText: '',
     }
+    initResultFields(row, 'INSPECTION')
     state.inspectionRequests.push(row)
     createBill({
       medicalRecordNo: reg.medicalRecordNo,
@@ -428,6 +464,7 @@ function createTechOrder(registerId, techId, kind) {
       createTime: nowIso(),
       resultText: '',
     }
+    initResultFields(row, 'CHECK')
     state.checkRequests.push(row)
     createBill({
       medicalRecordNo: reg.medicalRecordNo,
@@ -454,6 +491,7 @@ function createTechOrder(registerId, techId, kind) {
       createTime: nowIso(),
       resultText: '',
     }
+    initResultFields(row, 'DISPOSAL')
     state.disposalRequests.push(row)
     createBill({
       medicalRecordNo: reg.medicalRecordNo,
@@ -482,40 +520,78 @@ export function createDisposalOrder(data) {
   return createTechOrder(data.registerId, data.medicalTechnologyId ?? 5, 'DISPOSAL')
 }
 
+function formatResultPayload(row, idKey) {
+  return {
+    [idKey]: row[idKey],
+    itemName: row.itemName,
+    instrumentData: row.instrumentData || '',
+    aiReportText: row.aiReportText || '',
+    doctorReportText: row.doctorReportText || '',
+    resultText: row.resultText || '',
+    aiReportStatus: row.aiReportStatus || 'PENDING',
+    reportTime: nowIso(),
+  }
+}
+
 export function getInspectionResult(inspectionRequestId) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(inspectionRequestId))
   if (!row) throw new Error('检验申请不存在')
   if (row.status < 40) throw new Error('检验结果尚未出具，请待检验科录入')
-  return {
-    inspectionRequestId: row.inspectionRequestId,
-    itemName: row.itemName,
-    resultText: row.resultText,
-    reportTime: nowIso(),
-  }
+  return formatResultPayload(row, 'inspectionRequestId')
 }
 
 export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  return {
-    checkRequestId: row.checkRequestId,
-    itemName: row.itemName,
-    resultText: row.resultText,
-    reportTime: nowIso(),
-  }
+  return formatResultPayload(row, 'checkRequestId')
 }
 
 export function getDisposalResult(disposalRequestId) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(disposalRequestId))
   if (!row) throw new Error('处置申请不存在')
   if (row.status < 40) throw new Error('处置记录尚未出具，请待处置科录入')
-  return {
-    disposalRequestId: row.disposalRequestId,
-    itemName: row.itemName,
-    resultText: row.resultText,
-    reportTime: nowIso(),
+  return formatResultPayload(row, 'disposalRequestId')
+}
+
+function findTechRow(techType, id) {
+  if (techType === 'INSPECTION') {
+    return state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   }
+  if (techType === 'CHECK') {
+    return state.checkRequests.find((r) => r.checkRequestId === Number(id))
+  }
+  if (techType === 'DISPOSAL') {
+    return state.disposalRequests.find((r) => r.disposalRequestId === Number(id))
+  }
+  return null
+}
+
+export function getTechResultDetail(techType, id) {
+  const row = findTechRow(techType, id)
+  if (!row) throw new Error('申请不存在')
+  ensureInstrumentData(row, techType)
+  const idKey = techType === 'INSPECTION'
+    ? 'inspectionRequestId'
+    : techType === 'CHECK'
+      ? 'checkRequestId'
+      : 'disposalRequestId'
+  return {
+    ...formatResultPayload(row, idKey),
+    status: row.status,
+    medicalRecordNo: row.medicalRecordNo,
+    patientName: row.patientName,
+    techType,
+  }
+}
+
+export function generateTechAiReport(techType, id) {
+  const row = findTechRow(techType, id)
+  if (!row) throw new Error('申请不存在')
+  ensureInstrumentData(row, techType)
+  row.aiReportText = mockAiReportText(techType, row.itemName)
+  row.aiReportStatus = 'READY'
+  return getTechResultDetail(techType, id)
 }
 
 const ORDER_STATUS_LABEL = {
@@ -662,42 +738,76 @@ export function confirmAiDraft(type, registerId, items) {
 
 // —— 医技队列 ——
 
+function enrichTechQueueRow(row) {
+  const reg = getRegisterById(row.registerId)
+  return {
+    ...row,
+    triageLevel: reg?.triageLevel || 'NORMAL',
+    triageNote: reg?.triageNote || '',
+    assignedByAi: reg?.assignedByAi ?? false,
+  }
+}
+
 export function getInspectionQueue(status) {
   const s = status ?? 20
-  return state.inspectionRequests.filter((r) => r.status === Number(s))
+  return state.inspectionRequests
+    .filter((r) => r.status === Number(s))
+    .map(enrichTechQueueRow)
 }
 
 export function executeInspection(id) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
+  ensureInstrumentData(row, 'INSPECTION')
+  if (!row.aiReportText) {
+    row.aiReportText = mockAiReportText('INSPECTION', row.itemName)
+    row.aiReportStatus = 'READY'
+  }
   return row
 }
 
-export function saveInspectionResult(id, resultText) {
+export function saveInspectionResult(id, payload) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
-  row.resultText = resultText
+  ensureInstrumentData(row, 'INSPECTION')
+  if (typeof payload === 'string') {
+    row.resultText = payload
+  } else {
+    row.aiReportText = payload.aiReportText ?? row.aiReportText
+    row.doctorReportText = payload.doctorReportText ?? ''
+    row.resultText = buildPublishedResultText(row)
+  }
   row.status = 40
   return row
 }
 
 export function getCheckQueue(status) {
   const s = status ?? 20
-  return state.checkRequests.filter((r) => r.status === Number(s))
+  return state.checkRequests
+    .filter((r) => r.status === Number(s))
+    .map(enrichTechQueueRow)
 }
 
 export function executeCheck(id) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
+  ensureInstrumentData(row, 'CHECK')
   return row
 }
 
-export function saveCheckResult(id, resultText) {
+export function saveCheckResult(id, payload) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
-  row.resultText = resultText
+  ensureInstrumentData(row, 'CHECK')
+  if (typeof payload === 'string') {
+    row.resultText = payload
+  } else {
+    row.aiReportText = payload.aiReportText ?? row.aiReportText
+    row.doctorReportText = payload.doctorReportText ?? ''
+    row.resultText = buildPublishedResultText(row)
+  }
   row.status = 40
   return row
 }
@@ -711,13 +821,25 @@ export function executeDisposal(id) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
+  ensureInstrumentData(row, 'DISPOSAL')
+  if (!row.aiReportText) {
+    row.aiReportText = mockAiReportText('DISPOSAL', row.itemName)
+    row.aiReportStatus = 'READY'
+  }
   return row
 }
 
-export function saveDisposalResult(id, resultText) {
+export function saveDisposalResult(id, payload) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
-  row.resultText = resultText
+  ensureInstrumentData(row, 'DISPOSAL')
+  if (typeof payload === 'string') {
+    row.resultText = payload
+  } else {
+    row.aiReportText = payload.aiReportText ?? row.aiReportText
+    row.doctorReportText = payload.doctorReportText ?? ''
+    row.resultText = buildPublishedResultText(row)
+  }
   row.status = 40
   return row
 }

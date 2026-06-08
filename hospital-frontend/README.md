@@ -17,7 +17,7 @@ npm run dev
 |--------|------|------|
 | doctor01 | 门诊医生 | `/doctor/workspace` |
 | lab01 | 检验科 | `/lis/queue` |
-| check01 | 检查科 | `/pacs/queue` |
+| check01 | 检查检验科 | `/pacs/queue`（检查）、`/pacs/inspection-queue`（检验） |
 | pharmacy01 | 药师 | `/pharmacy/pending` |
 | registrar01 | 收费员 | `/registrar/*` |
 | admin | 管理员 | `/admin/*`（可进所有受保护路由） |

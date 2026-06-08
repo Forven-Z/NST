@@ -7,6 +7,8 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   orderType: { type: String, required: true },
   registerId: { type: Number, default: null },
+  preselectedIds: { type: Array, default: () => [] },
+  getDraftMeta: { type: Function, default: null },
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
@@ -19,26 +21,20 @@ const titleMap = {
 
 const loading = ref(false)
 const techList = ref([])
-const form = ref({
-  medicalTechnologyId: null,
-  purpose: '',
-  bodyPart: '',
-})
+const selectedIds = ref([])
 
 const dialogTitle = computed(() => titleMap[props.orderType] || '开立医嘱')
+const hasAiPreselect = computed(() => props.preselectedIds.length > 0)
 
 watch(
   () => props.modelValue,
   async (open) => {
     if (!open) return
-    form.value = { medicalTechnologyId: null, purpose: '', bodyPart: '' }
+    selectedIds.value = [...props.preselectedIds]
     loading.value = true
     try {
       const res = await fetchMedicalTechnologies({ pageSize: 50 })
       techList.value = (res.data?.list ?? []).filter((t) => t.techType === props.orderType)
-      if (techList.value.length) {
-        form.value.medicalTechnologyId = techList.value[0].id
-      }
     } catch (err) {
       ElMessage.error(err.message || '加载医技项目失败')
     } finally {
@@ -53,40 +49,88 @@ function onClose() {
 
 function onSubmit() {
   if (!props.registerId) return ElMessage.warning('请先选择接诊患者')
-  if (!form.value.medicalTechnologyId) return ElMessage.warning('请选择项目')
-  emit('confirm', {
-    registerId: props.registerId,
-    medicalTechnologyId: form.value.medicalTechnologyId,
-    purpose: form.value.purpose,
-    bodyPart: form.value.bodyPart,
+  if (!selectedIds.value.length) return ElMessage.warning('请至少勾选一项')
+  const items = selectedIds.value.map((id) => {
+    const meta = props.getDraftMeta?.(id) || {}
+    return {
+      medicalTechnologyId: id,
+      purpose: meta.purpose || '',
+      bodyPart: meta.bodyPart || '',
+    }
   })
+  emit('confirm', { registerId: props.registerId, items })
   onClose()
 }
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" :title="dialogTitle" width="480px" @close="onClose">
-    <el-form v-loading="loading" label-width="88px">
-      <el-form-item label="项目" required>
-        <el-select v-model="form.medicalTechnologyId" placeholder="选择医技项目" style="width: 100%">
-          <el-option
-            v-for="t in techList"
-            :key="t.id"
-            :label="`${t.itemName}（¥${t.price}）`"
-            :value="t.id"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="目的">
-        <el-input v-model="form.purpose" placeholder="如：排除颅内病变" />
-      </el-form-item>
-      <el-form-item v-if="orderType !== 'DISPOSAL'" label="部位">
-        <el-input v-model="form.bodyPart" placeholder="如：头部、血液" />
-      </el-form-item>
-    </el-form>
+  <el-dialog :model-value="modelValue" :title="dialogTitle" width="520px" @close="onClose">
+    <el-alert
+      v-if="hasAiPreselect"
+      type="success"
+      :closable="false"
+      show-icon
+      class="ai-tip"
+      title="AI 已根据草稿为您预勾选部分项目，请核对后确认"
+    />
+    <div v-loading="loading" class="checkbox-list">
+      <el-checkbox-group v-model="selectedIds">
+        <el-checkbox
+          v-for="t in techList"
+          :key="t.id"
+          :value="t.id"
+          class="checkbox-item"
+        >
+          <span class="item-name">{{ t.itemName }}</span>
+          <span class="item-price">¥{{ t.price }}</span>
+          <el-tag
+            v-if="preselectedIds.includes(t.id)"
+            size="small"
+            type="success"
+            class="ai-tag"
+          >
+            AI 推荐
+          </el-tag>
+        </el-checkbox>
+      </el-checkbox-group>
+      <el-empty v-if="!loading && !techList.length" description="暂无可用项目" />
+    </div>
     <template #footer>
       <el-button @click="onClose">取消</el-button>
       <el-button type="primary" @click="onSubmit">确认开立</el-button>
     </template>
   </el-dialog>
 </template>
+
+<style scoped>
+.ai-tip {
+  margin-bottom: 12px;
+}
+
+.checkbox-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 10px;
+  height: auto;
+}
+
+.item-name {
+  margin-right: 8px;
+}
+
+.item-price {
+  color: #64748b;
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.ai-tag {
+  margin-left: 4px;
+}
+</style>

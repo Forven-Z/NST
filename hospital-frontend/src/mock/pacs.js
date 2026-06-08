@@ -1,5 +1,5 @@
 import { mockResult } from '../utils/mock'
-import { executeCheck, getCheckQueue, saveCheckResult } from './store'
+import { executeCheck, generateTechAiReport, getCheckQueue, getTechResultDetail, saveCheckResult } from './store'
 
 export function mockPacsQueue(params) {
   const list = getCheckQueue(params?.status ?? 20)
@@ -12,6 +12,21 @@ export function mockPacsExecute(id) {
 }
 
 export function mockPacsSaveResult(id, body) {
-  const row = saveCheckResult(id, body?.resultText)
-  return mockResult({ checkRequestId: row.checkRequestId, status: row.status, resultText: row.resultText })
+  const row = saveCheckResult(id, body)
+  return mockResult({
+    checkRequestId: row.checkRequestId,
+    status: row.status,
+    resultText: row.resultText,
+    instrumentData: row.instrumentData,
+    aiReportText: row.aiReportText,
+    doctorReportText: row.doctorReportText,
+  })
+}
+
+export function mockPacsResultDetail(id) {
+  return mockResult(getTechResultDetail('CHECK', id))
+}
+
+export function mockPacsGenerateAiReport(id) {
+  return mockResult(generateTechAiReport('CHECK', id))
 }

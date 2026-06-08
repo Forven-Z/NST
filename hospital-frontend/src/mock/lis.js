@@ -1,5 +1,11 @@
 import { mockResult } from '../utils/mock'
-import { executeInspection, getInspectionQueue, saveInspectionResult } from './store'
+import {
+  executeInspection,
+  generateTechAiReport,
+  getInspectionQueue,
+  getTechResultDetail,
+  saveInspectionResult,
+} from './store'
 
 export function mockLisQueue(params) {
   const list = getInspectionQueue(params?.status ?? 20)
@@ -12,6 +18,21 @@ export function mockLisExecute(id) {
 }
 
 export function mockLisSaveResult(id, body) {
-  const row = saveInspectionResult(id, body?.resultText)
-  return mockResult({ inspectionRequestId: row.inspectionRequestId, status: row.status, resultText: row.resultText })
+  const row = saveInspectionResult(id, body)
+  return mockResult({
+    inspectionRequestId: row.inspectionRequestId,
+    status: row.status,
+    resultText: row.resultText,
+    instrumentData: row.instrumentData,
+    aiReportText: row.aiReportText,
+    doctorReportText: row.doctorReportText,
+  })
+}
+
+export function mockLisResultDetail(id) {
+  return mockResult(getTechResultDetail('INSPECTION', id))
+}
+
+export function mockLisGenerateAiReport(id) {
+  return mockResult(generateTechAiReport('INSPECTION', id))
 }

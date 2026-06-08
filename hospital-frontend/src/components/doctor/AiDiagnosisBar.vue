@@ -2,37 +2,55 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  confirmCheckAiDraft,
-  confirmDisposalAiDraft,
-  confirmInspectionAiDraft,
   createCheckAiDraft,
   createDisposalAiDraft,
   createInspectionAiDraft,
   fetchDiagnosisSuggest,
 } from '../../api/doctor'
+import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
 
 const props = defineProps({
   registerId: { type: Number, default: null },
   disabled: { type: Boolean, default: false },
+  recordForm: { type: Object, default: () => ({}) },
+  aiDiagnosis: { type: String, default: '' },
 })
 
+const emit = defineEmits(['update:aiDiagnosis'])
+
+const workspace = useDoctorWorkspaceStore()
 const loadingSuggest = ref(false)
 const loadingDraft = ref('')
-const suggest = ref(null)
+
+function formatDiagnosisText(data) {
+  const lines = []
+  if (data.reason) lines.push(data.reason)
+  if (data.suggestions?.length) {
+    if (lines.length) lines.push('')
+    data.suggestions.forEach((s, i) => lines.push(`${i + 1}. ${s}`))
+  }
+  return lines.join('\n')
+}
 
 async function onSuggest() {
   if (!props.registerId) {
     ElMessage.warning('请先选择接诊中的患者')
     return
   }
+  if (!props.recordForm.readme?.trim()) {
+    ElMessage.warning('请先填写主诉等病历信息')
+    return
+  }
   loadingSuggest.value = true
-  suggest.value = null
   try {
-    const res = await fetchDiagnosisSuggest({ registerId: props.registerId })
-    suggest.value = res.data
-    ElMessage.success('AI 诊断建议已生成')
+    const res = await fetchDiagnosisSuggest({
+      registerId: props.registerId,
+      ...props.recordForm,
+    })
+    emit('update:aiDiagnosis', formatDiagnosisText(res.data || {}))
+    ElMessage.success('AI 初步诊断已生成，可编辑后保存病历')
   } catch (err) {
-    ElMessage.error(err.message || '获取建议失败')
+    ElMessage.error(err.message || '获取诊断失败')
   } finally {
     loadingSuggest.value = false
   }
@@ -48,11 +66,6 @@ async function onAiDraft(type) {
     INSPECTION: createInspectionAiDraft,
     DISPOSAL: createDisposalAiDraft,
   }
-  const confirmers = {
-    CHECK: confirmCheckAiDraft,
-    INSPECTION: confirmInspectionAiDraft,
-    DISPOSAL: confirmDisposalAiDraft,
-  }
   loadingDraft.value = type
   try {
     const draftRes = await creators[type]({ registerId: props.registerId })
@@ -61,10 +74,10 @@ async function onAiDraft(type) {
       ElMessage.info('草稿生成失败')
       return
     }
-    await confirmers[type](draft.draftId)
-    ElMessage.success(`AI ${labelOf(type)} 草稿已确认提交，请患者缴费`)
+    workspace.setAiDraft(type, draft)
+    ElMessage.success(`AI ${labelOf(type)}草稿已生成，请在右侧 AI 助理查看`)
   } catch (err) {
-    ElMessage.error(err.message || 'AI 开单失败')
+    ElMessage.error(err.message || '生成草稿失败')
   } finally {
     loadingDraft.value = ''
   }
@@ -78,7 +91,7 @@ function labelOf(type) {
 <template>
   <div class="ai-bar">
     <div class="ai-bar-head">
-      <span class="label">AI 辅助诊疗（ADR-015）</span>
+      <span class="label">AI 辅助诊疗</span>
       <el-button
         size="small"
         :disabled="disabled || !registerId"
@@ -89,21 +102,16 @@ function labelOf(type) {
       </el-button>
     </div>
 
-    <el-alert
-      v-if="suggest"
-      type="info"
-      :closable="false"
-      show-icon
-      class="suggest-alert"
-      :title="suggest.reason || 'AI 建议'"
-    >
-      <p v-for="(line, i) in suggest.suggestions || []" :key="i">{{ line }}</p>
-      <div class="flags">
-        <el-tag v-if="suggest.needCheck" size="small" type="warning">建议检查</el-tag>
-        <el-tag v-if="suggest.needInspection" size="small" type="warning">建议检验</el-tag>
-        <el-tag v-if="suggest.needDisposal" size="small" type="warning">建议处置</el-tag>
-      </div>
-    </el-alert>
+    <el-form-item label="AI 初步诊断（可编辑）" class="diagnosis-field">
+      <el-input
+        :model-value="aiDiagnosis"
+        type="textarea"
+        :rows="4"
+        placeholder="填写主诉等信息后点击「AI 智能诊断」，AI 将生成初步诊断；您可修改或补充后保存病历"
+        :disabled="disabled || !registerId"
+        @update:model-value="emit('update:aiDiagnosis', $event)"
+      />
+    </el-form-item>
 
     <div class="draft-actions">
       <el-button
@@ -131,7 +139,7 @@ function labelOf(type) {
         AI 生成处置草稿
       </el-button>
     </div>
-    <p class="hint">流程：智能诊断 → 生成草稿 → 确认提交（P4 将支持逐步编辑草稿）</p>
+    <p class="hint">流程：填写病历 → AI 智能诊断 → 生成草稿（右侧助理）→ 开单勾选确认 → 保存病历</p>
   </div>
 </template>
 
@@ -157,15 +165,13 @@ function labelOf(type) {
   font-size: 14px;
 }
 
-.suggest-alert {
+.diagnosis-field {
   margin-bottom: 8px;
 }
 
-.flags {
-  margin-top: 8px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.diagnosis-field :deep(.el-form-item__label) {
+  color: #0f766e;
+  font-weight: 500;
 }
 
 .draft-actions {

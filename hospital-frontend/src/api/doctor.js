@@ -87,7 +87,7 @@ export function createPrescription(data) {
 }
 
 export function fetchDiagnosisSuggest(data) {
-  if (useMock()) return mockDiagnosisSuggest(data.registerId)
+  if (useMock()) return mockDiagnosisSuggest(data)
   return request.post('/ai/diagnosis/suggest', data)
 }
 
