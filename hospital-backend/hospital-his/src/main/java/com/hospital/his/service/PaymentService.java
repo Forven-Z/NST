@@ -12,6 +12,7 @@ import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
+import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.PaymentRepository;
 import com.hospital.his.repository.RegisterRepository;
@@ -34,6 +35,7 @@ public class PaymentService {
     private final BillRepository billRepository;
     private final PaymentRepository paymentRepository;
     private final RegisterRepository registerRepository;
+    private final PatientRepository patientRepository;
     private final InspectionRequestRepository inspectionRequestRepository;
     private final CheckRequestRepository checkRequestRepository;
     private final PrescriptionRepository prescriptionRepository;
@@ -43,8 +45,9 @@ public class PaymentService {
     @Transactional
     public Map<String, Object> mockPay(MockPaymentRequest request) {
         Long operatorId = AuthContextHolder.require().getPatientId();
-        List<Map<String, Object>> bills = billRepository.findByIds(request.getBillIds());
-        if (bills.isEmpty() || bills.size() != request.getBillIds().size()) {
+        List<Long> billIds = billRepository.expandWithPendingMedicalBookBills(request.getBillIds());
+        List<Map<String, Object>> bills = billRepository.findByIds(billIds);
+        if (bills.isEmpty() || bills.size() != billIds.size()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "账单不存在或无权支付");
         }
         for (Map<String, Object> bill : bills) {
@@ -68,20 +71,7 @@ public class PaymentService {
             long billId = ((Number) bill.get("id")).longValue();
             paymentRepository.linkBill(paymentId, billId, (BigDecimal) bill.get("amount"));
             billRepository.markPaid(billId);
-
-            if (BillBizType.REGISTER.equals(bill.get("bizType"))) {
-                long registerId = ((Number) bill.get("bizId")).longValue();
-                registerRepository.updateVisitState(registerId, VisitState.REGISTERED);
-            } else if (BillBizType.INSPECTION.equals(bill.get("bizType"))) {
-                long inspectionId = ((Number) bill.get("bizId")).longValue();
-                inspectionRequestRepository.updateStatus(inspectionId, InspectionRequestStatus.PAID);
-            } else if (BillBizType.CHECK.equals(bill.get("bizType"))) {
-                checkRequestRepository.updateStatus(((Number) bill.get("bizId")).longValue(), InspectionRequestStatus.PAID);
-            } else if (BillBizType.PRESCRIPTION.equals(bill.get("bizType"))) {
-                prescriptionRepository.updateStatus(((Number) bill.get("bizId")).longValue(), PrescriptionStatus.PAID);
-            } else if (BillBizType.DISPOSAL.equals(bill.get("bizType"))) {
-                disposalRequestRepository.updateStatus(((Number) bill.get("bizId")).longValue(), InspectionRequestStatus.PAID);
-            }
+            settlePaidBill(bill);
         }
 
         Map<String, Object> result = new HashMap<>();
@@ -92,8 +82,36 @@ public class PaymentService {
         return result;
     }
 
+    public void settlePaidBill(Map<String, Object> bill) {
+        String bizType = (String) bill.get("bizType");
+        long bizId = ((Number) bill.get("bizId")).longValue();
+
+        if (BillBizType.REGISTER.equals(bizType)) {
+            registerRepository.updateVisitState(bizId, VisitState.REGISTERED);
+            registerRepository.findById(bizId).ifPresent(reg -> {
+                BigDecimal registFee = (BigDecimal) reg.get("registFee");
+                BigDecimal billAmount = (BigDecimal) bill.get("amount");
+                if (registFee != null && billAmount.compareTo(registFee) > 0) {
+                    long patientId = ((Number) bill.get("patientId")).longValue();
+                    patientRepository.updateNeedMedicalBook(patientId, true);
+                }
+            });
+        } else if (BillBizType.MEDICAL_BOOK.equals(bizType)) {
+            long patientId = ((Number) bill.get("patientId")).longValue();
+            patientRepository.updateNeedMedicalBook(patientId, true);
+        } else if (BillBizType.INSPECTION.equals(bizType)) {
+            inspectionRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+        } else if (BillBizType.CHECK.equals(bizType)) {
+            checkRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+        } else if (BillBizType.PRESCRIPTION.equals(bizType)) {
+            prescriptionRepository.updateStatus(bizId, PrescriptionStatus.PAID);
+        } else if (BillBizType.DISPOSAL.equals(bizType)) {
+            disposalRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+        }
+    }
+
     public Map<String, Object> listPendingBills(Long visitPatientId) {
         Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
-        return Map.of("list", billRepository.findPendingByPatient(visitId));
+        return Map.of("list", billRepository.findByPatientIdForDisplay(visitId, BillStatus.PENDING));
     }
 }

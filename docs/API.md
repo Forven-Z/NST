@@ -213,8 +213,12 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P3 | GET | `/pharmacy/pending` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/dispense` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/return-drug` | his | PHARMACIST |
-| ⬜ | P2 | POST | `/registrar/registers` | his | REGISTRAR |
-| ⬜ | P2 | POST | `/registrar/charges` | his | REGISTRAR |
+| ✅ | P2 | POST | `/registrar/registers` | his | REGISTRAR |
+| ✅ | P2 | POST | `/registrar/charges` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/departments` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/settle-categories` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/doctors` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/schedules` | his | REGISTRAR |
 | ✅ | P2 | POST | `/registrar/refunds` | his | REGISTRAR |
 | ✅ | P2 | GET | `/registrar/patients/{medicalRecordNo}/bills` | his | REGISTRAR |
 | ✅ | P2 | POST | `/registrar/registers/{registerId}/cancel` | his | REGISTRAR |
@@ -678,15 +682,61 @@ Mock 数据结构 **与本文件一致**。
 
 | 状态 | Method | 路径 | 说明 |
 |------|--------|------|------|
-| ⬜ | POST | `/registrar/registers` | 窗口挂号 + 当场收挂号费 |
-| ⬜ | POST | `/registrar/charges` | `{ "billIds": [], "channel": "CASH", ... }` |
+| ✅ | GET | `/registrar/departments` | 门诊科室列表（窗口挂号页） |
+| ✅ | GET | `/registrar/settle-categories` | 结算类别列表 |
+| ✅ | GET | `/registrar/doctors` | 科室出诊医生；Query `deptId` |
+| ✅ | GET | `/registrar/schedules` | 排班号源；Query `deptId`, `employeeId`, `registLevelId`, `workDate`（默认今天起 7 天） |
+| ✅ | POST | `/registrar/registers` | 窗口挂号（建档+占号+待支付 bills，`visit_state=0`） |
+| ✅ | POST | `/registrar/charges` | 窗口收费（批量待缴账单，`payChannel` 记账） |
 | ✅ | POST | `/registrar/refunds` | `{ "billId", "reason" }` |
 | ✅ | GET | `/registrar/patients/{medicalRecordNo}/bills` | 按病历号查账 |
 | ✅ | POST | `/registrar/registers/{registerId}/cancel` | 窗口退号 |
 
-**窗口挂号 Request 示例**：患者信息 + `schedulingId` + `channel=CASH` + `receivedAmount`
+**GET `/registrar/schedules` Query**：`deptId`, `employeeId`, `registLevelId`, `workDate`（ISO 日期，缺省为当天）
 
-> **排班查询**：收费员窗口挂号页复用 `GET /patient/schedules`（与小程序契约一致）；`GET /admin/employees?deptId=&roleType=OUTPATIENT_DOCTOR` 查科室医生（⬜）。
+**Response `list[]` 字段**：`schedulingId`, `deptId`, `deptName`, `employeeId`, `employeeName`, `employeeTitle`, `registLevelId`, `registLevelName`, `registFee`, `workDate`, `noonType`, `noonLabel`, `timeRange`, `totalQuota`, `usedQuota`, `remainQuota`（含号源已满记录，前端可置灰）
+
+**GET `/registrar/doctors` Response `list[]`**：`employeeId`, `realName`, `title`, `clinicRole`（`REGULAR`/`EXPERT`）, `expertSessionCount`（专家近 7 天专家号半天数，普通医生无此字段）
+
+**窗口挂号 Request**：
+
+```json
+{
+  "patientName": "张三",
+  "gender": 1,
+  "phone": "13800138000",
+  "idCard": "110101199001011234",
+  "settleCategoryId": 1,
+  "needRecordBook": true,
+  "schedulingId": 1,
+  "deptId": 1,
+  "employeeId": 1,
+  "registLevelId": 1
+}
+```
+
+**窗口挂号 Response `data`**：`registerId`, `patientId`, `medicalRecordNo`, `billIds[]`, `amount`, `visitState`（固定 `0` 待支付）, `deptName`, `doctorName`, `workDate`, `noonLabel`, `registLevelName`, `message`
+
+> `register.channel = WINDOW`；`registrar_id` 为当前收费员 `employeeId`；支付在收费页完成。
+
+**窗口收费 Request**：
+
+```json
+{
+  "billIds": [81001, 81002],
+  "payChannel": "CASH"
+}
+```
+
+| `payChannel` | 说明 |
+|--------------|------|
+| `CASH` / `WECHAT` / `ALIPAY` / `INSURANCE` / `SCAN` | 开发期均记账，不调第三方支付 SDK |
+
+**窗口收费 Response `data`**：`paymentId`, `paidAmount`, `message`
+
+> `REGISTER` 账单付清后 `visit_state` → `1`（已挂号）；`MEDICAL_BOOK` 付清后更新 `patient.need_medical_book`。
+
+> **排班/字典查询**：窗口挂号页使用 **`GET /registrar/departments`**、**`/registrar/settle-categories`**、**`/registrar/doctors`**、**`/registrar/schedules`**（REGISTRAR 角色）；不再调用 `/admin/**` 或 `/patient/schedules`。
 
 ---
 
@@ -810,7 +860,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`（含 `result-detail`, `ai-report`） |
 | PACS | 影像 AI | `GET /pacs/imaging-studies`；前端跳转 VITE_IMAGING_AI_URL |
 | 药师 | 发药 | `/pharmacy/pending`, `.../dispense`, `.../return-drug` |
-| 收费员 | 挂号/收费/退费 | `/registrar/registers`, `/charges`, `/refunds`, `/patients/{mrn}/bills`；排班 `GET /patient/schedules` |
+| 收费员 | 挂号/收费/退费 | `/registrar/departments`, `/settle-categories`, `/doctors`, `/schedules`, `/registers`, `/charges`, `/refunds`, `/patients/{mrn}/bills` |
 | 管理员 | 字典/排班 | `GET /admin/*`, `/admin/scheduling`, `/admin/scheduling/ai-suggest`, `/admin/scheduling/{id}/ai-replace` |
 
 ---

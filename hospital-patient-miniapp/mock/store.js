@@ -49,6 +49,26 @@ function normalizeBill(b) {
   }
 }
 
+function mergeMedicalBookBills(list) {
+  var medicalByRegister = {}
+  list.forEach(function (b) {
+    if (b.bizType === 'MEDICAL_BOOK' && b.registerId) {
+      medicalByRegister[b.registerId] = b
+    }
+  })
+  return list
+    .filter(function (b) { return b.bizType !== 'MEDICAL_BOOK' })
+    .map(function (b) {
+      if (b.bizType !== 'REGISTER' && b.bizType !== 'REGIST') return b
+      var mb = b.registerId && medicalByRegister[b.registerId]
+      if (!mb) return b
+      return Object.assign({}, b, {
+        amount: Number(b.amount) + Number(mb.amount),
+        billTitle: '挂号费（含病历本）',
+      })
+    })
+}
+
 function filterBills(params) {
   params = params || {}
   var list = bills.map(normalizeBill)
@@ -61,6 +81,7 @@ function filterBills(params) {
   if (params.registerId) {
     list = list.filter(function (b) { return b.registerId === Number(params.registerId) })
   }
+  list = mergeMedicalBookBills(list)
   if (params.scope === 'outpatient') {
     list = list.filter(function (b) { return b.bizType === 'REGIST' || b.bizType === 'REGISTER' })
   } else if (params.scope === 'exam') {
