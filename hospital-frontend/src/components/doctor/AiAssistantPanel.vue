@@ -36,8 +36,8 @@ const FAQ = [
 ]
 
 const welcomeText = mockMode
-  ? '【AI 助理】左侧生成的检查/检验/处置草稿将显示在此处；也可询问门诊流程、号别选择等。'
-  : 'AI 助理将展示诊疗草稿与辅助信息。'
+  ? '【AI 助理】ADR-015：草稿确认后摘要显示于此。联调后对接 SSE /ai/assistant/stream。可询问门诊流程、号别选择等。'
+  : 'AI 助理（SSE /ai/assistant/stream）将展示诊疗草稿与辅助信息。'
 
 const chatMessages = ref([{ id: 'welcome', role: 'assistant', text: welcomeText }])
 

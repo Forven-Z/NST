@@ -17,6 +17,14 @@ const ACCOUNTS = {
     deptId: 3,
     deptName: '检验科',
   },
+  inspection01: {
+    userId: 8,
+    employeeId: 8,
+    realName: '周检验',
+    roles: ['LAB_DOCTOR'],
+    deptId: 3,
+    deptName: '检验科',
+  },
   check01: {
     userId: 3,
     employeeId: 3,

@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import ResultReportSections from '../medical/ResultReportSections.vue'
 import {
   fetchCheckResult,
   fetchDisposalResult,
@@ -110,18 +109,22 @@ defineExpose({ reload: loadOrders })
     <el-dialog
       v-model="resultDialogVisible"
       :title="`${resultDetail?.typeLabel || ''} · ${resultDetail?.itemName || ''}`"
-      width="680px"
+      width="560px"
       destroy-on-close
     >
-      <ResultReportSections
-        v-if="resultDetail"
-        :instrument-data="resultDetail.instrumentData"
-        :ai-report-text="resultDetail.aiReportText"
-        :doctor-report-text="resultDetail.doctorReportText"
-        :ai-report-status="resultDetail.aiReportStatus || 'READY'"
-        :editable-ai="false"
-        :editable-doctor="false"
-      />
+      <template v-if="resultDetail">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="结果文本">
+            <pre class="result-text">{{ resultDetail.resultText || '（无）' }}</pre>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="resultDetail.resultAttachment" label="附件">
+            {{ resultDetail.resultAttachment }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="resultDetail.reportTime" label="报告时间">
+            {{ resultDetail.reportTime }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
     </el-dialog>
   </el-card>
 </template>
@@ -135,5 +138,13 @@ defineExpose({ reload: loadOrders })
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.result-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
 }
 </style>
