@@ -2,6 +2,7 @@ import { mockResult } from '../utils/mock'
 import {
   callRegister,
   confirmAiDraft,
+  confirmMedicalRecord,
   createCheckOrder,
   createDisposalOrder,
   createInspectionOrder,
@@ -37,6 +38,10 @@ export function mockFetchMedicalRecord(registerId) {
 
 export function mockSaveMedicalRecord(registerId, data) {
   return mockResult(saveMedicalRecord(registerId, data))
+}
+
+export function mockConfirmMedicalRecord(registerId, data) {
+  return mockResult(confirmMedicalRecord(registerId, data))
 }
 
 export function mockCreateInspectionOrder(data) {

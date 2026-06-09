@@ -16,8 +16,8 @@ npm run dev
 | 用户名 | 角色 | 路由 |
 |--------|------|------|
 | doctor01 | 门诊医生 | `/doctor/workspace` |
-| lab01 | 检验科 | `/lis/queue` |
-| check01 | 检查检验科 | `/pacs/queue`（检查）、`/pacs/inspection-queue`（检验） |
+| check01 | 检查科 | `/pacs/queue` |
+| inspection01 | 检验科 | `/lis/queue` |
 | pharmacy01 | 药师 | `/pharmacy/pending` |
 | registrar01 | 收费员 | `/registrar/*` |
 | admin | 管理员 | `/admin/*`（可进所有受保护路由） |
@@ -26,7 +26,7 @@ npm run dev
 
 默认 **`VITE_USE_MOCK=true`**（见 `.env.development`），无需后端即可演示全角色界面。
 
-- 契约详见 [`docs/API.md`](../docs/API.md)（§〇 路径定稿 · 附录 A 页面速查）
+- 契约详见 [`docs/API.md`](../docs/API.md)、[`docs/FRONTEND_API_MAP.md`](../docs/FRONTEND_API_MAP.md)
 - 联调真库：改 `VITE_USE_MOCK=false` 并启动 Gateway + 微服务
 
 处置科 `/disposal/queue`：Mock 账号 `disposal01` / `123456`；`admin` 可访问各角色菜单。
@@ -42,8 +42,8 @@ npm run dev
 | **0** | 路由全角色、StaffShell、Mock 工具 | ✅ |
 | **1** | 检验/检查/处置队列、管理员字典只读 | ✅ |
 | **2** | 收费员窗口挂号/收费（Mock）、医生开检查 + AI 诊断条 | ✅ |
-| **3** | 医生：确诊/finish、结果聚合、处方 AI 草稿编辑 UI | 待做 |
-| **4** | AI 助理 SSE（lml 联调）、草稿逐步编辑弹窗 | 待做 |
+| **3** | 医生：确诊提交、diseaseIds、处方 AI 草稿三步、resultText 结果展示 | ✅ |
+| **4** | ADR-015 草稿编辑确认弹窗、医技 resultText 录入 | ✅（SSE 待 lml 联调） |
 | **5** | 管理员排班 + Timefold（P5） | 占位 |
 
 对照 [API.md](../docs/API.md) 附录 A · [TEAM_COLLABORATION.md](../docs/TEAM_COLLABORATION.md) §九。

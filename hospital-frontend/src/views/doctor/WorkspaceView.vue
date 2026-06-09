@@ -1,18 +1,21 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   callPatient,
+  confirmMedicalRecord,
   createCheckOrder,
   createDisposalOrder,
   createInspectionOrder,
   createPrescription,
+  fetchDiseases,
   fetchDoctorQueue,
   fetchMedicalRecord,
   finishVisit,
   saveMedicalRecord,
 } from '../../api/doctor'
 import AiDiagnosisBar from '../../components/doctor/AiDiagnosisBar.vue'
+import AiPrescriptionDraftDialog from '../../components/doctor/AiPrescriptionDraftDialog.vue'
 import DoctorPrescriptionDialog from '../../components/doctor/DoctorPrescriptionDialog.vue'
 import DoctorTechOrderDialog from '../../components/doctor/DoctorTechOrderDialog.vue'
 import RegisterOrdersPanel from '../../components/doctor/RegisterOrdersPanel.vue'
@@ -21,8 +24,11 @@ import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
 
 const loading = ref(false)
 const saving = ref(false)
+const confirming = ref(false)
 const callingId = ref(null)
 const finishingId = ref(null)
+const recordSaved = ref(false)
+const diseases = ref([])
 const queue = ref([])
 const visitStateFilter = ref('all')
 const currentRegisterId = ref(null)
@@ -34,10 +40,8 @@ const workspace = useDoctorWorkspaceStore()
 const techDialogVisible = ref(false)
 const techOrderType = ref('INSPECTION')
 const rxDialogVisible = ref(false)
+const rxDraftDialogVisible = ref(false)
 const aiDiagnosisText = ref('')
-
-const techPreselectedIds = computed(() => workspace.getPreselectedTechIds(techOrderType.value))
-const rxPreselectedDrugIds = computed(() => workspace.getPreselectedDrugIds())
 
 const recordForm = reactive({
   readme: '',
@@ -50,6 +54,7 @@ const recordForm = reactive({
   cure: '',
   checkAdvice: '',
   inspectionAdvice: '',
+  diseaseIds: [],
 })
 
 const visitStateMap = {
@@ -59,7 +64,19 @@ const visitStateMap = {
   3: { label: '看诊结束', type: 'info' },
 }
 
-onMounted(loadQueue)
+onMounted(() => {
+  loadQueue()
+  loadDiseases()
+})
+
+async function loadDiseases() {
+  try {
+    const res = await fetchDiseases({ pageSize: 50 })
+    diseases.value = res.data?.list ?? []
+  } catch {
+    diseases.value = []
+  }
+}
 
 async function loadQueue() {
   loading.value = true
@@ -86,6 +103,7 @@ async function onCall(row) {
     currentPatient.value = row
     workspace.clearForNewPatient()
     aiDiagnosisText.value = ''
+    recordSaved.value = false
     await loadQueue()
     await loadMedicalRecord(row.registerId)
     ordersPanelRef.value?.reload?.()
@@ -105,6 +123,7 @@ async function onSelectRow(row) {
   currentPatient.value = row
   workspace.clearForNewPatient()
   aiDiagnosisText.value = ''
+  recordSaved.value = false
   await loadMedicalRecord(row.registerId)
   ordersPanelRef.value?.reload?.()
 }
@@ -124,8 +143,10 @@ async function loadMedicalRecord(registerId) {
       cure: data.cure || '',
       checkAdvice: data.checkAdvice || '',
       inspectionAdvice: data.inspectionAdvice || '',
+      diseaseIds: data.diseaseIds || [],
     })
     aiDiagnosisText.value = data.diagnosis || ''
+    recordSaved.value = !!data.readme
   } catch (err) {
     ElMessage.error(err.message || '加载病历失败')
   }
@@ -141,7 +162,9 @@ async function onSaveRecord() {
     await saveMedicalRecord(currentRegisterId.value, {
       ...recordForm,
       diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
+      diseaseIds: recordForm.diseaseIds,
     })
+    recordSaved.value = true
     ElMessage.success('病历已保存')
   } catch (err) {
     ElMessage.error(err.message || '保存失败')
@@ -159,6 +182,32 @@ function openTechDialog(type) {
 function openRxDialog() {
   if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
   rxDialogVisible.value = true
+}
+
+function openRxDraftDialog() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
+  rxDraftDialogVisible.value = true
+}
+
+async function onConfirmDiagnosis() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
+  confirming.value = true
+  try {
+    await confirmMedicalRecord(currentRegisterId.value, {
+      diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
+      cure: recordForm.cure,
+      diseaseIds: recordForm.diseaseIds,
+    })
+    ElMessage.success('确诊已提交')
+  } catch (err) {
+    ElMessage.error(err.message || '确诊提交失败')
+  } finally {
+    confirming.value = false
+  }
+}
+
+function onOrdersChanged() {
+  ordersPanelRef.value?.reload?.()
 }
 
 async function onTechOrderConfirm(data) {
@@ -188,10 +237,6 @@ async function onTechOrderConfirm(data) {
   }
 }
 
-function getTechDraftMeta(techId) {
-  return workspace.getDraftItemMeta(techOrderType.value, techId)
-}
-
 async function onPrescriptionConfirm(data) {
   try {
     const res = await createPrescription(data)
@@ -216,6 +261,7 @@ async function onFinishVisit() {
     currentRegisterId.value = null
     currentPatient.value = null
     aiDiagnosisText.value = ''
+    recordSaved.value = false
     workspace.clearForNewPatient()
     await loadQueue()
   } catch (err) {
@@ -240,7 +286,7 @@ function formatGender(gender) {
       show-icon
       class="flow-tip"
       title="门诊流程"
-      description="患者挂号并缴费 → 医生叫号接诊 → 书写病历/开单 → 患者再次缴费 → 检验/检查/处置/药房 → 结束看诊"
+      description="ADR-015：叫号 → 保存病历 → AI 智能诊断 → 草稿编辑确认开单 → 确诊提交 → 患者缴费 → 医技录入 resultText → 结束看诊"
     />
 
     <el-card shadow="never" class="section-card">
@@ -324,9 +370,13 @@ function formatGender(gender) {
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('CHECK')">开检查</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('INSPECTION')">开检验</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('DISPOSAL')">开处置</el-button>
-            <el-button :disabled="!currentRegisterId" @click="openRxDialog">开处方</el-button>
+            <el-button :disabled="!currentRegisterId" @click="openRxDraftDialog">AI 处方草稿</el-button>
+            <el-button :disabled="!currentRegisterId" @click="openRxDialog">手工开处方</el-button>
             <el-button type="primary" :loading="saving" :disabled="!currentRegisterId" @click="onSaveRecord">
               保存病历
+            </el-button>
+            <el-button :loading="confirming" :disabled="!currentRegisterId" @click="onConfirmDiagnosis">
+              确诊提交
             </el-button>
             <el-button
               type="success"
@@ -344,7 +394,9 @@ function formatGender(gender) {
         v-model:ai-diagnosis="aiDiagnosisText"
         :register-id="currentRegisterId"
         :record-form="recordForm"
+        :record-saved="recordSaved"
         :disabled="!currentRegisterId"
+        @orders-changed="onOrdersChanged"
       />
 
       <el-form v-if="currentRegisterId" label-position="top" class="record-form">
@@ -385,6 +437,26 @@ function formatGender(gender) {
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="疾病编码（diseaseIds）">
+              <el-select
+                v-model="recordForm.diseaseIds"
+                multiple
+                filterable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="选择 ICD 疾病（可选）"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in diseases"
+                  :key="d.id"
+                  :label="`${d.diseaseName}（${d.diseaseCode}）`"
+                  :value="d.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="检查建议">
               <el-input v-model="recordForm.checkAdvice" placeholder="拟开检查项目说明" />
             </el-form-item>
@@ -410,15 +482,17 @@ function formatGender(gender) {
       v-model="techDialogVisible"
       :order-type="techOrderType"
       :register-id="currentRegisterId"
-      :preselected-ids="techPreselectedIds"
-      :get-draft-meta="getTechDraftMeta"
       @confirm="onTechOrderConfirm"
     />
     <DoctorPrescriptionDialog
       v-model="rxDialogVisible"
       :register-id="currentRegisterId"
-      :preselected-drug-ids="rxPreselectedDrugIds"
       @confirm="onPrescriptionConfirm"
+    />
+    <AiPrescriptionDraftDialog
+      v-model="rxDraftDialogVisible"
+      :register-id="currentRegisterId"
+      @confirmed="onOrdersChanged"
     />
   </div>
 </template>

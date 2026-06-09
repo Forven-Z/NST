@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import ResultReportSections from '../../components/medical/ResultReportSections.vue'
 import { INTEGRATION_ENV } from '../../config/integrations'
 import { fetchPacsResultDetail, generatePacsAiReport } from '../../api/pacs'
 
@@ -44,7 +43,7 @@ function openCtModelViewer() {
     window.open(ctModelUrl.value, '_blank', 'noopener')
     return
   }
-  ElMessage.info('请配置 VITE_CT_MODEL_URL 指向大模型训练组的 CT 影像软件')
+  ElMessage.info('请配置 VITE_CT_MODEL_URL 指向 CT 影像系统')
 }
 
 async function onAgentAiAnalysis() {
@@ -53,7 +52,7 @@ async function onAgentAiAnalysis() {
   try {
     const res = await generatePacsAiReport(checkRequestId.value)
     detail.value = res.data
-    ElMessage.success('智能体已生成 AI 影像分析报告，请返回队列核对录入')
+    ElMessage.success('AI 影像分析报告已生成，请返回队列核对录入')
   } catch (err) {
     ElMessage.error(err.message || 'AI 分析生成失败')
   } finally {
@@ -74,7 +73,7 @@ function goBack() {
       show-icon
       class="tip"
       title="影像 AI 工作台"
-      description="两个独立入口：① 大模型训练组 CT 阅片软件（跳转，含脑部 CT 选取进度条等，由对方实现）；② 智能体组生成 AI 影像分析报告（本系统 API 对接）。"
+      description="打开 CT 影像阅片，或生成 AI 影像分析报告。"
     />
 
     <el-card v-loading="loading" shadow="never">
@@ -95,32 +94,24 @@ function goBack() {
       <template v-else>
         <div class="action-cards">
           <el-card shadow="hover" class="action-card ml-card">
-            <h4>大模型训练组 · CT 影像</h4>
-            <p>跳转到训练组的 CT 软件画面（脑部 CT 进度条、区域选取等由对方实现）。</p>
+            <h4>CT 影像</h4>
             <el-button type="warning" @click="openCtModelViewer">
-              打开大模型 CT 影像
+              打开 CT 影像
             </el-button>
           </el-card>
 
           <el-card shadow="hover" class="action-card agent-card">
-            <h4>智能体组 · AI 影像分析</h4>
-            <p>基于影像与仪器数据，由智能体服务生成 AI 检查报告（可返回队列修改后录入）。</p>
+            <h4>AI 影像分析</h4>
             <el-button type="primary" :loading="generating" @click="onAgentAiAnalysis">
               生成 AI 影像分析
             </el-button>
           </el-card>
         </div>
 
-        <ResultReportSections
-          v-if="detail"
-          class="report-block"
-          :instrument-data="detail.instrumentData"
-          :ai-report-text="detail.aiReportText"
-          :doctor-report-text="detail.doctorReportText"
-          :ai-report-status="detail.aiReportStatus"
-          :editable-ai="false"
-          :editable-doctor="false"
-        />
+        <el-card v-if="detail?.aiReportText || detail?.resultText" shadow="never" class="report-block">
+          <template #header>AI 影像分析（供录入 resultText 参考）</template>
+          <pre class="report-text">{{ detail.aiReportText || detail.resultText }}</pre>
+        </el-card>
       </template>
     </el-card>
   </div>
@@ -168,16 +159,8 @@ function goBack() {
 }
 
 .action-card h4 {
-  margin: 0 0 8px;
-  font-size: 15px;
-}
-
-.action-card p {
   margin: 0 0 12px;
-  font-size: 13px;
-  color: #64748b;
-  line-height: 1.5;
-  min-height: 40px;
+  font-size: 15px;
 }
 
 .ml-card {
@@ -190,6 +173,15 @@ function goBack() {
 
 .report-block {
   margin-top: 8px;
+}
+
+.report-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
 }
 
 .empty-hint {
