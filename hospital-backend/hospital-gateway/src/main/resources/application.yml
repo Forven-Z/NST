@@ -120,6 +120,8 @@ hospital:
         methods: [GET]
       - path: /api/v1/ai/health
         methods: [GET]
+      - path: /api/v1/patient/auth/login
+        methods: [POST]
       - path: /api/v1/patient/auth/wechat
         methods: [POST]
       - path: /api/v1/callback/wechat/pay

@@ -4,11 +4,27 @@
     <view class="profile-info">
       <view class="profile-name">{{userName}}</view>
       <view class="profile-phone">{{phoneMasked}}</view>
-      <view class="profile-mrn">病历号 {{medicalRecordNo}}</view>
+      <view class="profile-mrn" wx:if="{{loggedIn}}">病历号 {{medicalRecordNo}}</view>
     </view>
   </view>
 
-  <view class="panel menu-panel">
+  <view class="panel" wx:if="{{loggedIn && accounts.length}}">
+    <view class="panel-title">本机账户（QQ 式切换）</view>
+    <view
+      wx:for="{{accounts}}"
+      wx:key="patientId"
+      class="account-row"
+    >
+      <view class="account-main" data-id="{{item.patientId}}" bindtap="onSwitchAccount">
+        <text class="account-name">{{item.realName}}</text>
+        <text class="muted">{{item.medicalRecordNo}}</text>
+      </view>
+      <text class="link danger" data-id="{{item.patientId}}" bindtap="onRemoveAccount">移除</text>
+    </view>
+    <button class="btn-ghost add-account" bindtap="onGoAddAccount">+ 添加其他病人账户</button>
+  </view>
+
+  <view class="panel menu-panel" wx:if="{{loggedIn}}">
     <view
       wx:for="{{menus}}"
       wx:key="id"
@@ -21,5 +37,10 @@
     </view>
   </view>
 
-  <button class="btn-ghost logout" bindtap="onLogout">退出登录</button>
+  <view class="panel guest-panel" wx:else>
+    <view class="guest-hint muted">使用手机号+身份证登录病人账户；可添加多个账户并切换，微信仅用于支付</view>
+    <button class="btn-primary" bindtap="onGoLogin">登录病人账户</button>
+  </view>
+
+  <button wx:if="{{loggedIn}}" class="btn-ghost logout" bindtap="onLogout">退出全部账户</button>
 </view>

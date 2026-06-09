@@ -1,0 +1,56 @@
+package com.hospital.his.service;
+
+import com.hospital.common.constant.ErrorCode;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.his.dto.patient.PatientLoginRequest;
+import com.hospital.his.repository.PatientRepository;
+import com.hospital.his.util.BizNoGenerator;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+
+/**
+ * 登录档案落库（独立事务，提交后再由 auth 签发 Token）。
+ */
+@Service
+@RequiredArgsConstructor
+public class PatientLoginPersistence {
+
+    private final PatientRepository patientRepository;
+
+    record UpsertResult(Long patientId, boolean isNewPatient) {
+    }
+
+    @Transactional
+    public UpsertResult upsert(PatientLoginRequest request, String phone, String idCard, String address) {
+        Optional<Long> byPhone = patientRepository.findPatientIdByPhone(phone);
+        Optional<Long> byIdCard = patientRepository.findPatientIdByIdCard(idCard);
+
+        Long patientId;
+        boolean isNew = false;
+        if (byPhone.isPresent() && byIdCard.isPresent()) {
+            if (!byPhone.get().equals(byIdCard.get())) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "手机号与身份证不属于同一患者档案");
+            }
+            patientId = byPhone.get();
+        } else if (byPhone.isPresent()) {
+            patientId = byPhone.get();
+        } else if (byIdCard.isPresent()) {
+            patientId = byIdCard.get();
+            patientRepository.assertPhoneAvailable(phone, patientId);
+        } else {
+            isNew = true;
+            String mrn = BizNoGenerator.medicalRecordNo();
+            patientId = patientRepository.insertFamilyPatient(
+                    mrn, request.getRealName().trim(), request.getGender(),
+                    request.getBirthDate(), idCard, phone, address);
+        }
+
+        patientRepository.updateProfile(patientId, request.getRealName().trim(), request.getGender(),
+                request.getBirthDate(), phone, idCard, address, null);
+
+        return new UpsertResult(patientId, isNew);
+    }
+}

@@ -27,6 +27,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final List<String> WHITELIST = List.of(
+            "/api/v1/patient/auth/login",
             "/api/v1/patient/auth/wechat"
     );
 

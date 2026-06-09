@@ -1,16 +1,16 @@
-const { fetchProfile, fetchMyRegisters, fetchPendingBills } = require('../../api/patient')
-const { fetchFamilyMembers } = require('../../api/patient')
+const { fetchProfile, fetchMyRegisters, fetchPendingBills, fetchFamilyMembers } = require('../../api/patient')
 const { TABS, buildGridItems, findGridItem } = require('../../utils/home-services')
-const { getAccessToken } = require('../../utils/auth')
-const patientContext = require('../../utils/patient-context')
+const { isLoggedIn, requireLogin, switchAccount, readAccounts } = require('../../utils/auth')
+const accountStore = require('../../utils/account-store')
 const tripCard = require('../../utils/trip-card')
 
 Page({
   data: {
-    ownerName: '患者',
-    ownerMedicalRecordNo: '—',
-    activeMemberName: '本人',
-    memberList: [],
+    loggedIn: false,
+    currentAccountName: '—',
+    currentMedicalRecordNo: '—',
+    accountList: [],
+    familyList: [],
     trip: null,
     tabs: TABS,
     activeTab: 'outpatient',
@@ -18,64 +18,66 @@ Page({
   },
 
   onShow() {
-    if (!getAccessToken()) {
-      wx.reLaunch({ url: '/pages/login/login' })
-      return
+    var loggedIn = isLoggedIn()
+    this.setData({ loggedIn: loggedIn })
+    if (loggedIn) {
+      this.loadData()
+    } else {
+      this.setData({
+        currentAccountName: '未登录',
+        currentMedicalRecordNo: '登录后可切换就诊账户',
+        accountList: [],
+        familyList: [],
+        trip: null,
+      })
     }
-    this.loadData()
   },
 
   loadData() {
     var that = this
     Promise.all([
       this.loadProfile(),
-      this.loadMembers(),
+      this.loadFamily(),
       this.loadTrip(),
-    ]).catch(function () {})
+    ]).then(function () {
+      that.setData({ accountList: readAccounts() })
+    }).catch(function () {})
   },
 
   loadProfile() {
     var that = this
+    var acc = accountStore.getCurrentAccount()
+    if (acc) {
+      that.setData({
+        currentAccountName: acc.realName,
+        currentMedicalRecordNo: acc.medicalRecordNo || '—',
+      })
+    }
     return fetchProfile().then(function (res) {
       var p = (res && res.data) || {}
       that.setData({
-        ownerName: p.realName || '患者',
-        ownerMedicalRecordNo: p.medicalRecordNo || '—',
+        currentAccountName: p.realName || '患者',
+        currentMedicalRecordNo: p.medicalRecordNo || '—',
       })
     })
   },
 
-  loadMembers() {
+  loadFamily() {
     var that = this
     return fetchFamilyMembers().then(function (res) {
       var list = (res && res.data && res.data.list) || []
-      that.setData({ memberList: list })
-      var active = patientContext.getActiveMember()
-      var found = list.find(function (m) {
-        return m.memberPatientId === active.memberPatientId
-      })
-      if (found) {
-        that.setData({
-          activeMemberName: found.realName + (found.isSelf ? '（本人）' : ''),
-        })
-      } else if (list.length) {
-        patientContext.setActiveMember(list[0])
-        that.setData({
-          activeMemberName: list[0].realName + (list[0].isSelf ? '（本人）' : ''),
-        })
-      }
+      that.setData({ familyList: list })
     })
   },
 
   loadTrip() {
     var that = this
-    var active = patientContext.getActiveMember()
-    var patientId = active.memberPatientId
-    if (!patientId) {
+    var acc = accountStore.getCurrentAccount()
+    if (!acc || !acc.patientId) {
       that.setData({ trip: null })
       return Promise.resolve()
     }
-    return fetchMyRegisters({ patientId: patientId }).then(function (res) {
+    return fetchMyRegisters({}).then(function (res) {
       var list = (res && res.data && res.data.list) || []
       var reg = tripCard.pickActiveRegister(list)
       if (!reg) {
@@ -83,38 +85,66 @@ Page({
         return
       }
       return fetchPendingBills({
-        patientId: patientId,
         status: 0,
         registerId: reg.registerId,
       }).then(function (billRes) {
         var pending = (billRes && billRes.data && billRes.data.list) || []
-        var card = tripCard.buildTripCard(reg, pending)
-        that.setData({ trip: card })
+        that.setData({ trip: tripCard.buildTripCard(reg, pending) })
       })
     }).catch(function () {
       that.setData({ trip: null })
     })
   },
 
-  onSwitchMember() {
-    var list = this.data.memberList
-    if (!list.length) {
-      wx.showToast({ title: '暂无就诊人', icon: 'none' })
-      return
-    }
-    var names = list.map(function (m) {
-      return m.realName + (m.isSelf ? '（本人）' : '')
-    })
+  onGoLogin() {
+    wx.navigateTo({ url: '/pages/login/login' })
+  },
+
+  onSwitchAccount() {
+    if (!requireLogin({ mode: 'modal', message: '切换就诊账户请先登录' })) return
     var that = this
+    var saved = readAccounts()
+    var family = this.data.familyList
+    var options = []
+    var targets = []
+
+    saved.forEach(function (a) {
+      options.push('★ ' + a.realName + '（本机已登录）')
+      targets.push({ type: 'local', patientId: a.patientId, data: a })
+    })
+
+    family.forEach(function (m) {
+      if (saved.some(function (a) { return a.patientId === m.memberPatientId })) return
+      options.push(m.realName + (m.isSelf ? '' : '（家属，切换登录）'))
+      targets.push({ type: 'switch', patientId: m.memberPatientId, data: m })
+    })
+
+    options.push('＋ 添加其他病人账户')
+    targets.push({ type: 'add' })
+
     wx.showActionSheet({
-      itemList: names,
+      itemList: options,
       success: function (res) {
-        var member = list[res.tapIndex]
-        patientContext.setActiveMember(member)
-        that.setData({
-          activeMemberName: member.realName + (member.isSelf ? '（本人）' : ''),
+        var item = targets[res.tapIndex]
+        if (!item) return
+        if (item.type === 'add') {
+          wx.navigateTo({ url: '/pages/login/login?add=1' })
+          return
+        }
+        if (item.type === 'local') {
+          accountStore.setCurrentAccount(item.patientId)
+          that.loadData()
+          return
+        }
+        wx.showLoading({ title: '切换中' })
+        switchAccount(item.patientId).then(function () {
+          wx.showToast({ title: '已切换', icon: 'success' })
+          that.loadData()
+        }).catch(function (err) {
+          wx.showToast({ title: err.message || '切换失败', icon: 'none' })
+        }).finally(function () {
+          wx.hideLoading()
         })
-        that.loadTrip()
       },
     })
   },
@@ -135,6 +165,7 @@ Page({
   },
 
   onTripAction() {
+    if (!requireLogin({ mode: 'modal', message: '请先登录' })) return
     var trip = this.data.trip
     if (!trip || !trip.actionUrl) return
     if (trip.actionType === 'queue' || trip.actionType === 'registers' || trip.actionType === 'reports') {
@@ -147,6 +178,11 @@ Page({
   },
 
   goRegister() {
+    if (!requireLogin({
+      mode: 'modal',
+      message: '在线挂号请先登录',
+      redirect: '/pages/register/register',
+    })) return
     wx.navigateTo({ url: '/pages/register/register' })
   },
 })

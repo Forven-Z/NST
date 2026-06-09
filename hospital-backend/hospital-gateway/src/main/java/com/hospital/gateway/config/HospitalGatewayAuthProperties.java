@@ -31,6 +31,7 @@ public class HospitalGatewayAuthProperties {
                 rule("POST", "/api/v1/auth/staff/login"),
                 rule("POST", "/api/v1/auth/token/refresh"),
                 rule("GET", "/api/v1/auth/health"),
+                rule("POST", "/api/v1/patient/auth/login"),
                 rule("POST", "/api/v1/patient/auth/wechat"),
                 rule("POST", "/api/v1/callback/wechat/pay")
         );

@@ -1,5 +1,6 @@
 const { fetchMyRegisters } = require('../api/patient')
 const patientContext = require('./patient-context')
+const { requireLogin } = require('./auth')
 
 function showStub(msg) {
   wx.showToast({ title: msg || '功能即将上线', icon: 'none', duration: 2500 })
@@ -14,6 +15,7 @@ function showStubModal(title, msg) {
 }
 
 function goCheckin() {
+  if (!requireLogin({ mode: 'modal', message: '查看排队信息请先登录' })) return
   var active = patientContext.getActiveMember()
   fetchMyRegisters({ visitState: 1, patientId: active.memberPatientId }).then(function (res) {
     var list = (res && res.data && res.data.list) || []
@@ -39,6 +41,13 @@ function handleService(item) {
   if (!item) return
   if (item.action === 'stub') {
     showStub(item.stubMsg || (item.name + '暂未开通'))
+    return
+  }
+  if (!requireLogin({
+    mode: 'modal',
+    message: '使用「' + (item.name || '该功能') + '」请先登录',
+    redirect: item.action === 'navigate' && item.url ? item.url : '',
+  })) {
     return
   }
   if (item.action === 'checkin') {

@@ -1,33 +1,50 @@
 <view class="container">
+  <view class="banner">实名制就诊，请保持档案与证件信息一致</view>
+
   <view class="card">
     <view class="card-title">个人档案</view>
     <view class="muted">病历号：{{medicalRecordNo || '—'}}</view>
+    <view class="hint">以下信息与挂号、添加就诊人（陪诊人）共用同一 patient 主表</view>
   </view>
 
   <view class="card" wx:if="{{!loading}}">
-    <view class="field">
-      <view class="label">姓名</view>
-      <input class="input" data-field="realName" value="{{form.realName}}" bindinput="onInput" />
+    <view class="form-item">
+      <text class="label required">姓名</text>
+      <input class="input" placeholder="真实姓名" value="{{form.realName}}" data-field="realName" bindinput="onInput" />
     </view>
-    <view class="field">
-      <view class="label">性别</view>
-      <picker mode="selector" range="{{genderOptions}}" value="{{form.gender}}" bindchange="onGenderChange">
-        <view class="picker">{{genderOptions[form.gender] || '男'}}</view>
+
+    <view class="form-item">
+      <text class="label required">身份证号</text>
+      <input class="input" placeholder="18位身份证号" maxlength="18" value="{{form.idCard}}" data-field="idCard" bindinput="onInput" bindblur="onIdCardBlur" />
+    </view>
+
+    <view class="form-item">
+      <text class="label required">性别</text>
+      <picker mode="selector" range="{{genderLabels}}" value="{{genderIndex}}" bindchange="onGenderChange">
+        <view class="picker">{{genderLabels[genderIndex] || '请选择'}}</view>
       </picker>
     </view>
-    <view class="field">
-      <view class="label">手机号</view>
-      <input class="input" type="number" data-field="phone" value="{{form.phone}}" bindinput="onInput" />
+
+    <view class="form-item">
+      <text class="label required">出生日期</text>
+      <picker mode="date" value="{{form.birthDate}}" end="{{today}}" bindchange="onBirthDateChange">
+        <view class="picker">{{form.birthDate || '请选择'}}</view>
+      </picker>
     </view>
-    <view class="field">
-      <view class="label">身份证号</view>
-      <input class="input" data-field="idCard" value="{{form.idCard}}" bindinput="onInput" />
+
+    <view class="form-item">
+      <text class="label required">手机号</text>
+      <input class="input" type="number" maxlength="11" placeholder="11位手机号，全院唯一" value="{{form.phone}}" data-field="phone" bindinput="onInput" />
     </view>
-    <view class="field">
-      <view class="label">地址</view>
-      <input class="input" data-field="address" value="{{form.address}}" bindinput="onInput" />
+
+    <view class="form-item">
+      <text class="label">联系地址</text>
+      <input class="input" placeholder="街道、小区、门牌号（挂号写入病历）" value="{{form.address}}" data-field="address" bindinput="onInput" />
     </view>
-    <button class="btn-primary" loading="{{saving}}" bindtap="onSave">保存档案</button>
+
+    <button class="btn-primary submit-btn" loading="{{saving}}" bindtap="onSave">保存档案</button>
     <button class="btn-ghost logout-btn" bindtap="onLogout">退出登录</button>
   </view>
+
+  <view wx:if="{{loading}}" class="empty">加载中...</view>
 </view>

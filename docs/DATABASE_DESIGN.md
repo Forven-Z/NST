@@ -369,7 +369,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | birth_date | DATE | Y | NULL | — | 出生日期；用于计算年龄与档案。 |
 | age | SMALLINT | Y | NULL | — | 年龄（可冗余，便于列表展示）；年龄；可冗余存储便于列表展示（可由出生日期计算）。 |
 | id_card | VARCHAR(18) | Y | NULL | IX | 身份证号；实名与档案核对，展示时需脱敏。 |
-| phone | VARCHAR(20) | Y | NULL | IX | 联系电话；人事与内部联系用。 |
+| phone | VARCHAR(20) | Y | NULL | UX | 联系电话；**可空**（儿童等）；**非空时全院唯一**（部分唯一索引 `ux_patient_phone`）。 |
 | address | VARCHAR(256) | Y | NULL | — | 联系住址；患者档案信息。 |
 | settle_category_id | BIGINT | Y | NULL | — | FK → settle_category(id)；当次挂号结算类别；计费规则快照。 |
 | need_medical_book | BOOLEAN | N | FALSE | — | 是否要病历本；是否购买/使用病历本；窗口挂号时勾选。 |
@@ -404,6 +404,10 @@ disease ──N:M── medical_record (medical_record_disease)
 | owner_patient_id | BIGINT | N | — | FK → patient(id), IX | 账号持有人（微信登录对应的 `patient.id`）。 |
 | member_patient_id | BIGINT | N | — | FK → patient(id) | 就诊人（家属或本人，均指向 `patient` 主表）。 |
 | relation_type | SMALLINT | N | 4 | — | 与本人关系，见下表；API 字段 `relationType`。 |
+| no_id_card | BOOLEAN | N | FALSE | — | 无身份证号患儿；`true` 时 member 的 `patient.id_card` 为空。 |
+| guardian_name | VARCHAR(64) | Y | NULL | — | 陪诊人/监护人姓名（无身份证患儿必填）。 |
+| guardian_id_card | VARCHAR(18) | Y | NULL | — | 陪诊人身份证号（须与 `owner` 本人档案一致）。 |
+| guardian_phone | VARCHAR(20) | Y | NULL | — | 陪诊人联系电话。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除；解绑置 1，重新绑定可置回 0。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 绑定创建时间。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 最后更新时间。 |

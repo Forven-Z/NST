@@ -53,6 +53,9 @@ public class PatientIdentityMergeService {
     public MergeResult mergeOnProfileIdCard(Long currentPatientId, String idCard,
                                             String realName, Integer gender, java.time.LocalDate birthDate,
                                             String phone, String address, Long settleCategoryId) {
+        if (StringUtils.hasText(phone)) {
+            patientRepository.assertPhoneAvailable(phone, currentPatientId);
+        }
         if (!StringUtils.hasText(idCard)) {
             patientRepository.updateProfile(currentPatientId, realName, gender, birthDate,
                     phone, null, address, settleCategoryId);
@@ -70,6 +73,9 @@ public class PatientIdentityMergeService {
         Long targetPatientId = existingOpt.get();
         if (patientRepository.hasWechatBinding(targetPatientId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "该身份证已绑定其他微信账号");
+        }
+        if (StringUtils.hasText(phone)) {
+            patientRepository.assertPhoneAvailable(phone, targetPatientId);
         }
 
         String openid = patientRepository.findOpenidByPatientId(currentPatientId)

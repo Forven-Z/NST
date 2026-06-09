@@ -7,19 +7,9 @@
     <text class="{{step >= 3 ? 'on' : ''}}">③ 号源</text>
   </view>
 
-  <view class="card" wx:if="{{members.length}}">
-    <view class="card-title">就诊人</view>
-    <scroll-view scroll-x class="member-scroll">
-      <view
-        wx:for="{{members}}"
-        wx:key="memberPatientId"
-        class="member-chip {{memberPatientId === item.memberPatientId ? 'active' : ''}}"
-        data-id="{{item.memberPatientId}}"
-        bindtap="onSelectMember"
-      >
-        {{item.realName}}{{item.isSelf ? '（本人）' : ''}}
-      </view>
-    </scroll-view>
+  <view class="card">
+    <view class="card-title">当前登录账户</view>
+    <view class="muted">{{currentPatientName}} · 切换账户请回首页</view>
   </view>
 
   <view wx:if="{{step === 1}}" class="card">

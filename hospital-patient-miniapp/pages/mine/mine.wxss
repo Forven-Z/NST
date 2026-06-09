@@ -73,3 +73,54 @@
 .logout {
   margin: 32rpx 24rpx 0;
 }
+
+.guest-panel {
+  margin: -24rpx 24rpx 0;
+  padding: 40rpx 32rpx;
+  background: #ffffff;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 20rpx rgba(15, 23, 42, 0.06);
+}
+
+.guest-hint {
+  font-size: 26rpx;
+  line-height: 1.6;
+  margin-bottom: 28rpx;
+  display: block;
+}
+
+.panel {
+  margin: 16rpx 24rpx 0;
+  background: #ffffff;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 20rpx rgba(15, 23, 42, 0.06);
+}
+
+.panel-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  padding: 24rpx 32rpx 8rpx;
+  color: #334155;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 32rpx;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+
+.account-name {
+  font-size: 30rpx;
+  color: #0f172a;
+}
+
+.add-account {
+  margin: 16rpx 32rpx 24rpx;
+}
+
+.danger {
+  color: #ef4444;
+  font-size: 24rpx;
+}

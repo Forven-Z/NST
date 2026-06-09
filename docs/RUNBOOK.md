@@ -231,11 +231,16 @@ npm run dev
 
 ### 6.2 患者微信小程序
 
-1. 打开 **微信开发者工具**
-2. 导入 **`hospital-patient-miniapp/`**
-3. **设置 → 安全** → 勾选「不校验合法域名」
-4. API 基址：`http://localhost:9000/api/v1`
-5. 详见 [DEV_ENV_SETUP.md §九](./DEV_ENV_SETUP.md)
+1. 启动 R-min：`.\scripts\start-r-min.ps1`（Nacos + auth + his + gateway）
+2. 验收：`.\scripts\miniapp-smoke.ps1`（6 项患者 API 经 Gateway）
+3. 小程序目录复制联调配置：`copy hospital-patient-miniapp\config.local.example.js hospital-patient-miniapp\config.local.js`（`USE_MOCK: false`）
+4. 打开 **微信开发者工具**，导入 **`hospital-patient-miniapp/`**
+5. **详情 → 本地设置** → 勾选「不校验合法域名」
+6. 登录页填写本人档案 → 微信授权并登录
+
+号源为空时执行：`psql -U postgres -d hospital -f docs\sql\patch-scheduling-refresh.sql`
+
+详见 [hospital-patient-miniapp/README.md](../hospital-patient-miniapp/README.md)、[DEV_ENV_SETUP.md §九](./DEV_ENV_SETUP.md)
 
 ### 6.3 只用 Postman / curl 测后端
 

@@ -1,19 +1,30 @@
 const { fetchProfile, updateProfile } = require('../../api/patient')
-const { clearSession, setSession } = require('../../utils/auth')
-const patientContext = require('../../utils/patient-context')
+const { clearSession, applySession } = require('../../utils/auth')
+const {
+  GENDER_LABELS,
+  GENDER_VALUES,
+  genderIndexOf,
+  todayStr,
+  validateSelfProfile,
+  buildProfilePayload,
+  parseIdCard,
+} = require('../../utils/profile-form')
 
 Page({
   data: {
     loading: false,
     saving: false,
+    today: todayStr(),
+    genderLabels: GENDER_LABELS,
+    genderIndex: 0,
     form: {
       realName: '',
       gender: 1,
+      birthDate: '',
       phone: '',
       idCard: '',
       address: '',
     },
-    genderOptions: ['未知', '男', '女'],
     medicalRecordNo: '',
   },
 
@@ -26,11 +37,14 @@ Page({
     try {
       const res = await fetchProfile()
       const p = res.data || {}
+      const gender = p.gender === 2 ? 2 : 1
       this.setData({
         medicalRecordNo: p.medicalRecordNo || '',
+        genderIndex: genderIndexOf(gender),
         form: {
           realName: p.realName || '',
-          gender: p.gender == null ? 1 : p.gender,
+          gender: gender,
+          birthDate: p.birthDate || '',
           phone: p.phone || '',
           idCard: p.idCard || '',
           address: p.address || '',
@@ -49,31 +63,51 @@ Page({
   },
 
   onGenderChange(e) {
-    this.setData({ 'form.gender': Number(e.detail.value) })
+    const idx = Number(e.detail.value)
+    this.setData({
+      genderIndex: idx,
+      'form.gender': GENDER_VALUES[idx],
+    })
+  },
+
+  onBirthDateChange(e) {
+    this.setData({ 'form.birthDate': e.detail.value })
+  },
+
+  onIdCardBlur() {
+    const parsed = parseIdCard(this.data.form.idCard)
+    if (!parsed) return
+    this.setData({
+      'form.birthDate': parsed.birthDate,
+      'form.gender': parsed.gender,
+      genderIndex: genderIndexOf(parsed.gender),
+    })
   },
 
   async onSave() {
     if (this.data.saving) return
+    const errMsg = validateSelfProfile(this.data.form)
+    if (errMsg) {
+      wx.showToast({ title: errMsg, icon: 'none' })
+      return
+    }
+    const payload = buildProfilePayload(this.data.form)
     this.setData({ saving: true })
     try {
-      const res = await updateProfile(this.data.form)
+      const res = await updateProfile(payload)
       const p = res.data || {}
       if (p.identityMerged && p.accessToken) {
-        setSession({
+        applySession({
           accessToken: p.accessToken,
           patientId: p.id,
           medicalRecordNo: p.medicalRecordNo,
-        })
-        patientContext.clearActiveMember()
-        patientContext.setOwnerFromLogin({
-          patientId: p.id,
           realName: p.realName,
-          medicalRecordNo: p.medicalRecordNo,
         })
         wx.showToast({ title: '档案已合并', icon: 'success' })
       } else {
         wx.showToast({ title: '已保存', icon: 'success' })
       }
+      this.loadProfile()
     } catch (err) {
       wx.showToast({ title: err.message || '保存失败', icon: 'none' })
     } finally {
@@ -88,7 +122,7 @@ Page({
       success(res) {
         if (res.confirm) {
           clearSession()
-          wx.reLaunch({ url: '/pages/login/login' })
+          wx.switchTab({ url: '/pages/home/home' })
         }
       },
     })
