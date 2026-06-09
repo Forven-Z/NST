@@ -12,14 +12,18 @@ import {
   mockFetchInspectionResult,
   mockFetchMedicalRecord,
   mockFetchRegisterOrders,
+  mockFetchRegisterResults,
+  mockConfirmMedicalRecord,
   mockFinishVisit,
   mockSaveMedicalRecord,
 } from '../mock/doctor'
+import { MOCK_DISEASES } from '../mock/dict'
 import {
   mockClinicalAiDraft,
   mockConfirmAiDraft,
   mockDiagnosisSuggest,
 } from '../mock/ai'
+import { mockResult } from '../utils/mock'
 
 export function fetchDoctorQueue(params) {
   if (useMock()) return mockDoctorQueue(params)
@@ -28,7 +32,7 @@ export function fetchDoctorQueue(params) {
 
 export function callPatient(registerId) {
   if (useMock()) return mockCallPatient(registerId)
-  return request.post(`/doctor/call/${registerId}`)
+  return request.post(`/doctor/registers/${registerId}/call`)
 }
 
 export function finishVisit(registerId) {
@@ -38,12 +42,22 @@ export function finishVisit(registerId) {
 
 export function fetchMedicalRecord(registerId) {
   if (useMock()) return mockFetchMedicalRecord(registerId)
-  return request.get(`/doctor/medical-records/${registerId}`)
+  return request.get(`/doctor/registers/${registerId}/medical-record`)
 }
 
 export function saveMedicalRecord(registerId, data) {
   if (useMock()) return mockSaveMedicalRecord(registerId, data)
-  return request.put(`/doctor/medical-records/${registerId}`, data)
+  return request.put(`/doctor/registers/${registerId}/medical-record`, data)
+}
+
+export function confirmMedicalRecord(registerId, data) {
+  if (useMock()) return mockConfirmMedicalRecord(registerId, data)
+  return request.post(`/doctor/registers/${registerId}/medical-record/confirm`, data)
+}
+
+export function fetchDiseases(params) {
+  if (useMock()) return mockResult({ list: MOCK_DISEASES, page: 1, pageSize: 50 })
+  return request.get('/doctor/diseases', { params })
 }
 
 export function createInspectionOrder(data) {
@@ -61,16 +75,19 @@ export function createDisposalOrder(data) {
   return request.post('/doctor/disposal-requests', data)
 }
 
+/** @deprecated 请使用 fetchRegisterResults 聚合接口 */
 export function fetchInspectionResult(inspectionRequestId) {
   if (useMock()) return mockFetchInspectionResult(inspectionRequestId)
   return request.get(`/doctor/inspection-requests/${inspectionRequestId}/result`)
 }
 
+/** @deprecated 请使用 fetchRegisterResults */
 export function fetchCheckResult(checkRequestId) {
   if (useMock()) return mockFetchCheckResult(checkRequestId)
   return request.get(`/doctor/check-requests/${checkRequestId}/result`)
 }
 
+/** @deprecated 请使用 fetchRegisterResults */
 export function fetchDisposalResult(disposalRequestId) {
   if (useMock()) return mockFetchDisposalResult(disposalRequestId)
   return request.get(`/doctor/disposal-requests/${disposalRequestId}/result`)
@@ -79,6 +96,11 @@ export function fetchDisposalResult(disposalRequestId) {
 export function fetchRegisterOrders(registerId) {
   if (useMock()) return mockFetchRegisterOrders(registerId)
   return request.get(`/doctor/registers/${registerId}/orders`)
+}
+
+export function fetchRegisterResults(registerId) {
+  if (useMock()) return mockFetchRegisterResults(registerId)
+  return request.get(`/doctor/registers/${registerId}/results`)
 }
 
 export function createPrescription(data) {

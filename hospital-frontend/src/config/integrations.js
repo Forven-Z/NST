@@ -4,7 +4,7 @@
  * 对接说明：
  * - AI 分诊台：GET /ai/triage/assignments → 队列 triageLevel / triageNote
  * - 影像 CNN：hospital-ai FastAPI → aiReportText；本前端跳转 VITE_IMAGING_AI_URL
- * - 检验智能报告：POST /lis/requests/{id}/ai-report → aiReportText（无影像）
+ * - 医技结果：PUT /lis|pacs|disposal/requests/{id}/result → resultText（无 ai-report 契约接口）
  * - 管理员 AI 排班：POST /admin/scheduling/ai-suggest → suggestions[]
  */
 export const INTEGRATION_ROUTES = {

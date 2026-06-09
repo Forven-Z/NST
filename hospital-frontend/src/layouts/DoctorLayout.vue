@@ -26,6 +26,13 @@ function logout() {
       <el-button link type="danger" @click="logout">退出登录</el-button>
     </header>
 
+    <nav class="subnav">
+      <el-menu mode="horizontal" :ellipsis="false" router class="subnav-menu">
+        <el-menu-item index="/doctor/workspace">门诊工作站</el-menu-item>
+        <el-menu-item index="/doctor/my-schedules">我的排班</el-menu-item>
+      </el-menu>
+    </nav>
+
     <div class="body">
       <main class="main-pane">
         <router-view />
@@ -64,6 +71,17 @@ function logout() {
 .doctor-info {
   color: #475569;
   font-size: 14px;
+}
+
+.subnav {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 12px;
+}
+
+.subnav-menu {
+  border-bottom: none;
+  background: transparent;
 }
 
 .body {

@@ -117,6 +117,81 @@ function hasExpertSlot(employeeId, weekday, noonType) {
   return slots.some((s) => s.weekday === weekday && s.noonType === noonType)
 }
 
+/**
+ * 非门诊出诊人员（医技、药房、挂号、处置）— Mock 值班排班
+ * 与 auth.js 账号 employeeId 对齐
+ */
+export const MOCK_STAFF_MEMBERS = [
+  { employeeId: 2, empNo: 'E002', realName: '李检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
+  { employeeId: 3, empNo: 'E003', realName: '王检查', title: '放射技师', deptId: 2, roleType: 'CHECK_DOCTOR' },
+  { employeeId: 4, empNo: 'E004', realName: '赵药师', title: '主管药师', deptId: 4, roleType: 'PHARMACIST' },
+  { employeeId: 5, empNo: 'E005', realName: '钱收费', title: '挂号收费员', deptId: 5, roleType: 'REGISTRAR' },
+  { employeeId: 8, empNo: 'E008', realName: '周检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
+  { employeeId: 19, empNo: 'E019', realName: '孙处置', title: '护士', deptId: 6, roleType: 'DISPOSAL_DOCTOR' },
+  { employeeId: 20, empNo: 'E020', realName: '吴检查', title: '放射技师', deptId: 2, roleType: 'CHECK_DOCTOR' },
+  { employeeId: 21, empNo: 'E021', realName: '郑药师', title: '药师', deptId: 4, roleType: 'PHARMACIST' },
+  { employeeId: 22, empNo: 'E022', realName: '冯收费', title: '挂号收费员', deptId: 5, roleType: 'REGISTRAR' },
+]
+
+const DUTY_SHIFT_NAMES = {
+  2: '影像值班',
+  3: '检验值班',
+  4: '药房值班',
+  5: '窗口值班',
+  6: '处置值班',
+}
+
+/** 本科室可替班人员（来自员工主数据） */
+export { getSubstitutePoolByDept } from './staff-registry'
+
+function buildStaffDutySchedules(startId) {
+  const list = []
+  let schedulingId = startId
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
+    const workDate = new Date(today)
+    workDate.setDate(workDate.getDate() + dayOffset)
+    const weekday = workDate.getDay()
+    if (weekday === 0) continue
+
+    for (const staff of MOCK_STAFF_MEMBERS) {
+      const onMorning = (staff.employeeId + dayOffset) % 3 !== 2
+      const onAfternoon = (staff.employeeId + dayOffset) % 4 === 0
+      const sessions = []
+      if (onMorning) sessions.push(NOON_SESSIONS[0])
+      if (onAfternoon && weekday !== 6) sessions.push(NOON_SESSIONS[1])
+
+      for (const noon of sessions) {
+        list.push({
+          schedulingId: schedulingId++,
+          scheduleType: 'DUTY',
+          scheduleKind: 2,
+          deptId: staff.deptId,
+          employeeId: staff.employeeId,
+          employeeName: staff.realName,
+          employeeTitle: staff.title,
+          registLevelId: 0,
+          registLevelName: DUTY_SHIFT_NAMES[staff.deptId] || '值班',
+          registFee: 0,
+          workDate: formatDate(workDate),
+          weekday,
+          noonType: noon.noonType,
+          noonLabel: noon.label,
+          timeRange: noon.timeRange,
+          totalQuota: 0,
+          usedQuota: 0,
+          remainQuota: 0,
+          publishStatus: 1,
+          isRotating: true,
+        })
+      }
+    }
+  }
+  return list
+}
+
 function buildSchedules() {
   const list = []
   let schedulingId = 5001
@@ -157,6 +232,8 @@ function buildSchedules() {
             totalQuota: NORMAL_QUOTA,
             usedQuota: Math.min(used, NORMAL_QUOTA - 1),
             remainQuota: NORMAL_QUOTA - Math.min(used, NORMAL_QUOTA - 1),
+            publishStatus: 1,
+            scheduleKind: 1,
             isRotating: true,
           })
         }
@@ -183,6 +260,8 @@ function buildSchedules() {
             totalQuota: EXPERT_QUOTA,
             usedQuota: Math.min(usedExpert, EXPERT_QUOTA - 1),
             remainQuota: EXPERT_QUOTA - Math.min(usedExpert, EXPERT_QUOTA - 1),
+            publishStatus: 1,
+            scheduleKind: 1,
             isRotating: false,
           })
         }
@@ -190,10 +269,13 @@ function buildSchedules() {
     }
   }
 
-  return list.sort((a, b) => {
+  const dutyList = buildStaffDutySchedules(schedulingId)
+  const merged = [...list, ...dutyList]
+
+  return merged.sort((a, b) => {
     if (a.workDate !== b.workDate) return a.workDate.localeCompare(b.workDate)
     if (a.noonType !== b.noonType) return a.noonType - b.noonType
-    return a.registLevelId - b.registLevelId
+    return (a.registLevelId || 0) - (b.registLevelId || 0)
   })
 }
 
@@ -238,6 +320,7 @@ export const MOCK_TECH_DEPARTMENTS = [
   { id: 4, deptCode: 'PHARMACY', deptName: '药房', deptType: 3, sortNo: 7 },
   { id: 5, deptCode: 'REGISTRATION', deptName: '挂号收费处', deptType: 4, sortNo: 8 },
   { id: 6, deptCode: 'DISPOSAL', deptName: '处置科', deptType: 2, sortNo: 9 },
+  { id: 10, deptCode: 'SYS_ADMIN', deptName: '系统管理科', deptType: 4, sortNo: 10 },
 ]
 
 export const MOCK_ALL_DEPARTMENTS = [...MOCK_OUTPATIENT_DEPTS, ...MOCK_TECH_DEPARTMENTS]
@@ -256,6 +339,13 @@ export const MOCK_DRUGS = [
   { id: 1, drugCode: 'DRG-001', drugName: '阿莫西林胶囊', drugFormat: '0.25g×24粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 18.5, stockQty: 100 },
   { id: 2, drugCode: 'DRG-002', drugName: '布洛芬缓释胶囊', drugFormat: '0.3g×20粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 22, stockQty: 80 },
   { id: 3, drugCode: 'DRG-003', drugName: '对乙酰氨基酚片', drugFormat: '0.5g×20片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 8.5, stockQty: 200 },
+]
+
+export const MOCK_DISEASES = [
+  { id: 101, diseaseCode: 'G43', diseaseName: '偏头痛' },
+  { id: 102, diseaseCode: 'G44', diseaseName: '紧张性头痛' },
+  { id: 103, diseaseCode: 'J06', diseaseName: '急性上呼吸道感染' },
+  { id: 104, diseaseCode: 'R51', diseaseName: '头痛' },
 ]
 
 export function getMedicalTechById(id) {
