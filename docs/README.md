@@ -26,7 +26,7 @@
 | **活文档** | [PROGRESS.md](./PROGRESS.md) | 实现进度（每周更新） |
 | **SQL** | [sql/README.md](./sql/README.md) | 建表与 seed |
 
-> **已合并删除**（勿再引用）：`API_INTERFACE_SPEC.md`、`FRONTEND_API_MAP.md`（正文）→ **API.md v2.0**；`INTEGRATION_CHECKLIST.md` → RUNBOOK §十二；`DEVELOPMENT_RATIONALE.md` → IMPLEMENTATION_PLAN §八；`TECH_ARCHITECTURE.md` → MICROSERVICES §八。
+> **已合并删除**（勿再引用）：`API_INTERFACE_SPEC.md`、`FRONTEND_API_MAP.md`（正文）→ **API.md v2.1**；`INTEGRATION_CHECKLIST.md` → RUNBOOK §十二；`DEVELOPMENT_RATIONALE.md` → IMPLEMENTATION_PLAN §八；`TECH_ARCHITECTURE.md` → MICROSERVICES §八。
 
 **冲突处理顺序**（高 → 低）：
 

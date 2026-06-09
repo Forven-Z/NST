@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.0 | 2026-06-04  
+> **版本**：v2.1 | 2026-06-09  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
 > **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14**（业务 ID 即各表 `id`）  
@@ -99,9 +99,43 @@ Mock 数据结构 **与本文件一致**。
 ### 1.5 网关白名单（无需 Token）
 
 - `POST /auth/staff/login`
-- `POST /patient/auth/wechat`
+- `POST /patient/auth/login`
+- `POST /patient/auth/wechat`（兼容旧客户端）
 - `POST /callback/wechat/pay`
 - `GET /auth/health`、各服务 `/health`
+
+### 1.7 医嘱 / 申请状态枚举（v2.1）
+
+**医技申请**（`inspection_request` / `check_request` / `disposal_request`）：
+
+| status | 含义 | 前端 statusLabel |
+|--------|------|------------------|
+| 10 | 已开立 | 已开立 |
+| 20 | 已缴费 | 已缴费 |
+| 30 | 执行中 | 执行中 |
+| 40 | 已出结果 | 已出结果 |
+| 50 | 已退费 | 已退费 |
+
+**处方**（`prescription`）：
+
+| status | 含义 | 前端 statusLabel |
+|--------|------|------------------|
+| 10 | 已开立 | 已开立 |
+| 20 | 已缴费 | 已缴费 |
+| 30 | 已发药 | 已发药 |
+| 40 | 已退药 | 已退药 |
+| 50 | 已退费 | 已退费 |
+
+**医技结果报告结构**（医生站 / LIS / PACS / 处置 共用，见 §5.4、§6）：
+
+| 字段 | 说明 |
+|------|------|
+| `instrumentData` | 仪器原始数据（只读展示） |
+| `aiReportText` | AI 智能报告 |
+| `doctorReportText` | 医师意见 |
+| `aiReportStatus` | `PENDING` / `READY` / `FAILED` |
+| `resultText` | 对外发布合并文本（患者报告摘要可引用） |
+| `reportTime` | 报告时间 |
 
 ### 1.6 就诊人模型（ADR-016 v1.8）
 
@@ -122,7 +156,10 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P1 | POST | `/auth/staff/login` | auth | 公开 |
 | ✅ | P1 | GET | `/auth/me` | auth | 已登录 |
 | ✅ | P1 | POST | `/auth/token/refresh` | auth | 已登录 |
-| ✅ | P1 | POST | `/patient/auth/wechat` | his | 公开 |
+| ✅ | P1 | POST | `/patient/auth/wechat` | his | 公开（兼容） |
+| ✅ | P1 | POST | `/patient/auth/login` | his | 公开 |
+| ✅ | P1 | POST | `/patient/auth/switch-account` | his | PATIENT |
+| ✅ | P1 | POST | `/patient/auth/wechat/bind` | his | PATIENT |
 | ✅ | P1 | GET/PUT | `/patient/profile` | his | PATIENT |
 | ✅ | P1 | GET/POST | `/patient/family-members` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/departments` | his | PATIENT |
@@ -132,7 +169,7 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P1 | GET | `/patient/registers/{registerId}` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/registers/{registerId}/queue-status` | his | PATIENT |
 | ✅ | P1 | POST | `/patient/registers/{registerId}/cancel` | his | PATIENT |
-| ⬜ | P2 | GET | `/patient/registers/{registerId}/orders` | his | PATIENT |
+| ⬜ | P1 | GET | `/patient/registers/{registerId}/orders` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/bills` | his | PATIENT |
 | ✅ | P1 | POST | `/patient/payments` | his | PATIENT |
 | ⬜ | P2 | GET | `/patient/payments` | his | PATIENT |
@@ -144,10 +181,10 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2 | GET | `/patient/reports/{type}/{requestId}` | his | PATIENT |
 | ✅ | P1 | GET | `/doctor/queues` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | POST | `/doctor/call/{registerId}` | his | OUTPATIENT_DOCTOR |
-| ⬜ | P3 | POST | `/doctor/registers/{registerId}/finish` | his | OUTPATIENT_DOCTOR |
+| ⬜ | P1 | POST | `/doctor/registers/{registerId}/finish` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET/PUT | `/doctor/medical-records/{registerId}` | his | OUTPATIENT_DOCTOR |
 | ⬜ | P1 | POST | `/doctor/medical-records/{registerId}/submit` | his | OUTPATIENT_DOCTOR |
-| ⬜ | P2 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
+| ⬜ | P1 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/check-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/inspection-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P3 | POST | `/doctor/disposal-requests` | his | OUTPATIENT_DOCTOR |
@@ -159,14 +196,20 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2 | GET | `/lis/queue` | lis | LAB_DOCTOR |
 | ✅ | P2 | POST | `/lis/requests/{id}/execute` | lis | LAB_DOCTOR |
 | ✅ | P2 | POST | `/lis/requests/{id}/result` | lis | LAB_DOCTOR |
+| ⬜ | P2 | GET | `/lis/requests/{id}/result-detail` | lis | LAB_DOCTOR |
+| STUB | P4 | POST | `/lis/requests/{id}/ai-report` | lis | LAB_DOCTOR |
 | ✅ | P3 | GET | `/pacs/queue` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | POST | `/pacs/requests/{id}/execute` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | POST | `/pacs/requests/{id}/result` | pacs | CHECK_DOCTOR |
+| ⬜ | P3 | GET | `/pacs/requests/{id}/result-detail` | pacs | CHECK_DOCTOR |
+| STUB | P4 | POST | `/pacs/requests/{id}/ai-report` | pacs | CHECK_DOCTOR |
 | ⬜ | P3 | GET | `/pacs/imaging-studies` | pacs | CHECK_DOCTOR |
 | STUB | P4 | POST | `/pacs/imaging/upload` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | GET | `/disposal/queue` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | POST | `/disposal/requests/{id}/execute` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | POST | `/disposal/requests/{id}/result` | disposal | DISPOSAL_DOCTOR |
+| ⬜ | P3 | GET | `/disposal/requests/{id}/result-detail` | disposal | DISPOSAL_DOCTOR |
+| STUB | P4 | POST | `/disposal/requests/{id}/ai-report` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | GET | `/pharmacy/pending` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/dispense` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/return-drug` | his | PHARMACIST |
@@ -182,6 +225,8 @@ Mock 数据结构 **与本文件一致**。
 | STUB | P4 | POST | `/ai/triage/chat` | ai-bridge | PATIENT |
 | STUB | P4 | POST | `/ai/assistant/stream` | ai-bridge | DOCTOR |
 | STUB | P4 | POST | `/ai/diagnosis/suggest` | ai-bridge | DOCTOR |
+| STUB | P4 | GET | `/ai/triage/assignments` | ai-bridge | DOCTOR |
+| STUB | P4 | POST | `/admin/scheduling/{id}/ai-replace` | mgmt | ADMIN |
 
 ---
 
@@ -296,7 +341,7 @@ Mock 数据结构 **与本文件一致**。
 
 **Request**：`{ "reason": "..." }`
 
-### GET `/patient/registers/{registerId}/orders` ⬜ P2
+### GET `/patient/registers/{registerId}/orders` ⬜ P1
 
 **页面**：小程序「医嘱进度」、PC 医生站医嘱面板（患者端同结构）
 
@@ -330,12 +375,12 @@ Mock 数据结构 **与本文件一致**。
 }
 ```
 
-| kind | 表 | status |
-|------|-----|--------|
-| inspection | `inspection_request` | 10/20/30/40/50 |
-| check | `check_request` | 同上 |
-| disposal | `disposal_request` | 同上 |
-| prescription | `prescription` | 10/20/30/40/50 |
+| kind | 表 | status | statusLabel 见 §1.7 |
+|------|-----|--------|----------------------|
+| inspection | `inspection_request` | 10/20/30/40/50 | 医技 |
+| check | `check_request` | 同上 | 医技 |
+| disposal | `disposal_request` | 同上 | 医技 |
+| prescription | `prescription` | 10/20/30/40/50 | **处方**（30=已发药） |
 
 ### GET `/patient/bills` ✅ P1
 
@@ -378,52 +423,97 @@ Mock 数据结构 **与本文件一致**。
 
 ## 五、门诊医生 · `/doctor/**`（his）
 
-### GET `/doctor/queues` ✅ P1
+> PC 医生工作台（`WorkspaceView`）已联调 Mock；**无批量开单接口**，前端对多选项目 **逐条 POST** `/*-requests`。
 
-**Query**：`visitState?`, `keyword?`, `page`, `pageSize`  
-**Response `data.list[]`**：`registerId`, `medicalRecordNo`, `patientName`, `gender`, `age`, `visitState`, `registLevelName`, `noonLabel`
+### GET `/doctor/queues` ✅ P1（部分字段 ⬜）
+
+**Query**：`visitState?`（1 已挂号 / 2 接诊中；省略时默认今日 `visit_state IN (1,2)`）, `keyword?`, `page`, `pageSize`
+
+**Response `data.list[]`**
+
+| 字段 | 状态 | 说明 |
+|------|------|------|
+| `registerId` | ✅ | |
+| `medicalRecordNo` | ✅ | |
+| `patientName` | ✅ | |
+| `gender` | ✅ | 1 男 / 2 女 |
+| `age` | ✅ | 由 `birth_date` 推算 |
+| `visitState` | ✅ | 0 待支付 / 1 已挂号 / 2 接诊中 / 3 看诊结束 |
+| `registLevelName` | ✅ | |
+| `registTime` | ✅ | |
+| `noonLabel` | ⬜ | 上午/下午；来自 `register.noon_type` |
+| `triageLevel` | ⬜ STUB | `EMERGENCY` / `URGENT` / `NORMAL`；见 §10.1 |
+| `triageNote` | ⬜ STUB | AI 分诊说明 |
+
+**分诊数据来源（二选一，推荐 A）**
+
+- **A（推荐）**：队列项直接带 `triageLevel` / `triageNote`（Mock 现状）
+- **B**：`GET /ai/triage/assignments?registerIds=3001,3002` 返回 map，前端合并
 
 ### POST `/doctor/call/{registerId}` ✅ P1
 
-**效果**：`register.visit_state` → 2
+**前置**：`visit_state = 1`（已挂号）  
+**效果**：`visit_state` → 2（接诊中）  
+**Response `data`**：`registerId`, `visitState`
 
-### POST `/doctor/registers/{registerId}/finish` ⬜ P3
+### POST `/doctor/registers/{registerId}/finish` ⬜ P1
 
-**效果**：`visit_state` → 3
+**页面**：医生工作台「结束看诊」  
+**前置**：当前医生、`visit_state = 2`  
+**效果**：`visit_state` → 3（看诊结束）  
+**Response `data`**：`registerId`, `visitState`
 
 ### GET/PUT `/doctor/medical-records/{registerId}` ✅ P1
 
-**PUT Request 字段**：`readme`, `present`, `presentTreat`, `history`, `allergy`, `physique`, `diagnosis`, `cure`, `checkAdvice`, `inspectionAdvice`, `diseaseIds?`
+**GET/PUT 字段**：`readme`, `present`, `presentTreat`, `history`, `allergy`, `physique`, `diagnosis`, `cure`, `checkAdvice`, `inspectionAdvice`, `diseaseIds?`
+
+> 前端 `AiDiagnosisBar` 将 AI 诊断写入 `diagnosis` 后一并 PUT 保存。
 
 ### POST `/doctor/medical-records/{registerId}/submit` ⬜ P1
 
 **效果**：`medical_record.status` → 2，患者端可见
 
-### GET `/doctor/registers/{registerId}/orders` ⬜ P2
+### GET `/doctor/registers/{registerId}/orders` ⬜ P1
 
-**Response**：与 §4 `GET /patient/registers/{id}/orders` **相同**
+**页面**：医生工作台「本次就诊医嘱」面板（`RegisterOrdersPanel`）  
+**Response**：与 §4 `GET /patient/registers/{id}/orders` **完全相同**（含 `list[]` 汇总 + `checks/inspections/disposals/prescriptions` 明细）
 
 ### POST `/doctor/check-requests` ✅ P2
 
-**Request**：`{ "registerId", "medicalTechnologyId", "purpose", "bodyPart", "remark?" }`  
-**Response `data`**：`checkRequestId`, `itemName`, `status`（10）, `billId`, `message`
+**Request**：`{ "registerId", "medicalTechnologyId", "purpose?", "bodyPart?", "remark?" }`  
+**Response `data`**：`checkRequestId`, `itemName`, `status`（10）, `billId`, `amount?`, `message?`
 
 ### POST `/doctor/inspection-requests` ✅ P2
 
-同上，`inspectionRequestId`, `bizType=INSPECTION`
+同上，返回 `inspectionRequestId`
 
 ### POST `/doctor/disposal-requests` ✅ P3
 
-同上，`disposalRequestId`, `bizType=DISPOSAL`
+同上，返回 `disposalRequestId`
 
-### GET `/doctor/check-requests/{id}/result` ✅
+### GET `/doctor/check-requests/{id}/result` ✅（响应扩展 ⬜）
 
-### GET `/doctor/inspection-requests/{id}/result` ✅
+### GET `/doctor/inspection-requests/{id}/result` ✅（响应扩展 ⬜）
 
-### GET `/doctor/disposal-requests/{id}/result` ✅
+### GET `/doctor/disposal-requests/{id}/result` ✅（响应扩展 ⬜）
 
 **前置**：`status >= 40`  
-**Response `data`**：`*RequestId`, `itemName`, `resultText`, `reportTime`
+**Response `data`**（v2.1，对齐 `ResultReportSections`）：
+
+```json
+{
+  "checkRequestId": 62001,
+  "itemName": "头部 CT",
+  "instrumentData": "…仪器原始数据…",
+  "aiReportText": "…AI 报告…",
+  "doctorReportText": "…医师意见…",
+  "aiReportStatus": "READY",
+  "resultText": "…对外摘要…",
+  "reportTime": "2026-06-09T10:00:00+08:00"
+}
+```
+
+> 当前后端仅返回 `resultText`；需扩展至完整结构（§1.7）。
 
 ### POST `/doctor/prescriptions` ✅ P3
 
@@ -445,16 +535,16 @@ Mock 数据结构 **与本文件一致**。
 }
 ```
 
-**Response `data`**：`prescriptionId`, `totalAmount`, `status`（10）
+**Response `data`**：`prescriptionId`, `totalAmount`, `status`（10）, `message?`
 
-### AI 辅助开单（P4 · ADR-015）STUB/⬜
+### 5.1 AI 辅助诊疗（P4 · ADR-015）STUB/⬜
 
 | Method | 路径 | 说明 |
 |--------|------|------|
-| POST | `/ai/diagnosis/suggest` | 分支建议（ai-bridge） |
+| POST | `/ai/diagnosis/suggest` | 智能诊断建议（ai-bridge） |
 | POST | `/doctor/check-requests/ai-draft` | 生成检查草稿 |
 | PUT | `/doctor/check-requests/ai-draft/{draftId}` | 编辑草稿 |
-| POST | `/doctor/check-requests/ai-draft/{draftId}/confirm` | 确认提交 |
+| POST | `/doctor/check-requests/ai-draft/{draftId}/confirm` | 确认提交 → 正式开单 |
 | POST | `/doctor/inspection-requests/ai-draft` | 检验（对称） |
 | PUT | `/doctor/inspection-requests/ai-draft/{draftId}` | |
 | POST | `/doctor/inspection-requests/ai-draft/{draftId}/confirm` | |
@@ -465,11 +555,73 @@ Mock 数据结构 **与本文件一致**。
 | PUT | `/doctor/prescriptions/ai-draft/{draftId}` | |
 | POST | `/doctor/prescriptions/ai-draft/{draftId}/confirm` | |
 
-**流程**：病历保存 → `diagnosis/suggest` → ai-draft 三步 → 医生确认 → `status=10`；**禁止** AI 未经确认直接开立。
+**`POST /ai/diagnosis/suggest` Request**（`AiDiagnosisBar`）：
+
+```json
+{
+  "registerId": 3001,
+  "readme": "头痛 3 天",
+  "present": "…",
+  "presentTreat": "…",
+  "history": "…",
+  "allergy": "无",
+  "physique": "…",
+  "diagnosis": "…",
+  "cure": "…",
+  "checkAdvice": "…",
+  "inspectionAdvice": "…"
+}
+```
+
+**Response `data`**：`stub`, `suggestions[]`, `needCheck`, `needInspection`, `needDisposal`, `reason`
+
+**`POST /doctor/*-requests/ai-draft` Response `data`**（生成草稿，**不直接开单**）：
+
+```json
+{
+  "stub": true,
+  "draftId": 8001,
+  "draftType": "CHECK",
+  "registerId": 3001,
+  "aiReason": "根据主诉建议完善影像检查",
+  "items": [{
+    "medicalTechnologyId": 1,
+    "itemName": "头部 CT",
+    "purpose": "排除颅内病变",
+    "bodyPart": "头部",
+    "remark": ""
+  }]
+}
+```
+
+**流程**：填写病历 → `diagnosis/suggest` → `ai-draft` → 医生在开单弹窗勾选确认 → 逐条 POST 正式开单；**禁止** AI 未经确认直接开立。
 
 ---
 
 ## 六、医技执行
+
+> 医技队列 UI（`TechQueuePanel`）使用 **result-detail** 加载三段式报告，**ai-report** 生成 AI 报告，**result** 保存医师确认后的结果。
+
+### 6.1 医技结果 API 对称约定（LIS / PACS / Disposal）
+
+| Method | 路径模板 | 说明 |
+|--------|----------|------|
+| GET | `/{svc}/requests/{id}/result-detail` | 加载报告详情（§1.7 全字段） |
+| POST | `/{svc}/requests/{id}/ai-report` | 触发 AI 报告生成（STUB → `aiReportStatus=READY`） |
+| POST | `/{svc}/requests/{id}/result` | 保存结果并 `status→40` |
+
+**`POST .../result` Request**（v2.1，推荐对象；兼容旧版纯字符串 `resultText`）：
+
+```json
+{
+  "aiReportText": "AI 检验报告正文…",
+  "doctorReportText": "医师意见…"
+}
+```
+
+服务端应合成 `resultText`（如 `AI：…\n医师：…`）供患者端 `GET /patient/reports` 摘要。
+
+**`POST .../ai-report` Response `data`**：同 result-detail 结构，`aiReportText` 已填充。
 
 ### LIS · `/lis/**` · hospital-lis :9103
 
@@ -477,10 +629,12 @@ Mock 数据结构 **与本文件一致**。
 |------|--------|------|------|
 | ✅ | GET | `/lis/health` | 健康检查 |
 | ✅ | GET | `/lis/queue?status=20` | 待执行队列 |
-| ✅ | POST | `/lis/requests/{id}/execute` | status→30 |
-| ✅ | POST | `/lis/requests/{id}/result` | `{ "resultText" }` → status 40 |
+| ✅ | POST | `/lis/requests/{id}/execute` | status→30（执行中） |
+| ✅ | POST | `/lis/requests/{id}/result` | 保存结果 → status 40 |
+| ⬜ | GET | `/lis/requests/{id}/result-detail` | 报告详情 |
+| STUB | POST | `/lis/requests/{id}/ai-report` | AI 检验报告 |
 
-**队列项**：`inspectionRequestId`, `medicalRecordNo`, `patientName`, `itemName`, `itemPrice`, `status`
+**队列项**：`inspectionRequestId`, `medicalRecordNo`, `patientName`, `itemName`, `itemPrice`, `status`, `triageLevel?`, `triageNote?`
 
 ### PACS · `/pacs/**` · hospital-pacs :9104
 
@@ -488,8 +642,10 @@ Mock 数据结构 **与本文件一致**。
 |------|--------|------|------|
 | ✅ | GET | `/pacs/health` | |
 | ✅ | GET | `/pacs/queue?status=20` | `checkRequestId` |
-| ✅ | POST | `/pacs/requests/{id}/execute` | |
-| ✅ | POST | `/pacs/requests/{id}/result` | 可含 `resultAttachment` |
+| ✅ | POST | `/pacs/requests/{id}/execute` | status→30 |
+| ✅ | POST | `/pacs/requests/{id}/result` | 保存结果 |
+| ⬜ | GET | `/pacs/requests/{id}/result-detail` | 报告详情 |
+| STUB | POST | `/pacs/requests/{id}/ai-report` | AI 影像分析（可联动 hospital-ai CNN） |
 | ⬜ | GET | `/pacs/imaging-studies` | 影像任务列表 |
 | STUB | POST | `/pacs/imaging/upload` | 影像上传 |
 
@@ -501,8 +657,10 @@ Mock 数据结构 **与本文件一致**。
 |------|--------|------|------|
 | ✅ | GET | `/disposal/health` | |
 | ✅ | GET | `/disposal/queue?status=20` | `disposalRequestId` |
-| ✅ | POST | `/disposal/requests/{id}/execute` | |
-| ✅ | POST | `/disposal/requests/{id}/result` | `{ "resultText" }` |
+| ✅ | POST | `/disposal/requests/{id}/execute` | status→30 |
+| ✅ | POST | `/disposal/requests/{id}/result` | 保存结果 |
+| ⬜ | GET | `/disposal/requests/{id}/result-detail` | 报告详情 |
+| STUB | POST | `/disposal/requests/{id}/ai-report` | AI 处置记录辅助 |
 
 ---
 
@@ -527,6 +685,8 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | POST | `/registrar/registers/{registerId}/cancel` | 窗口退号 |
 
 **窗口挂号 Request 示例**：患者信息 + `schedulingId` + `channel=CASH` + `receivedAmount`
+
+> **排班查询**：收费员窗口挂号页复用 `GET /patient/schedules`（与小程序契约一致）；`GET /admin/employees?deptId=&roleType=OUTPATIENT_DOCTOR` 查科室医生（⬜）。
 
 ---
 
@@ -556,8 +716,9 @@ Mock 数据结构 **与本文件一致**。
 | ⬜ POST | `/admin/scheduling` | 创建 |
 | ⬜ PUT | `/admin/scheduling/{id}` | 更新 |
 | ⬜ POST | `/admin/scheduling/{id}/publish` | 发布 |
-| P5 | POST | `/admin/scheduling/ai-suggest` | Timefold 建议 |
-| P5 | POST | `/admin/scheduling/solve` | 求解 |
+| P5 | POST | `/admin/scheduling/ai-suggest` | AI 排班建议 |
+| STUB | P5 | POST | `/admin/scheduling/{id}/ai-replace` | 应用 AI 推荐替换当前排班 |
+| P5 | POST | `/admin/scheduling/solve` | Timefold 求解 |
 
 **Query**：`workDate`, `deptId`, `employeeId`  
 **Request 示例**：`{ "deptId", "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  
@@ -582,10 +743,18 @@ Mock 数据结构 **与本文件一致**。
 |------|--------|------|------|
 | STUB | GET | `/ai/health` | |
 | STUB | POST | `/ai/triage/chat` | 患者问诊 SSE |
+| STUB | GET | `/ai/triage/assignments` | 挂号分诊等级（见 §5 队列 `triageLevel`） |
 | STUB | POST | `/ai/assistant/stream` | 医生助理 SSE |
-| STUB | POST | `/ai/diagnosis/suggest` | ADR-015 分支建议 |
+| STUB | POST | `/ai/diagnosis/suggest` | ADR-015 智能诊断（Request 见 §5.1） |
 | P4 | POST | `/ai/prescription/draft` | 处方草稿 |
 | P5 | POST | `/ai/scheduling/suggest` | 排班 NL 建议 |
+
+### GET `/ai/triage/assignments` STUB P4
+
+**Query**：`registerIds`（逗号分隔）  
+**Response `data.list[]`**：`registerId`, `triageLevel`（`EMERGENCY|URGENT|NORMAL`）, `triageNote`
+
+> 若采用 §5 方案 A，本接口可省略，分诊字段由 his 队列直接返回。
 
 **diagnosis/suggest Response `data`**：`stub`, `suggestions[]`, `needCheck`, `needInspection`, `needDisposal`, `reason`
 
@@ -620,7 +789,8 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 页面 | 主要接口 |
 |------|----------|
-| 登录 | `POST /patient/auth/wechat` |
+| 登录 | `POST /patient/auth/login`（完整档案）；`POST /patient/auth/switch-account` 切换账户 |
+| 添加账户 | `POST /patient/auth/login?add=1` 或登录页添加模式 |
 | 按科室挂号 | `GET /patient/departments`, `/schedules`, `POST /registers` |
 | 按疾病导诊 | 本地规则 → 跳转挂号页 |
 | 待缴/已缴 | `GET /patient/bills`, `POST /payments`, `GET /payments` |
@@ -635,13 +805,13 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 角色 | 页面 | 主要接口 |
 |------|------|----------|
-| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/*-requests`, `/registers/{id}/orders`, `/registers/{id}/finish` |
-| 医生 | AI 7:3 | `/ai/diagnosis/suggest`, `/ai/assistant/stream`, `/*/ai-draft/**` |
-| LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**` |
-| PACS | 影像任务 | `GET /pacs/imaging-studies` |
+| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/*-requests`（逐条）, `/registers/{id}/orders`, `/registers/{id}/finish`, `/*-requests/{id}/result` |
+| 医生 | AI 辅助 | `/ai/diagnosis/suggest`, `/*/ai-draft`, `/ai/assistant/stream` |
+| LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`（含 `result-detail`, `ai-report`） |
+| PACS | 影像 AI | `GET /pacs/imaging-studies`；前端跳转 VITE_IMAGING_AI_URL |
 | 药师 | 发药 | `/pharmacy/pending`, `.../dispense`, `.../return-drug` |
-| 收费员 | 挂号/收费/退费 | `/registrar/registers`, `/charges`, `/refunds`, `/patients/{mrn}/bills` |
-| 管理员 | 字典/排班 | `GET /admin/*`, `GET /admin/scheduling` |
+| 收费员 | 挂号/收费/退费 | `/registrar/registers`, `/charges`, `/refunds`, `/patients/{mrn}/bills`；排班 `GET /patient/schedules` |
+| 管理员 | 字典/排班 | `GET /admin/*`, `/admin/scheduling`, `/admin/scheduling/ai-suggest`, `/admin/scheduling/{id}/ai-replace` |
 
 ---
 
@@ -671,10 +841,26 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 ---
 
+## 附录 E · 后端待办（v2.1，按优先级）
+
+| 优先级 | 模块 | 接口 / 改动 |
+|--------|------|-------------|
+| P0 | his · 医生 | `POST /doctor/registers/{id}/finish` |
+| P0 | his · 医生/患者 | `GET /doctor/registers/{id}/orders`（患者端同路径 ⬜） |
+| P0 | lis/pacs/disposal | `GET/POST .../result-detail`, `POST .../ai-report` |
+| P1 | his · 医生 | 队列补 `noonLabel`；`triageLevel/triageNote`（或 ai-bridge assignments） |
+| P1 | his · 医生 | `GET /doctor/*-requests/{id}/result` 扩展 §1.7 字段 |
+| P1 | lis/pacs/disposal | `POST .../result` 支持 `{ aiReportText, doctorReportText }` |
+| P2 | ai-bridge | STUB：`diagnosis/suggest`、`*-requests/ai-draft` |
+| P2 | mgmt | `POST /admin/scheduling/{id}/ai-replace` |
+
+---
+
 ## 附录 D · 修订记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.1 | 2026-06-09 | 对齐 PC 医生工作台/医技队列 Mock：finish/orders、三段式报告、result-detail/ai-report、状态枚举、AI 草稿结构、白名单与附录 A |
 | v2.0 | 2026-06-04 | **合并**原 `API.md` + `API_INTERFACE_SPEC.md` 为唯一契约；**统一路径**（§〇）；增加实现状态总览 |
 | v1.4 | 2026-06 | DATABASE v1.14 对齐 |
 | v1.0 | 2026-05 | 初版 API 目录 |
