@@ -111,7 +111,7 @@ async function onSubmit() {
       <p class="hint">
         开发账号（密码 123456）：doctor01 · lab01 · check01 · pharmacy01 · registrar01 · disposal01 · admin
       </p>
-      <p class="hint sub">推荐演示路径：registrar01 挂号 → 收费 → doctor01 开单 → check01（检查+检验）/ pharmacy01</p>
+      <p class="hint sub">演示：registrar01 挂号收费 → doctor01 开单 → check01/inspection01；各角色可「我的排班」请假，admin 审批替班</p>
     </div>
   </div>
 </template>

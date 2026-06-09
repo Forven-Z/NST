@@ -2,6 +2,8 @@
 import StaffShell from '../components/layout/StaffShell.vue'
 
 const menuItems = [
+  { path: '/admin/departments', label: '科室管理' },
+  { path: '/admin/employees', label: '员工管理' },
   { path: '/admin/dict', label: '基础字典' },
   { path: '/admin/scheduling', label: '排班维护' },
 ]

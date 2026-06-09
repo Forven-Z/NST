@@ -1,13 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import ResultReportSections from '../medical/ResultReportSections.vue'
-import {
-  fetchCheckResult,
-  fetchDisposalResult,
-  fetchInspectionResult,
-  fetchRegisterOrders,
-} from '../../api/doctor'
+import { fetchRegisterOrders, fetchRegisterResults } from '../../api/doctor'
 
 const props = defineProps({
   registerId: { type: Number, default: null },
@@ -15,6 +9,7 @@ const props = defineProps({
 
 const loading = ref(false)
 const orders = ref(null)
+const resultsMap = ref({})
 const resultDialogVisible = ref(false)
 const resultDetail = ref(null)
 
@@ -31,6 +26,7 @@ watch(
   (id) => {
     resultDialogVisible.value = false
     resultDetail.value = null
+    resultsMap.value = {}
     if (id) loadOrders()
     else orders.value = null
   },
@@ -41,33 +37,35 @@ async function loadOrders() {
   if (!props.registerId) return
   loading.value = true
   try {
-    const res = await fetchRegisterOrders(props.registerId)
-    orders.value = res.data
+    const [ordersRes, resultsRes] = await Promise.all([
+      fetchRegisterOrders(props.registerId),
+      fetchRegisterResults(props.registerId),
+    ])
+    orders.value = ordersRes.data
+    const map = {}
+    for (const item of resultsRes.data?.results ?? []) {
+      map[`${item.kind}-${item.requestId}`] = item
+    }
+    resultsMap.value = map
   } catch (err) {
     ElMessage.error(err.message || '加载医嘱失败')
     orders.value = null
+    resultsMap.value = {}
   } finally {
     loading.value = false
   }
 }
 
-async function onViewResult(row) {
-  try {
-    let res
-    if (row.kind === 'inspection') {
-      res = await fetchInspectionResult(row.requestId)
-    } else if (row.kind === 'check') {
-      res = await fetchCheckResult(row.requestId)
-    } else if (row.kind === 'disposal') {
-      res = await fetchDisposalResult(row.requestId)
-    } else {
-      return ElMessage.info('处方无文字报告，请至药房查看发药状态')
-    }
-    resultDetail.value = { ...row, ...res.data }
-    resultDialogVisible.value = true
-  } catch (err) {
-    ElMessage.warning(err.message || '结果尚未出具')
+function onViewResult(row) {
+  if (row.kind === 'prescription') {
+    return ElMessage.info('处方无文字报告，请至药房查看发药状态')
   }
+  const hit = resultsMap.value[`${row.kind}-${row.requestId}`]
+  if (!hit?.resultText) {
+    return ElMessage.warning('结果尚未出具')
+  }
+  resultDetail.value = { ...row, ...hit }
+  resultDialogVisible.value = true
 }
 
 defineExpose({ reload: loadOrders })
@@ -110,18 +108,22 @@ defineExpose({ reload: loadOrders })
     <el-dialog
       v-model="resultDialogVisible"
       :title="`${resultDetail?.typeLabel || ''} · ${resultDetail?.itemName || ''}`"
-      width="680px"
+      width="560px"
       destroy-on-close
     >
-      <ResultReportSections
-        v-if="resultDetail"
-        :instrument-data="resultDetail.instrumentData"
-        :ai-report-text="resultDetail.aiReportText"
-        :doctor-report-text="resultDetail.doctorReportText"
-        :ai-report-status="resultDetail.aiReportStatus || 'READY'"
-        :editable-ai="false"
-        :editable-doctor="false"
-      />
+      <template v-if="resultDetail">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="结果文本">
+            <pre class="result-text">{{ resultDetail.resultText || '（无）' }}</pre>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="resultDetail.resultAttachment" label="附件">
+            {{ resultDetail.resultAttachment }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="resultDetail.reportTime" label="报告时间">
+            {{ resultDetail.reportTime }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
     </el-dialog>
   </el-card>
 </template>
@@ -135,5 +137,13 @@ defineExpose({ reload: loadOrders })
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.result-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
 }
 </style>

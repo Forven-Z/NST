@@ -3,10 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   callPatient,
+  confirmMedicalRecord,
   createCheckOrder,
   createDisposalOrder,
   createInspectionOrder,
   createPrescription,
+  fetchDiseases,
   fetchDoctorQueue,
   fetchMedicalRecord,
   finishVisit,
@@ -21,8 +23,13 @@ import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
 
 const loading = ref(false)
 const saving = ref(false)
+const confirming = ref(false)
 const callingId = ref(null)
 const finishingId = ref(null)
+const recordSaved = ref(false)
+const recordStatus = ref(0)
+const recordStatusLabel = ref('书写中')
+const diseases = ref([])
 const queue = ref([])
 const visitStateFilter = ref('all')
 const currentRegisterId = ref(null)
@@ -50,6 +57,9 @@ const recordForm = reactive({
   cure: '',
   checkAdvice: '',
   inspectionAdvice: '',
+  diseaseIds: [],
+  primaryDiseaseId: null,
+  secondaryDiseaseIds: [],
 })
 
 const visitStateMap = {
@@ -59,7 +69,19 @@ const visitStateMap = {
   3: { label: '看诊结束', type: 'info' },
 }
 
-onMounted(loadQueue)
+onMounted(() => {
+  loadQueue()
+  loadDiseases()
+})
+
+async function loadDiseases() {
+  try {
+    const res = await fetchDiseases({ pageSize: 50 })
+    diseases.value = res.data?.list ?? []
+  } catch {
+    diseases.value = []
+  }
+}
 
 async function loadQueue() {
   loading.value = true
@@ -86,6 +108,9 @@ async function onCall(row) {
     currentPatient.value = row
     workspace.clearForNewPatient()
     aiDiagnosisText.value = ''
+    recordSaved.value = false
+    recordStatus.value = 0
+    recordStatusLabel.value = '书写中'
     await loadQueue()
     await loadMedicalRecord(row.registerId)
     ordersPanelRef.value?.reload?.()
@@ -105,8 +130,52 @@ async function onSelectRow(row) {
   currentPatient.value = row
   workspace.clearForNewPatient()
   aiDiagnosisText.value = ''
+  recordSaved.value = false
+  recordStatus.value = 0
+  recordStatusLabel.value = '书写中'
   await loadMedicalRecord(row.registerId)
   ordersPanelRef.value?.reload?.()
+}
+
+function applyDiseaseFields(data) {
+  if (Array.isArray(data.diseaseEntries) && data.diseaseEntries.length) {
+    const primary = data.diseaseEntries.find((e) => e.diseaseType === 1)
+    const secondary = data.diseaseEntries.filter((e) => e.diseaseType === 2).map((e) => e.diseaseId)
+    recordForm.primaryDiseaseId = primary?.diseaseId ?? null
+    recordForm.secondaryDiseaseIds = secondary
+    recordForm.diseaseIds = [
+      ...(primary ? [primary.diseaseId] : []),
+      ...secondary.filter((id) => id !== primary?.diseaseId),
+    ]
+    return
+  }
+  const ids = data.diseaseIds || []
+  recordForm.diseaseIds = ids
+  recordForm.primaryDiseaseId = ids[0] ?? null
+  recordForm.secondaryDiseaseIds = ids.slice(1)
+}
+
+function buildDiseaseEntries() {
+  const entries = []
+  if (recordForm.primaryDiseaseId) {
+    entries.push({ diseaseId: recordForm.primaryDiseaseId, diseaseType: 1 })
+  }
+  for (const id of recordForm.secondaryDiseaseIds || []) {
+    if (id && id !== recordForm.primaryDiseaseId) {
+      entries.push({ diseaseId: id, diseaseType: 2 })
+    }
+  }
+  return entries
+}
+
+function buildRecordPayload() {
+  const diseaseEntries = buildDiseaseEntries()
+  return {
+    ...recordForm,
+    diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
+    diseaseEntries,
+    diseaseIds: diseaseEntries.map((e) => e.diseaseId),
+  }
 }
 
 async function loadMedicalRecord(registerId) {
@@ -125,7 +194,13 @@ async function loadMedicalRecord(registerId) {
       checkAdvice: data.checkAdvice || '',
       inspectionAdvice: data.inspectionAdvice || '',
     })
+    applyDiseaseFields(data)
     aiDiagnosisText.value = data.diagnosis || ''
+    recordSaved.value = !!data.readme || data.status >= 1
+    recordStatus.value = data.status ?? (data.readme ? 1 : 0)
+    recordStatusLabel.value =
+      data.statusLabel ||
+      (recordStatus.value === 2 ? '已确诊提交' : recordStatus.value === 1 ? '已保存' : '书写中')
   } catch (err) {
     ElMessage.error(err.message || '加载病历失败')
   }
@@ -138,15 +213,30 @@ async function onSaveRecord() {
   }
   saving.value = true
   try {
-    await saveMedicalRecord(currentRegisterId.value, {
-      ...recordForm,
-      diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
-    })
+    const res = await saveMedicalRecord(currentRegisterId.value, buildRecordPayload())
+    recordSaved.value = true
+    recordStatus.value = res.data?.status ?? 1
+    recordStatusLabel.value = res.data?.statusLabel || '已保存'
     ElMessage.success('病历已保存')
   } catch (err) {
     ElMessage.error(err.message || '保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function onConfirmDiagnosis() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
+  confirming.value = true
+  try {
+    const res = await confirmMedicalRecord(currentRegisterId.value, buildRecordPayload())
+    recordStatus.value = res.data?.status ?? 2
+    recordStatusLabel.value = res.data?.statusLabel || '已确诊提交'
+    ElMessage.success('确诊已提交')
+  } catch (err) {
+    ElMessage.error(err.message || '确诊提交失败')
+  } finally {
+    confirming.value = false
   }
 }
 
@@ -159,6 +249,10 @@ function openTechDialog(type) {
 function openRxDialog() {
   if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
   rxDialogVisible.value = true
+}
+
+function getTechDraftMeta(techId) {
+  return workspace.getDraftItemMeta(techOrderType.value, techId)
 }
 
 async function onTechOrderConfirm(data) {
@@ -188,10 +282,6 @@ async function onTechOrderConfirm(data) {
   }
 }
 
-function getTechDraftMeta(techId) {
-  return workspace.getDraftItemMeta(techOrderType.value, techId)
-}
-
 async function onPrescriptionConfirm(data) {
   try {
     const res = await createPrescription(data)
@@ -216,6 +306,9 @@ async function onFinishVisit() {
     currentRegisterId.value = null
     currentPatient.value = null
     aiDiagnosisText.value = ''
+    recordSaved.value = false
+    recordStatus.value = 0
+    recordStatusLabel.value = '书写中'
     workspace.clearForNewPatient()
     await loadQueue()
   } catch (err) {
@@ -320,6 +413,13 @@ function formatGender(gender) {
               · {{ currentPatient.registLevelName }}
             </template>
           </span>
+          <el-tag
+            v-if="currentRegisterId"
+            :type="recordStatus === 2 ? 'success' : recordStatus === 1 ? 'warning' : 'info'"
+            size="small"
+          >
+            病历 {{ recordStatusLabel }}
+          </el-tag>
           <div class="header-actions">
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('CHECK')">开检查</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('INSPECTION')">开检验</el-button>
@@ -327,6 +427,9 @@ function formatGender(gender) {
             <el-button :disabled="!currentRegisterId" @click="openRxDialog">开处方</el-button>
             <el-button type="primary" :loading="saving" :disabled="!currentRegisterId" @click="onSaveRecord">
               保存病历
+            </el-button>
+            <el-button :loading="confirming" :disabled="!currentRegisterId" @click="onConfirmDiagnosis">
+              确诊提交
             </el-button>
             <el-button
               type="success"
@@ -382,6 +485,45 @@ function formatGender(gender) {
           <el-col :span="12">
             <el-form-item label="初步诊断">
               <el-input v-model="recordForm.diagnosis" placeholder="如：头痛待查" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="主要诊断（diseaseType=1）">
+              <el-select
+                v-model="recordForm.primaryDiseaseId"
+                filterable
+                clearable
+                placeholder="选择主要 ICD 疾病（可选）"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in diseases"
+                  :key="d.id"
+                  :label="`${d.diseaseName}（${d.diseaseCode}）`"
+                  :value="d.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="次要诊断（diseaseType=2）">
+              <el-select
+                v-model="recordForm.secondaryDiseaseIds"
+                multiple
+                filterable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="选择次要 ICD 疾病（可选）"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in diseases"
+                  :key="d.id"
+                  :disabled="d.id === recordForm.primaryDiseaseId"
+                  :label="`${d.diseaseName}（${d.diseaseCode}）`"
+                  :value="d.id"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">

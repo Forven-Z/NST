@@ -14,6 +14,8 @@ import {
   getMedicalRecord,
   getRegisterById,
   getRegisterOrders,
+  getRegisterResults,
+  confirmMedicalRecord,
   saveMedicalRecord,
 } from './store'
 
@@ -37,6 +39,10 @@ export function mockFetchMedicalRecord(registerId) {
 
 export function mockSaveMedicalRecord(registerId, data) {
   return mockResult(saveMedicalRecord(registerId, data))
+}
+
+export function mockConfirmMedicalRecord(registerId, data) {
+  return mockResult(confirmMedicalRecord(registerId, data))
 }
 
 export function mockCreateInspectionOrder(data) {
@@ -83,6 +89,10 @@ export function mockFetchDisposalResult(id) {
 
 export function mockFetchRegisterOrders(registerId) {
   return mockResult(getRegisterOrders(registerId))
+}
+
+export function mockFetchRegisterResults(registerId) {
+  return mockResult(getRegisterResults(registerId))
 }
 
 export function mockCreatePrescription(data) {
