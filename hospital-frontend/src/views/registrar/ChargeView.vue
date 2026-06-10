@@ -118,13 +118,20 @@ async function onCharge() {
       >
         <el-table-column type="selection" width="48" />
         <el-table-column prop="id" label="账单ID" min-width="100" />
-        <el-table-column prop="itemName" label="费用项目" min-width="160" />
+        <el-table-column label="费用项目" min-width="160">
+          <template #default="{ row }">{{ row.billTitle || row.itemName || '—' }}</template>
+        </el-table-column>
         <el-table-column prop="bizType" label="类型" width="110">
           <template #default="{ row }">
             {{
-              { REGIST: '挂号', INSPECTION: '检验', CHECK: '检查', PRESCRIPTION: '处方', DISPOSAL: '处置' }[
-                row.bizType
-              ] || row.bizType || '—'
+              {
+                REGISTER: '挂号',
+                REGIST: '挂号',
+                INSPECTION: '检验',
+                CHECK: '检查',
+                PRESCRIPTION: '处方',
+                DISPOSAL: '处置',
+              }[row.bizType] || row.bizType || '—'
             }}
           </template>
         </el-table-column>

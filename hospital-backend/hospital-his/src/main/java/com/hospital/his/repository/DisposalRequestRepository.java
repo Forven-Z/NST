@@ -80,6 +80,20 @@ public class DisposalRequestRepository {
                 .optional();
     }
 
+    public List<Map<String, Object>> findByRegisterId(Long registerId) {
+        return jdbcClient.sql("""
+                        SELECT dr.id, dr.register_id, dr.patient_id, dr.status,
+                               dr.purpose, dr.body_part, dr.result_text, dr.result_time, mt.item_name
+                        FROM disposal_request dr
+                        JOIN medical_technology mt ON dr.medical_technology_id = mt.id
+                        WHERE dr.register_id = :registerId AND dr.delmark = 0
+                        ORDER BY dr.create_time ASC
+                        """)
+                .param("registerId", registerId)
+                .query((rs, rowNum) -> mapDetailRow(rs))
+                .list();
+    }
+
     /** 患者端：已出结果的处置报告 */
     public List<Map<String, Object>> findResultsByPatient(Long patientId) {
         return jdbcClient.sql("""

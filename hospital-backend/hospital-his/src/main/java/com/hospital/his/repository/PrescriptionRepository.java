@@ -139,6 +139,47 @@ public class PrescriptionRepository {
                 .list();
     }
 
+    public List<Map<String, Object>> findByRegisterId(Long registerId) {
+        List<Map<String, Object>> prescriptions = jdbcClient.sql("""
+                        SELECT p.id AS prescription_id,
+                               p.register_id,
+                               p.patient_id,
+                               p.doctor_id,
+                               p.total_amount,
+                               p.status,
+                               p.create_time,
+                               pt.medical_record_no,
+                               pt.real_name AS patient_name,
+                               e.real_name AS doctor_name
+                        FROM prescription p
+                        JOIN patient pt ON p.patient_id = pt.id
+                        JOIN employee e ON p.doctor_id = e.id
+                        WHERE p.register_id = :registerId AND p.delmark = 0
+                        ORDER BY p.create_time ASC
+                        """)
+                .param("registerId", registerId)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("prescriptionId", rs.getLong("prescription_id"));
+                    row.put("registerId", rs.getLong("register_id"));
+                    row.put("patientId", rs.getLong("patient_id"));
+                    row.put("doctorId", rs.getLong("doctor_id"));
+                    row.put("totalAmount", rs.getBigDecimal("total_amount"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("createTime", rs.getObject("create_time", OffsetDateTime.class));
+                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
+                    row.put("patientName", rs.getString("patient_name"));
+                    row.put("doctorName", rs.getString("doctor_name"));
+                    return row;
+                })
+                .list();
+        for (Map<String, Object> prescription : prescriptions) {
+            Long prescriptionId = ((Number) prescription.get("prescriptionId")).longValue();
+            prescription.put("items", findItemsByPrescriptionId(prescriptionId));
+        }
+        return prescriptions;
+    }
+
     public List<Map<String, Object>> findItemsByPrescriptionId(Long prescriptionId) {
         return jdbcClient.sql("""
                         SELECT drug_id, drug_name, quantity, unit_price, amount

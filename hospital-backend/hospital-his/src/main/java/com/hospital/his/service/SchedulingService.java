@@ -19,4 +19,21 @@ public class SchedulingService {
                 deptId, queryDate, noonType, registLevelId);
         return Map.of("list", list);
     }
+
+    public Map<String, Object> listRegistrarSchedules(Long deptId, Long employeeId, Long registLevelId,
+                                                      LocalDate workDate) {
+        LocalDate fromDate = workDate != null ? workDate : LocalDate.now();
+        LocalDate toDate = fromDate.plusDays(6);
+        List<Map<String, Object>> raw = schedulingRepository.findRegistrarSchedules(
+                deptId, employeeId, registLevelId, fromDate, toDate);
+        List<Map<String, Object>> list = raw.stream().map(this::enrichRegistrarScheduleRow).toList();
+        return Map.of("list", list);
+    }
+
+    private Map<String, Object> enrichRegistrarScheduleRow(Map<String, Object> row) {
+        int noonType = ((Number) row.get("noonType")).intValue();
+        row.put("noonLabel", noonType == 1 ? "上午" : "下午");
+        row.put("timeRange", noonType == 1 ? "08:00-12:00" : "13:00-17:00");
+        return row;
+    }
 }

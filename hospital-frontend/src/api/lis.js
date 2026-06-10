@@ -16,3 +16,13 @@ export function saveLisResult(id, data) {
   if (useMock()) return mockLisSaveResult(id, data)
   return request.put(`/lis/requests/${id}/result`, data)
 }
+
+export function fetchLisResultDetail(id) {
+  if (useMock()) return mockLisResultDetail(id)
+  return request.get(`/lis/requests/${id}/result-detail`)
+}
+
+export function generateLisAiReport(id) {
+  if (useMock()) return mockLisGenerateAiReport(id)
+  return request.post(`/lis/requests/${id}/ai-report`)
+}

@@ -202,6 +202,16 @@ public class PatientRepository {
                 .update();
     }
 
+    public void updateNeedMedicalBook(Long patientId, boolean need) {
+        jdbcClient.sql("""
+                        UPDATE patient SET need_medical_book = :need, update_time = NOW()
+                        WHERE id = :id AND delmark = 0
+                        """)
+                .param("id", patientId)
+                .param("need", need)
+                .update();
+    }
+
     public long insertFamilyPatient(String medicalRecordNo, String realName, Integer gender,
                                     java.time.LocalDate birthDate, String idCard, String phone, String address) {
         KeyHolder keyHolder = new GeneratedKeyHolder();

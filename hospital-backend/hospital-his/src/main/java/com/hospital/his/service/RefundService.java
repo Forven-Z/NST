@@ -11,6 +11,7 @@ import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
+import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RefundRepository;
 import com.hospital.his.repository.PaymentRepository;
@@ -40,6 +41,7 @@ public class RefundService {
     private final DisposalRequestRepository disposalRequestRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final SchedulingRepository schedulingRepository;
+    private final PatientRepository patientRepository;
     private final PatientFamilyService patientFamilyService;
 
     @Transactional
@@ -99,7 +101,11 @@ public class RefundService {
         );
 
         billRepository.markRefunded(billId);
-        updateBizAfterRefund(bizType, bizId);
+        updateBizAfterRefund(bizType, bizId, bill);
+
+        if (BillBizType.REGISTER.equals(bizType)) {
+            refundPaidMedicalBookBillIfPresent(bizId, reason, operatorId);
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("refundId", refundId);
@@ -118,6 +124,14 @@ public class RefundService {
                 int visitState = ((Number) register.get("visitState")).intValue();
                 if (visitState != VisitState.REGISTERED) {
                     throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已挂号未接诊状态可退挂号费，请使用退号");
+                }
+            }
+            case BillBizType.MEDICAL_BOOK -> {
+                Map<String, Object> register = registerRepository.findById(bizId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
+                int visitState = ((Number) register.get("visitState")).intValue();
+                if (visitState == VisitState.IN_CONSULTATION || visitState == VisitState.FINISHED) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "就诊中或已结束，不可退病历本费");
                 }
             }
             case BillBizType.INSPECTION -> {
@@ -153,7 +167,7 @@ public class RefundService {
         }
     }
 
-    private void updateBizAfterRefund(String bizType, Long bizId) {
+    private void updateBizAfterRefund(String bizType, Long bizId, Map<String, Object> bill) {
         switch (bizType) {
             case BillBizType.REGISTER -> {
                 registerRepository.updateVisitState(bizId, VisitState.CANCELLED);
@@ -161,7 +175,17 @@ public class RefundService {
                     if (reg.get("schedulingId") != null) {
                         schedulingRepository.decrementUsedQuota(((Number) reg.get("schedulingId")).longValue());
                     }
+                    BigDecimal registFee = (BigDecimal) reg.get("registFee");
+                    BigDecimal billAmount = (BigDecimal) bill.get("amount");
+                    if (registFee != null && billAmount.compareTo(registFee) > 0) {
+                        long patientId = ((Number) bill.get("patientId")).longValue();
+                        patientRepository.updateNeedMedicalBook(patientId, false);
+                    }
                 });
+            }
+            case BillBizType.MEDICAL_BOOK -> {
+                long patientId = ((Number) bill.get("patientId")).longValue();
+                patientRepository.updateNeedMedicalBook(patientId, false);
             }
             case BillBizType.INSPECTION -> inspectionRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
             case BillBizType.CHECK -> checkRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
@@ -170,6 +194,11 @@ public class RefundService {
             default -> {
             }
         }
+    }
+
+    public void refundPaidMedicalBookBillIfPresent(Long registerId, String reason, Long operatorId) {
+        billRepository.findPaidByBiz(BillBizType.MEDICAL_BOOK, registerId).ifPresent(bill ->
+                doRefund(((Number) bill.get("id")).longValue(), reason, null, operatorId, false));
     }
 
     private void requireRegistrar() {

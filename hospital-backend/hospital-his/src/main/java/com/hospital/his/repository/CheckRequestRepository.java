@@ -70,6 +70,21 @@ public class CheckRequestRepository {
                 .optional();
     }
 
+    public java.util.List<Map<String, Object>> findByRegisterId(Long registerId) {
+        return jdbcClient.sql("""
+                        SELECT cr.id, cr.register_id, cr.patient_id, cr.status,
+                               cr.purpose, cr.body_part, cr.remark,
+                               cr.result_text, cr.result_time, mt.item_name
+                        FROM check_request cr
+                        JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+                        WHERE cr.register_id = :registerId AND cr.delmark = 0
+                        ORDER BY cr.create_time ASC
+                        """)
+                .param("registerId", registerId)
+                .query((rs, rowNum) -> mapDetailRow(rs))
+                .list();
+    }
+
     /** 患者端：已出结果的检查报告列表 */
     public java.util.List<Map<String, Object>> findResultsByPatient(Long patientId) {
         return jdbcClient.sql("""

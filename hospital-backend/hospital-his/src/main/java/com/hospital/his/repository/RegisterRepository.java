@@ -1,5 +1,6 @@
 package com.hospital.his.repository;
 
+import com.hospital.common.constant.RegisterChannel;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -25,12 +26,23 @@ public class RegisterRepository {
     public long insertRegister(Long patientId, Long schedulingId, Long deptId, Long employeeId,
                                Long registLevelId, Long settleCategoryId, LocalDate visitDate,
                                int noonType, int visitState, BigDecimal registFee) {
+        return insertRegister(patientId, schedulingId, deptId, employeeId, registLevelId,
+                settleCategoryId, visitDate, noonType, visitState, registFee,
+                RegisterChannel.ONLINE, null);
+    }
+
+    public long insertRegister(Long patientId, Long schedulingId, Long deptId, Long employeeId,
+                               Long registLevelId, Long settleCategoryId, LocalDate visitDate,
+                               int noonType, int visitState, BigDecimal registFee,
+                               String channel, Long registrarId) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcClient.sql("""
                         INSERT INTO register (patient_id, scheduling_id, dept_id, employee_id, regist_level_id,
-                                              settle_category_id, visit_date, noon_type, visit_state, channel, regist_fee)
+                                              settle_category_id, visit_date, noon_type, visit_state, channel,
+                                              regist_fee, registrar_id)
                         VALUES (:patientId, :schedulingId, :deptId, :employeeId, :registLevelId,
-                                :settleCategoryId, :visitDate, :noonType, :visitState, 'ONLINE', :registFee)
+                                :settleCategoryId, :visitDate, :noonType, :visitState, :channel,
+                                :registFee, :registrarId)
                         """)
                 .param("patientId", patientId)
                 .param("schedulingId", schedulingId)
@@ -41,7 +53,9 @@ public class RegisterRepository {
                 .param("visitDate", visitDate)
                 .param("noonType", noonType)
                 .param("visitState", visitState)
+                .param("channel", channel)
                 .param("registFee", registFee)
+                .param("registrarId", registrarId)
                 .update(keyHolder, "id");
         return keyHolder.getKey().longValue();
     }
@@ -69,7 +83,8 @@ public class RegisterRepository {
 
     public Optional<Map<String, Object>> findById(Long registerId) {
         return jdbcClient.sql("""
-                        SELECT r.id, r.patient_id, r.employee_id, r.scheduling_id, r.visit_state, r.visit_date
+                        SELECT r.id, r.patient_id, r.employee_id, r.scheduling_id, r.visit_state, r.visit_date,
+                               r.regist_fee
                         FROM register r
                         WHERE r.id = :id AND r.delmark = 0
                         """)
@@ -82,6 +97,7 @@ public class RegisterRepository {
                     row.put("schedulingId", rs.getObject("scheduling_id", Long.class));
                     row.put("visitState", rs.getInt("visit_state"));
                     row.put("visitDate", rs.getObject("visit_date", LocalDate.class));
+                    row.put("registFee", rs.getBigDecimal("regist_fee"));
                     return row;
                 })
                 .optional();

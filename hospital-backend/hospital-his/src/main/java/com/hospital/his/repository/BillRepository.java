@@ -1,5 +1,7 @@
 package com.hospital.his.repository;
 
+import com.hospital.common.constant.BillBizType;
+
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -7,10 +9,13 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public class BillRepository {
@@ -135,7 +140,7 @@ public class BillRepository {
 
     public List<Map<String, Object>> findByPatientId(Long patientId, Integer status) {
         return jdbcClient.sql("""
-                        SELECT id, biz_type, biz_id, bill_title, amount, status, register_id, create_time, paid_time
+                        SELECT id, patient_id, biz_type, biz_id, bill_title, amount, status, register_id, create_time, paid_time
                         FROM bill
                         WHERE patient_id = :patientId
                           AND (CAST(:status AS INTEGER) IS NULL OR status = CAST(:status AS INTEGER))
@@ -150,6 +155,91 @@ public class BillRepository {
                     return row;
                 })
                 .list();
+    }
+
+    /** 列表展示：将同次挂号的病历本费合并进挂号费行，不单独展示 MEDICAL_BOOK。 */
+    public List<Map<String, Object>> findByPatientIdForDisplay(Long patientId, Integer status) {
+        return mergeMedicalBookIntoRegister(findByPatientId(patientId, status));
+    }
+
+    /** 支付时自动带上同次挂号待支付病历本账单（兼容历史拆单数据）。 */
+    public List<Long> expandWithPendingMedicalBookBills(List<Long> billIds) {
+        if (billIds == null || billIds.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> expanded = new LinkedHashSet<>(billIds);
+        for (Map<String, Object> bill : findByIds(billIds)) {
+            if (!BillBizType.REGISTER.equals(bill.get("bizType"))) {
+                continue;
+            }
+            Long registerId = (Long) bill.get("registerId");
+            if (registerId == null) {
+                continue;
+            }
+            for (Map<String, Object> pending : findPendingByRegisterId(registerId)) {
+                if (BillBizType.MEDICAL_BOOK.equals(pending.get("bizType"))) {
+                    expanded.add(((Number) pending.get("id")).longValue());
+                }
+            }
+        }
+        return new ArrayList<>(expanded);
+    }
+
+    private List<Map<String, Object>> mergeMedicalBookIntoRegister(List<Map<String, Object>> bills) {
+        Map<Long, Map<String, Object>> medicalBooksByRegister = new HashMap<>();
+        for (Map<String, Object> bill : bills) {
+            if (!BillBizType.MEDICAL_BOOK.equals(bill.get("bizType"))) {
+                continue;
+            }
+            Long registerId = (Long) bill.get("registerId");
+            if (registerId != null) {
+                medicalBooksByRegister.put(registerId, bill);
+            }
+        }
+
+        List<Map<String, Object>> merged = new ArrayList<>();
+        for (Map<String, Object> bill : bills) {
+            if (BillBizType.MEDICAL_BOOK.equals(bill.get("bizType"))) {
+                continue;
+            }
+            if (!BillBizType.REGISTER.equals(bill.get("bizType"))) {
+                merged.add(bill);
+                continue;
+            }
+            Long registerId = (Long) bill.get("registerId");
+            Map<String, Object> medicalBook = registerId != null ? medicalBooksByRegister.get(registerId) : null;
+            if (medicalBook == null) {
+                merged.add(bill);
+                continue;
+            }
+            Map<String, Object> row = new HashMap<>(bill);
+            BigDecimal combined = ((BigDecimal) bill.get("amount")).add((BigDecimal) medicalBook.get("amount"));
+            row.put("amount", combined);
+            row.put("billTitle", "挂号费（含病历本）");
+            merged.add(row);
+        }
+        return merged;
+    }
+
+    public List<Map<String, Object>> findPendingByRegisterId(Long registerId) {
+        return jdbcClient.sql("""
+                        SELECT id, patient_id, register_id, biz_type, biz_id, bill_title, amount, status
+                        FROM bill
+                        WHERE register_id = :registerId AND status = 0
+                        ORDER BY id
+                        """)
+                .param("registerId", registerId)
+                .query((rs, rowNum) -> mapBillRow(rs))
+                .list();
+    }
+
+    public void markVoid(Long billId) {
+        jdbcClient.sql("""
+                        UPDATE bill SET status = 9, update_time = NOW()
+                        WHERE id = :id AND status = 0
+                        """)
+                .param("id", billId)
+                .update();
     }
 
     private Map<String, Object> mapBillRow(java.sql.ResultSet rs) throws java.sql.SQLException {

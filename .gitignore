@@ -47,3 +47,5 @@ hospital-patient-miniapp/config.local.js
 # 测试 / 覆盖率
 **/coverage/
 **/.pytest_cache/
+.cursor/settings.json
+hospital-frontend/.env.development

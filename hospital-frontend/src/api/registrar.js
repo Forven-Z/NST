@@ -14,7 +14,7 @@ import {
 
 export function fetchOutpatientDepartments() {
   if (useMock()) return mockDepartments()
-  return request.get('/admin/departments', { params: { deptType: 1, pageSize: 50 } })
+  return request.get('/registrar/departments')
 }
 
 export function fetchRegistLevels() {
@@ -24,19 +24,19 @@ export function fetchRegistLevels() {
 
 export function fetchSettleCategories() {
   if (useMock()) return mockSettleCategories()
-  return request.get('/admin/settle-categories', { params: { pageSize: 20 } })
+  return request.get('/registrar/settle-categories')
 }
 
-/** 科室下出诊医生（Mock；真实 API 待定） */
+/** 科室下出诊医生 */
 export function fetchDoctorsByDept(deptId) {
   if (useMock()) return mockDoctors(deptId)
-  return request.get('/admin/employees', { params: { deptId, roleType: 'OUTPATIENT_DOCTOR' } })
+  return request.get('/registrar/doctors', { params: { deptId } })
 }
 
-/** 排班列表（与小程序 patient/schedules 契约对齐） */
+/** 排班列表（窗口挂号页） */
 export function fetchRegistrarSchedules(params) {
   if (useMock()) return mockSchedules(params)
-  return request.get('/patient/schedules', { params })
+  return request.get('/registrar/schedules', { params })
 }
 
 export function fetchPatientBills(medicalRecordNo, params) {

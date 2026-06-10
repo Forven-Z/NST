@@ -45,11 +45,13 @@
 | hospital-his · 微信登录 | API §4.0 | ✅ | | Feign → auth；dev mock code |
 | hospital-his · 挂号/支付 | API §4.2–4.3 | ✅ | | 模拟支付 `POST /patient/payments` |
 | hospital-his · 医生队列/病历 | API §5.1–5.2 | ✅ | | `/doctor/queues`, `/doctor/call/{id}` |
+| hospital-his · 医生医嘱汇总 | API §5.3 | ✅ | | `GET /doctor/registers/{id}/orders` |
 | hospital-his · 开立检验 | API §5.4 | ✅ | | `POST /doctor/inspection-requests` |
 | hospital-his · 开立检查 | API §5.3 | ✅ | | `POST /doctor/check-requests` |
 | hospital-his · 开立处方 | API §5.5 | ✅ | | `POST /doctor/prescriptions` |
 | hospital-his · 药房发药 | API §5.6 | ✅ | | `GET /pharmacy/pending`, `POST .../dispense`, `return-drug` |
 | hospital-his · 退号/退费 | API §5.9 | ✅ | | `/registrar/refunds`, `/registrar/registers/{id}/cancel` |
+| hospital-his · 窗口挂号/收费 | API §八 | ✅ | | `POST /registrar/registers`（待支付）+ `POST /registrar/charges` |
 | hospital-lis · 队列/结果 | API §5.7 | ✅ | | `GET /lis/queue`, `POST /lis/requests/{id}/result` |
 | hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | `GET /disposal/queue`, `POST /disposal/requests/{id}/result` |
 | hospital-management · 字典只读 | API §6 | ✅ | | `GET /admin/departments` 等 |
@@ -104,6 +106,7 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-10 | 实现 `GET /doctor/registers/{registerId}/orders`（医嘱汇总，ADR-005 只读聚合） |
 | 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
 | 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
 | 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |

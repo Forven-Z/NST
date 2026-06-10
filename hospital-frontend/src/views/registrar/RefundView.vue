@@ -18,6 +18,7 @@ const statusMap = {
 }
 
 const bizLabel = {
+  REGISTER: '挂号',
   REGIST: '挂号',
   INSPECTION: '检验',
   CHECK: '检查',
