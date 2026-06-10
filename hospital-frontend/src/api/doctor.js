@@ -12,6 +12,7 @@ import {
   mockFetchInspectionResult,
   mockFetchMedicalRecord,
   mockFetchRegisterOrders,
+  mockConfirmMedicalRecord,
   mockFetchRegisterResults,
   mockConfirmMedicalRecord,
   mockFinishVisit,
@@ -22,6 +23,9 @@ import {
   mockClinicalAiDraft,
   mockConfirmAiDraft,
   mockDiagnosisSuggest,
+  mockPrescriptionAiDraft,
+  mockUpdateClinicalAiDraft,
+  mockUpdatePrescriptionAiDraft,
 } from '../mock/ai'
 import { mockResult } from '../utils/mock'
 
@@ -47,7 +51,7 @@ export function fetchMedicalRecord(registerId) {
 
 export function saveMedicalRecord(registerId, data) {
   if (useMock()) return mockSaveMedicalRecord(registerId, data)
-  return request.put(`/doctor/registers/${registerId}/medical-record`, data)
+  return request.put(`/doctor/medical-records/${registerId}`, data)
 }
 
 export function confirmMedicalRecord(registerId, data) {
@@ -141,4 +145,29 @@ export function confirmInspectionAiDraft(draftId) {
 export function confirmDisposalAiDraft(draftId) {
   if (useMock()) return mockConfirmAiDraft('DISPOSAL', draftId)
   return request.post(`/doctor/disposal-requests/ai-draft/${draftId}/confirm`)
+}
+
+export function updateCheckAiDraft(draftId, data) {
+  if (useMock()) return mockUpdateClinicalAiDraft('CHECK', draftId, data)
+  return request.put(`/doctor/check-requests/ai-draft/${draftId}`, data)
+}
+
+export function updateInspectionAiDraft(draftId, data) {
+  if (useMock()) return mockUpdateClinicalAiDraft('INSPECTION', draftId, data)
+  return request.put(`/doctor/inspection-requests/ai-draft/${draftId}`, data)
+}
+
+export function updateDisposalAiDraft(draftId, data) {
+  if (useMock()) return mockUpdateClinicalAiDraft('DISPOSAL', draftId, data)
+  return request.put(`/doctor/disposal-requests/ai-draft/${draftId}`, data)
+}
+
+export function createPrescriptionAiDraft(data) {
+  if (useMock()) return mockPrescriptionAiDraft(data.registerId)
+  return request.post('/doctor/prescriptions/ai-draft', data)
+}
+
+export function updatePrescriptionAiDraft(draftId, data) {
+  if (useMock()) return mockUpdatePrescriptionAiDraft(draftId, data)
+  return request.put(`/doctor/prescriptions/ai-draft/${draftId}`, data)
 }

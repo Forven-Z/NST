@@ -8,19 +8,31 @@ import {
   fetchDiagnosisSuggest,
 } from '../../api/doctor'
 import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
+import AiClinicalDraftDialog from './AiClinicalDraftDialog.vue'
 
 const props = defineProps({
   registerId: { type: Number, default: null },
   disabled: { type: Boolean, default: false },
   recordForm: { type: Object, default: () => ({}) },
   aiDiagnosis: { type: String, default: '' },
+  recordSaved: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:aiDiagnosis'])
+const emit = defineEmits(['update:aiDiagnosis', 'orders-changed'])
 
 const workspace = useDoctorWorkspaceStore()
 const loadingSuggest = ref(false)
 const loadingDraft = ref('')
+const suggestFlags = ref({
+  needCheck: false,
+  needInspection: false,
+  needDisposal: false,
+})
+const hasSuggested = ref(false)
+
+const draftDialogVisible = ref(false)
+const activeDraftType = ref('CHECK')
+const activeDraft = ref(null)
 
 function formatDiagnosisText(data) {
   const lines = []
@@ -41,14 +53,24 @@ async function onSuggest() {
     ElMessage.warning('请先填写主诉等病历信息')
     return
   }
+  if (!props.recordSaved) {
+    ElMessage.warning('建议先保存病历，再执行 AI 智能诊断（ADR-015）')
+  }
   loadingSuggest.value = true
   try {
     const res = await fetchDiagnosisSuggest({
       registerId: props.registerId,
       ...props.recordForm,
     })
-    emit('update:aiDiagnosis', formatDiagnosisText(res.data || {}))
-    ElMessage.success('AI 初步诊断已生成，可编辑后保存病历')
+    const data = res.data || {}
+    emit('update:aiDiagnosis', formatDiagnosisText(data))
+    suggestFlags.value = {
+      needCheck: !!data.needCheck,
+      needInspection: !!data.needInspection,
+      needDisposal: !!data.needDisposal,
+    }
+    hasSuggested.value = true
+    ElMessage.success('AI 分支建议已生成，请据需生成草稿并确认提交')
   } catch (err) {
     ElMessage.error(err.message || '获取诊断失败')
   } finally {
@@ -71,16 +93,22 @@ async function onAiDraft(type) {
     const draftRes = await creators[type]({ registerId: props.registerId })
     const draft = draftRes.data
     if (!draft?.draftId) {
-      ElMessage.info('草稿生成失败')
+      ElMessage.info(draft?.message || '草稿生成失败')
       return
     }
     workspace.setAiDraft(type, draft)
-    ElMessage.success(`AI ${labelOf(type)}草稿已生成，请在右侧 AI 助理查看`)
+    activeDraftType.value = type
+    activeDraft.value = draft
+    draftDialogVisible.value = true
   } catch (err) {
     ElMessage.error(err.message || '生成草稿失败')
   } finally {
     loadingDraft.value = ''
   }
+}
+
+function onDraftConfirmed() {
+  emit('orders-changed')
 }
 
 function labelOf(type) {
@@ -91,7 +119,7 @@ function labelOf(type) {
 <template>
   <div class="ai-bar">
     <div class="ai-bar-head">
-      <span class="label">AI 辅助诊疗</span>
+      <span class="label">AI 辅助诊疗（ADR-015）</span>
       <el-button
         size="small"
         :disabled="disabled || !registerId"
@@ -107,39 +135,54 @@ function labelOf(type) {
         :model-value="aiDiagnosis"
         type="textarea"
         :rows="4"
-        placeholder="填写主诉等信息后点击「AI 智能诊断」，AI 将生成初步诊断；您可修改或补充后保存病历"
+        placeholder="填写主诉后点击「AI 智能诊断」获取分支建议；可编辑后保存病历"
         :disabled="disabled || !registerId"
         @update:model-value="emit('update:aiDiagnosis', $event)"
       />
     </el-form-item>
 
     <div class="draft-actions">
-      <el-button
-        size="small"
-        :disabled="disabled || !registerId"
-        :loading="loadingDraft === 'CHECK'"
-        @click="onAiDraft('CHECK')"
-      >
-        AI 生成检查草稿
-      </el-button>
-      <el-button
-        size="small"
-        :disabled="disabled || !registerId"
-        :loading="loadingDraft === 'INSPECTION'"
-        @click="onAiDraft('INSPECTION')"
-      >
-        AI 生成检验草稿
-      </el-button>
-      <el-button
-        size="small"
-        :disabled="disabled || !registerId"
-        :loading="loadingDraft === 'DISPOSAL'"
-        @click="onAiDraft('DISPOSAL')"
-      >
-        AI 生成处置草稿
-      </el-button>
+      <el-tooltip :disabled="hasSuggested && suggestFlags.needCheck" content="请先执行 AI 智能诊断">
+        <el-button
+          size="small"
+          :disabled="disabled || !registerId || (hasSuggested && !suggestFlags.needCheck)"
+          :loading="loadingDraft === 'CHECK'"
+          @click="onAiDraft('CHECK')"
+        >
+          生成检查草稿
+        </el-button>
+      </el-tooltip>
+      <el-tooltip :disabled="hasSuggested && suggestFlags.needInspection" content="请先执行 AI 智能诊断">
+        <el-button
+          size="small"
+          :disabled="disabled || !registerId || (hasSuggested && !suggestFlags.needInspection)"
+          :loading="loadingDraft === 'INSPECTION'"
+          @click="onAiDraft('INSPECTION')"
+        >
+          生成检验草稿
+        </el-button>
+      </el-tooltip>
+      <el-tooltip :disabled="hasSuggested && suggestFlags.needDisposal" content="请先执行 AI 智能诊断">
+        <el-button
+          size="small"
+          :disabled="disabled || !registerId || (hasSuggested && !suggestFlags.needDisposal)"
+          :loading="loadingDraft === 'DISPOSAL'"
+          @click="onAiDraft('DISPOSAL')"
+        >
+          生成处置草稿
+        </el-button>
+      </el-tooltip>
     </div>
-    <p class="hint">流程：填写病历 → AI 智能诊断 → 生成草稿（右侧助理）→ 开单勾选确认 → 保存病历</p>
+    <p class="hint">
+      流程：保存病历 → AI 智能诊断（needCheck 等分支）→ 生成草稿 → 编辑 → 确认提交 → 患者缴费
+    </p>
+
+    <AiClinicalDraftDialog
+      v-model="draftDialogVisible"
+      :draft-type="activeDraftType"
+      :draft="activeDraft"
+      @confirmed="onDraftConfirmed"
+    />
   </div>
 </template>
 

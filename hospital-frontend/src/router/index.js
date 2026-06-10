@@ -52,11 +52,6 @@ const router = createRouter({
         { path: '', redirect: '/pacs/queue' },
         { path: 'queue', name: 'pacs-queue', component: () => import('../views/pacs/QueueView.vue') },
         {
-          path: 'inspection-queue',
-          name: 'pacs-inspection-queue',
-          component: () => import('../views/pacs/InspectionQueueView.vue'),
-        },
-        {
           path: 'imaging',
           name: 'pacs-imaging',
           component: () => import('../views/pacs/ImagingView.vue'),

@@ -433,6 +433,17 @@ export function confirmMedicalRecord(registerId, data) {
   return state.medicalRecords[Number(registerId)]
 }
 
+export function confirmMedicalRecord(registerId, data) {
+  const existing = getMedicalRecord(registerId)
+  state.medicalRecords[Number(registerId)] = {
+    ...existing,
+    ...data,
+    confirmed: true,
+    confirmedAt: nowIso(),
+  }
+  return state.medicalRecords[Number(registerId)]
+}
+
 export function getRegisterById(registerId) {
   return state.registers.find((r) => r.registerId === Number(registerId))
 }
@@ -543,11 +554,8 @@ function formatResultPayload(row, idKey) {
   return {
     [idKey]: row[idKey],
     itemName: row.itemName,
-    instrumentData: row.instrumentData || '',
-    aiReportText: row.aiReportText || '',
-    doctorReportText: row.doctorReportText || '',
     resultText: row.resultText || '',
-    aiReportStatus: row.aiReportStatus || 'PENDING',
+    resultAttachment: row.resultAttachment || '',
     reportTime: nowIso(),
   }
 }
@@ -816,13 +824,11 @@ export function executeInspection(id) {
 export function saveInspectionResult(id, payload) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
-  ensureInstrumentData(row, 'INSPECTION')
   if (typeof payload === 'string') {
     row.resultText = payload
   } else {
-    row.aiReportText = payload.aiReportText ?? row.aiReportText
-    row.doctorReportText = payload.doctorReportText ?? ''
-    row.resultText = buildPublishedResultText(row)
+    row.resultText = payload.resultText ?? ''
+    row.resultAttachment = payload.resultAttachment ?? ''
   }
   row.status = 40
   return row
@@ -846,13 +852,11 @@ export function executeCheck(id) {
 export function saveCheckResult(id, payload) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
-  ensureInstrumentData(row, 'CHECK')
   if (typeof payload === 'string') {
     row.resultText = payload
   } else {
-    row.aiReportText = payload.aiReportText ?? row.aiReportText
-    row.doctorReportText = payload.doctorReportText ?? ''
-    row.resultText = buildPublishedResultText(row)
+    row.resultText = payload.resultText ?? ''
+    row.resultAttachment = payload.resultAttachment ?? ''
   }
   row.status = 40
   return row
@@ -878,13 +882,11 @@ export function executeDisposal(id) {
 export function saveDisposalResult(id, payload) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
-  ensureInstrumentData(row, 'DISPOSAL')
   if (typeof payload === 'string') {
     row.resultText = payload
   } else {
-    row.aiReportText = payload.aiReportText ?? row.aiReportText
-    row.doctorReportText = payload.doctorReportText ?? ''
-    row.resultText = buildPublishedResultText(row)
+    row.resultText = payload.resultText ?? ''
+    row.resultAttachment = payload.resultAttachment ?? ''
   }
   row.status = 40
   return row

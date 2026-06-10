@@ -2,6 +2,7 @@ import { mockResult } from '../utils/mock'
 import {
   callRegister,
   confirmAiDraft,
+  confirmMedicalRecord,
   createCheckOrder,
   createDisposalOrder,
   createInspectionOrder,

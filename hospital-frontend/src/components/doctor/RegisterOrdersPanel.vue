@@ -1,7 +1,12 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { fetchRegisterOrders, fetchRegisterResults } from '../../api/doctor'
+import {
+  fetchCheckResult,
+  fetchDisposalResult,
+  fetchInspectionResult,
+  fetchRegisterOrders,
+} from '../../api/doctor'
 
 const props = defineProps({
   registerId: { type: Number, default: null },
