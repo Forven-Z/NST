@@ -433,28 +433,6 @@ export function confirmMedicalRecord(registerId, data) {
   return state.medicalRecords[Number(registerId)]
 }
 
-export function confirmMedicalRecord(registerId, data) {
-  const existing = getMedicalRecord(registerId)
-  state.medicalRecords[Number(registerId)] = {
-    ...existing,
-    ...data,
-    confirmed: true,
-    confirmedAt: nowIso(),
-  }
-  return state.medicalRecords[Number(registerId)]
-}
-
-export function confirmMedicalRecord(registerId, data) {
-  const existing = getMedicalRecord(registerId)
-  state.medicalRecords[Number(registerId)] = {
-    ...existing,
-    ...data,
-    confirmed: true,
-    confirmedAt: nowIso(),
-  }
-  return state.medicalRecords[Number(registerId)]
-}
-
 export function getRegisterById(registerId) {
   return state.registers.find((r) => r.registerId === Number(registerId))
 }

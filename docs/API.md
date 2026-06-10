@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.1 | 2026-06-09  
+> **版本**：v2.2 | 2026-06-10  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
 > **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14**（业务 ID 即各表 `id`）  
@@ -19,13 +19,16 @@
 | `GET /doctor/queues` | `/registers/queue`、`/doctor/registers/queue` |
 | `POST /doctor/call/{registerId}` | `POST /doctor/registers/{id}/call` |
 | `GET/PUT /doctor/medical-records/{registerId}` | `/doctor/registers/{id}/medical-record` |
-| `POST /doctor/medical-records/{registerId}/submit` | `/doctor/registers/{id}/medical-record/submit` |
-| `POST /doctor/registers/{registerId}/finish` | `/doctor/registers/{id}/finish`（同义，定稿保留 registers 段） |
+| `POST /doctor/medical-records/{registerId}/submit` | `/doctor/registers/{id}/medical-record/confirm`、`/submit` 混用 |
+| `POST /doctor/registers/{registerId}/finish` | —（定稿保留 `registers` 段） |
+| 医嘱结果：见 §5.5（**无**聚合 `/results`） | `GET /doctor/registers/{id}/results` |
 | `GET /admin/scheduling` | `GET /admin/schedules` |
 | `POST/PUT /admin/scheduling` | `POST/PUT /admin/schedules` |
 | `POST /pharmacy/prescriptions/{id}/dispense` | `/pharmacy/dispense/{id}` |
+| `POST /lis\|pacs\|disposal/requests/{id}/result` | `PUT .../result`（Method 错误） |
 | `POST /patient/payments`（Mock 批量支付） | 首期演示用；真微信支付见 §4.3.2 预留 |
 | 医技执行 | `GET/POST /lis/**`、`/pacs/**`、`/disposal/**`（非 `/doctor` 下执行） |
+| 窗口号别 | 定稿待增 `GET /registrar/regist-levels`；暂勿长期依赖 `GET /admin/regist-levels` |
 
 ### 0.2 网关 → 微服务
 
@@ -40,6 +43,33 @@
 | `/admin/**` | hospital-management | 9107 |
 | `/callback/wechat/**` | hospital-his | 9102 |
 | `/internal/**` | 各服务 | 不经 Gateway |
+
+### 0.3 PC 前端（`hospital-frontend`）对齐说明
+
+> 源码：`hospital-frontend/src/api/*.js` · 开关：`.env.development` → `VITE_USE_MOCK`  
+> **定稿路径以 §0.1 为准**；下表说明当前前端封装与联调现状（2026-06-10 审计）。
+
+| api 模块 | 页面/组件 | 定稿符合度 | 说明 |
+|----------|-----------|------------|------|
+| `auth.js` | 登录 | ✅ | `POST /auth/staff/login` |
+| `doctor.js` | `WorkspaceView`、`RegisterOrdersPanel` | ⚠️ 部分 | 病历/叫号/orders 已对齐；`finish`/`submit` 后端 ⬜；医嘱结果见 §5.5 |
+| `registrar.js` | 挂号/收费/退费 | ⚠️ | 核心路径 ✅；号别暂调 `GET /admin/regist-levels`（§8.1） |
+| `lis.js` / `pacs.js` / `disposal.js` | `TechQueuePanel`、影像页 | ⚠️ | 队列/execute ✅；**保存结果 Method 应为 POST**（前端仍 PUT，见附录 G） |
+| `pharmacy.js` | 待发药 | ✅ | |
+| `admin.js` | 字典/员工/排班 | ⚠️ | 字典 GET ✅；CRUD/排班路径应为 `/admin/scheduling/**`（前端仍 `schedules`） |
+| `scheduling.js` | `MyScheduleView`、`SchedulingView` | 🎭 Mock | §8.5 / §9.5 整套接口仅 Mock，后端 ⬜ P5 |
+
+**图例**：✅ 关 Mock 可联调 · ⚠️ 路径或字段待改 · 🎭 仅 Mock · ⬜ 契约已定后端未实现
+
+### 0.4 前端待改项（对齐本契约）
+
+完整清单见 **附录 G**。联调前优先：
+
+1. 医技 `saveResult`：`PUT` → `POST`（`lis.js` / `pacs.js` / `disposal.js`）
+2. 管理端排班：`/admin/schedules` → `/admin/scheduling`（`admin.js`）
+3. 挂号号别：改用 `GET /registrar/regist-levels`（后端待增）或文档批准的临时只读代理
+4. `RegisterOrdersPanel`：status `30` 文案改为「执行中」（§1.7）
+5. 废弃 `API_CONTRACT.md` 中历史路径，统一读本文件
 
 ---
 
@@ -85,6 +115,7 @@
 | ✅ | 后端已实现，可关 Mock 联调 |
 | ⬜ | 契约已定，后端待实现 |
 | STUB | 接口存在，返回占位 / 50301 |
+| 🎭 | 仅 PC Mock 实现（`hospital-frontend/src/mock`），关 Mock 不可用 |
 | P4/P5 | 分期实现，不阻塞 P1～P3 |
 
 ### 1.4 Mock 开关
@@ -185,6 +216,7 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P1 | GET/PUT | `/doctor/medical-records/{registerId}` | his | OUTPATIENT_DOCTOR |
 | ⬜ | P1 | POST | `/doctor/medical-records/{registerId}/submit` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
+| ✅ | P1 | GET | `/doctor/diseases` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/check-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/inspection-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P3 | POST | `/doctor/disposal-requests` | his | OUTPATIENT_DOCTOR |
@@ -222,10 +254,17 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2 | POST | `/registrar/refunds` | his | REGISTRAR |
 | ✅ | P2 | GET | `/registrar/patients/{medicalRecordNo}/bills` | his | REGISTRAR |
 | ✅ | P2 | POST | `/registrar/registers/{registerId}/cancel` | his | REGISTRAR |
+| ⬜ | P2 | GET | `/registrar/regist-levels` | his | REGISTRAR |
 | ✅ | P1 | GET | `/admin/departments` 等字典 | mgmt | ADMIN |
-| ⬜ | P1 | GET | `/admin/scheduling` | mgmt | ADMIN |
-| ⬜ | P1 | GET | `/admin/employees` | mgmt | ADMIN/REGISTRAR |
-| ⬜ | P1+ | POST/PUT/DELETE | `/admin/**` CRUD | mgmt | ADMIN |
+| ⬜ | P1 | GET/POST/PUT | `/admin/scheduling` | mgmt | ADMIN |
+| ⬜ | P1 | GET/CRUD | `/admin/employees` | mgmt | ADMIN |
+| ⬜ | P1+ | POST/PUT/DELETE | `/admin/**` 字典写 | mgmt | ADMIN |
+| 🎭 | P5 | GET | `/staff/my-schedules` | mgmt 或 his | 已登录职员 |
+| 🎭 | P5 | POST | `/staff/schedules/{id}/leave-requests` | 同上 | 已登录职员 |
+| 🎭 | P5 | POST | `/staff/leave-requests/{id}/cancel` | 同上 | 已登录职员 |
+| 🎭 | P5 | GET | `/admin/leave-requests` | mgmt | ADMIN |
+| 🎭 | P5 | POST | `/admin/leave-requests/{id}/approve` | mgmt | ADMIN |
+| 🎭 | P5 | POST | `/admin/leave-requests/{id}/reject` | mgmt | ADMIN |
 | STUB | P4 | POST | `/ai/triage/chat` | ai-bridge | PATIENT |
 | STUB | P4 | POST | `/ai/assistant/stream` | ai-bridge | DOCTOR |
 | STUB | P4 | POST | `/ai/diagnosis/suggest` | ai-bridge | DOCTOR |
@@ -469,13 +508,23 @@ Mock 数据结构 **与本文件一致**。
 
 ### GET/PUT `/doctor/medical-records/{registerId}` ✅ P1
 
-**GET/PUT 字段**：`readme`, `present`, `presentTreat`, `history`, `allergy`, `physique`, `diagnosis`, `cure`, `checkAdvice`, `inspectionAdvice`, `diseaseIds?`
+**GET/PUT 字段**：`readme`, `present`, `presentTreat`, `history`, `allergy`, `physique`, `diagnosis`, `cure`, `checkAdvice`, `inspectionAdvice`
 
-> 前端 `AiDiagnosisBar` 将 AI 诊断写入 `diagnosis` 后一并 PUT 保存。
+**疾病关联（⬜ 后端待贯通）**
+
+| 字段 | 用途 | 前端 | 后端 |
+|------|------|------|------|
+| `diseaseIds` | 扁平 ID 列表（兼容） | 保存时发送 | ⬜ 未持久化 |
+| `diseaseEntries` | 结构化：`[{ diseaseId, diseaseType }]`，`diseaseType` 1=主要 / 2=次要 | 确诊提交时发送 | ⬜ 未写 `medical_record_disease` |
+
+> 前端 `AiDiagnosisBar` 将 AI 诊断写入 `diagnosis` 后一并 PUT 保存。  
+> **联调现状**：文本字段可保存；疾病多选 UI 存在但关 Mock 后不落库，待 his 扩展 DTO + Repository。
 
 ### POST `/doctor/medical-records/{registerId}/submit` ⬜ P1
 
-**效果**：`medical_record.status` → 2，患者端可见
+**页面**：医生工作台「确诊提交」按钮（`confirmMedicalRecord` → 本路径，**非** `/medical-record/confirm`）  
+**Request**：同 PUT 病历字段，可含 `diseaseEntries`  
+**效果**：`medical_record.status` → 2，患者端 `GET /patient/medical-records/{id}` 可见
 
 ### GET `/doctor/diseases` ✅ P1
 
@@ -488,6 +537,20 @@ Mock 数据结构 **与本文件一致**。
 
 **页面**：医生工作台「本次就诊医嘱」面板（`RegisterOrdersPanel`）  
 **Response**：与 §4 `GET /patient/registers/{id}/orders` **完全相同**（含 `list[]` 汇总 + `checks/inspections/disposals/prescriptions` 明细）
+
+明细数组中已含 `resultText`、`resultTime`（status ≥ 40 时有值），供前端展示医技结果。
+
+### 5.5 医嘱结果展示（无独立聚合接口）
+
+> **不存在** `GET /doctor/registers/{registerId}/results`。历史 Mock/旧文档曾使用该路径，**禁止**新增后端实现。
+
+**定稿做法（PC 前端 `fetchRegisterResults` / `buildRegisterResultsFromOrders`）**：
+
+1. 调用 `GET /doctor/registers/{registerId}/orders` 一次；
+2. 遍历 `data.list`，对 `kind ∈ { inspection, check, disposal }` 且 `status >= 40` 的项，从对应明细数组（`inspections` / `checks` / `disposals`）取 `resultText`、`resultTime`；
+3. 组装为 UI 用的 `{ kind, requestId, typeLabel, itemName, resultText, reportTime }[]`。
+
+**逐条查结果**（可选）：`GET /doctor/check-requests/{id}/result` 等（§5.4），适用于详情页或 orders 明细缺字段时。
 
 ### POST `/doctor/check-requests` ✅ P2
 
@@ -611,7 +674,16 @@ Mock 数据结构 **与本文件一致**。
 
 ## 六、医技执行
 
-> 医技队列 UI（`TechQueuePanel`）使用 **result-detail** 加载三段式报告，**ai-report** 生成 AI 报告，**result** 保存医师确认后的结果。
+> 医技队列 UI（`TechQueuePanel`）**目标**使用 **result-detail** 加载三段式报告，**ai-report** 生成 AI 报告，**result** 保存医师确认后的结果。  
+> **联调现状**：`TechQueuePanel` 简化版仅编辑 `resultText`（+ 可选 `resultAttachment`）；`ResultReportSections.vue` 已存在但未接入队列页。`result-detail` / `ai-report` 后端 ⬜。
+
+### 6.0 前端 Method 对齐
+
+| 定稿 | 当前 `hospital-frontend` | 文件 |
+|------|--------------------------|------|
+| `POST /{svc}/requests/{id}/result` | ❌ `PUT` | `lis.js`, `pacs.js`, `disposal.js` |
+
+后端 LIS/PACS/Disposal Controller 均为 `@PostMapping`；前端 PUT 将返回 **405**，见附录 G。
 
 ### 6.1 医技结果 API 对称约定（LIS / PACS / Disposal）
 
@@ -687,14 +759,24 @@ Mock 数据结构 **与本文件一致**。
 
 ## 八、收费员 · `/registrar/**`（his）
 
+### 8.1 字典与号别
+
 | 状态 | Method | 路径 | 说明 |
 |------|--------|------|------|
-| ✅ | GET | `/registrar/departments` | 门诊科室列表（窗口挂号页） |
-| ✅ | GET | `/registrar/settle-categories` | 结算类别列表 |
-| ✅ | GET | `/registrar/doctors` | 科室出诊医生；Query `deptId` |
-| ✅ | GET | `/registrar/schedules` | 排班号源；Query `deptId`, `employeeId`, `registLevelId`, `workDate`（默认今天起 7 天） |
+| ✅ | GET | `/registrar/departments` | 门诊科室 |
+| ✅ | GET | `/registrar/settle-categories` | 结算类别 |
+| ⬜ | GET | `/registrar/regist-levels` | 挂号号别（普通/专家）；**定稿**，替代收费员调 `/admin/**` |
+| ✅ | GET | `/registrar/doctors` | Query `deptId` |
+| ✅ | GET | `/registrar/schedules` | Query `deptId`, `employeeId`, `registLevelId`, `workDate` |
+
+> **前端现状（待改）**：`registrar.js` → `fetchRegistLevels()` 暂请求 `GET /admin/regist-levels`（REGISTRAR 角色可能 403）。联调前应实现 `/registrar/regist-levels` 只读代理，或前端在 Mock 关闭时隐藏号别选择。
+
+### 8.2 窗口业务
+
+| 状态 | Method | 路径 | 说明 |
+|------|--------|------|------|
 | ✅ | POST | `/registrar/registers` | 窗口挂号（建档+占号+待支付 bills，`visit_state=0`） |
-| ✅ | POST | `/registrar/charges` | 窗口收费（批量待缴账单，`payChannel` 记账） |
+| ✅ | POST | `/registrar/charges` | 窗口收费（批量待缴，`payChannel` 记账） |
 | ✅ | POST | `/registrar/refunds` | `{ "billId", "reason" }` |
 | ✅ | GET | `/registrar/patients/{medicalRecordNo}/bills` | 按病历号查账 |
 | ✅ | POST | `/registrar/registers/{registerId}/cancel` | 窗口退号 |
@@ -743,7 +825,18 @@ Mock 数据结构 **与本文件一致**。
 
 > `REGISTER` 账单付清后 `visit_state` → `1`（已挂号）；`MEDICAL_BOOK` 付清后更新 `patient.need_medical_book`。
 
-> **排班/字典查询**：窗口挂号页使用 **`GET /registrar/departments`**、**`/registrar/settle-categories`**、**`/registrar/doctors`**、**`/registrar/schedules`**（REGISTRAR 角色）；不再调用 `/admin/**` 或 `/patient/schedules`。
+> **排班/字典查询**：窗口挂号页使用 **`GET /registrar/departments`**、**`/registrar/settle-categories`**、**`/registrar/regist-levels`**（⬜）、**`/registrar/doctors`**、**`/registrar/schedules`**（REGISTRAR 角色）；**禁止**调用 `/admin/**`（除临时联调号别只读，见 §8.1）。
+
+### 8.5 职员自助 · `/staff/**` 🎭 P5
+
+> **仅 Mock**（`hospital-frontend/src/mock/scheduling-leave.js`）。关 `VITE_USE_MOCK` 后不可用，后端 ⬜ 未实现。  
+> 页面：各角色「我的排班」（`MyScheduleView.vue`）。
+
+| 状态 | Method | 路径 | 说明 |
+|------|--------|------|------|
+| 🎭 | GET | `/staff/my-schedules` | Query：`employeeId`, `workDateFrom?`；返回本人未来排班 |
+| 🎭 | POST | `/staff/schedules/{schedulingId}/leave-requests` | Body：`{ employeeId, reason }` |
+| 🎭 | POST | `/staff/leave-requests/{leaveRequestId}/cancel` | Body：`{ employeeId }` |
 
 ---
 
@@ -771,15 +864,28 @@ Mock 数据结构 **与本文件一致**。
 |--------|------|------|
 | ⬜ GET | `/admin/scheduling` | 排班列表 |
 | ⬜ POST | `/admin/scheduling` | 创建 |
-| ⬜ PUT | `/admin/scheduling/{id}` | 更新 |
+| ⬜ PUT | `/admin/scheduling/{id}` | 更新（含替班：改 `employeeId`） |
 | ⬜ POST | `/admin/scheduling/{id}/publish` | 发布 |
 | P5 | POST | `/admin/scheduling/ai-suggest` | AI 排班建议 |
-| STUB | P5 | POST | `/admin/scheduling/{id}/ai-replace` | 应用 AI 推荐替换当前排班 |
+| STUB | P5 | POST | `/admin/scheduling/{id}/ai-replace` | 应用 AI 推荐（**定稿**有独立接口；Mock 用 PUT 更新代替） |
 | P5 | POST | `/admin/scheduling/solve` | Timefold 求解 |
+
+> **前端现状（待改）**：`admin.js` 仍使用历史路径 `/admin/schedules/**`（§0.1 禁止）。Mock 与 `SchedulingView.vue` 功能完整；关 Mock 联调前须改为上表定稿路径并实现后端。
 
 **Query**：`workDate`, `deptId`, `employeeId`  
 **Request 示例**：`{ "deptId", "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  
 > `scheduling` 表不存 `dept_id`；出诊科室经 `employee.dept_id` 推导（DATABASE v1.14）。
+
+### 9.5 排班请假审批 · `/admin/leave-requests/**` 🎭 P5
+
+> **仅 Mock**。与 §8.5 配对；页面：`SchedulingView.vue` 请假 Tab。  
+> **定稿**：替班通过 `PUT /admin/scheduling/{id}` 更新排班，**无**单独 `ai-replace` 时 Mock 亦走 PUT。
+
+| 状态 | Method | 路径 | 说明 |
+|------|--------|------|------|
+| 🎭 | GET | `/admin/leave-requests` | Query：`status?` |
+| 🎭 | POST | `/admin/leave-requests/{id}/approve` | Body：`{ adminName? }` |
+| 🎭 | POST | `/admin/leave-requests/{id}/reject` | Body：`{ remark, adminName? }` |
 
 ### 9.3 员工 ⬜ P1
 
@@ -858,17 +964,21 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | 医嘱进度 | `GET /patient/registers/{id}/orders` |
 | AI 问诊 P4 | `POST /ai/triage/chat` |
 
-### PC 端
+### PC 端（`hospital-frontend`）
 
-| 角色 | 页面 | 主要接口 |
-|------|------|----------|
-| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/*-requests`（逐条）, `/registers/{id}/orders`, `/registers/{id}/finish`, `/*-requests/{id}/result` |
-| 医生 | AI 辅助 | `/ai/diagnosis/suggest`, `/*/ai-draft`, `/ai/assistant/stream` |
-| LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`（含 `result-detail`, `ai-report`） |
-| PACS | 影像 AI | `GET /pacs/imaging-studies`；前端跳转 VITE_IMAGING_AI_URL |
-| 药师 | 发药 | `/pharmacy/pending`, `.../dispense`, `.../return-drug` |
-| 收费员 | 挂号/收费/退费 | `/registrar/departments`, `/settle-categories`, `/doctors`, `/schedules`, `/registers`, `/charges`, `/refunds`, `/patients/{mrn}/bills` |
-| 管理员 | 字典/排班 | `GET /admin/*`, `/admin/scheduling`, `/admin/scheduling/ai-suggest`, `/admin/scheduling/{id}/ai-replace` |
+| 角色 | 页面 | 主要接口（定稿） | Mock |
+|------|------|------------------|------|
+| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/registers/{id}/orders`（§5.5 组装结果）, `/registers/{id}/finish` ⬜, `/medical-records/{id}/submit` ⬜, `/*-requests` 开单 | 部分 |
+| 医生 | 我的排班 | §8.5 `/staff/**` | 🎭 |
+| 医生 | AI 辅助 | `/ai/diagnosis/suggest` STUB, `/*/ai-draft` STUB | 🎭 |
+| LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`；result 用 **POST** | 部分 |
+| PACS | 影像任务 | `GET /pacs/imaging-studies` ⬜ | 🎭 |
+| 药师 | 发药 | `/pharmacy/pending`, `.../dispense`, `.../return-drug` | ✅ |
+| 收费员 | 挂号/收费/退费 | §8 `/registrar/**` | ✅ |
+| 管理员 | 员工/科室 | `/admin/employees` CRUD ⬜, `/admin/departments` GET ✅ | 部分 |
+| 管理员 | 排班/请假 | §9.2 `/admin/scheduling/**` ⬜, §9.5 leave 🎭 | 🎭 |
+
+> 完整「api 文件 → 路径」见 **附录 F**。
 
 ---
 
@@ -898,18 +1008,58 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 ---
 
-## 附录 E · 后端待办（v2.1，按优先级）
+## 附录 E · 后端待办（v2.2，按优先级）
 
 | 优先级 | 模块 | 接口 / 改动 |
 |--------|------|-------------|
 | P0 | his · 医生 | `POST /doctor/registers/{id}/finish` |
-| P0 | his · 医生/患者 | `GET /doctor/registers/{id}/orders` ✅（患者端同路径 ⬜） |
-| P0 | lis/pacs/disposal | `GET/POST .../result-detail`, `POST .../ai-report` |
-| P1 | his · 医生 | 队列补 `noonLabel`；`triageLevel/triageNote`（或 ai-bridge assignments） |
+| P0 | his · 医生 | `POST /doctor/medical-records/{id}/submit` |
+| P0 | his · 挂号 | `GET /registrar/regist-levels`（REGISTRAR 只读） |
+| P0 | 前端 | 医技 result：`PUT`→`POST`；admin：`schedules`→`scheduling`（附录 G） |
+| P0 | his · 医生/患者 | 患者端 `GET /patient/registers/{id}/orders` ⬜ |
+| P0 | lis/pacs/disposal | `GET .../result-detail`, `POST .../ai-report` |
+| P1 | his · 医生 | 病历 `diseaseIds` / `diseaseEntries` → `medical_record_disease` |
+| P1 | his · 医生 | 队列补 `noonLabel`；`triageLevel/triageNote` |
 | P1 | his · 医生 | `GET /doctor/*-requests/{id}/result` 扩展 §1.7 字段 |
 | P1 | lis/pacs/disposal | `POST .../result` 支持 `{ aiReportText, doctorReportText }` |
 | P2 | ai-bridge | STUB：`diagnosis/suggest`、`*-requests/ai-draft` |
-| P2 | mgmt | `POST /admin/scheduling/{id}/ai-replace` |
+| P2 | mgmt | `/admin/scheduling/**` CRUD、`/admin/employees` CRUD |
+| P5 | mgmt/his | §8.5 `/staff/**`、§9.5 `/admin/leave-requests/**`（或合并进 scheduling 域） |
+
+---
+
+## 附录 F · PC 前端 `src/api` ↔ 定稿路径
+
+| 文件 | 函数 | 定稿路径 | 前端当前 | 后端 |
+|------|------|----------|----------|------|
+| `doctor.js` | `fetchDoctorQueue` | `GET /doctor/queues` | ✅ | ✅ |
+| `doctor.js` | `callPatient` | `POST /doctor/call/{id}` | ✅ | ✅ |
+| `doctor.js` | `finishVisit` | `POST /doctor/registers/{id}/finish` | ✅ | ⬜ |
+| `doctor.js` | `fetchMedicalRecord` | `GET /doctor/medical-records/{id}` | ✅ | ✅ |
+| `doctor.js` | `saveMedicalRecord` | `PUT /doctor/medical-records/{id}` | ✅ | ✅ |
+| `doctor.js` | `confirmMedicalRecord` | `POST /doctor/medical-records/{id}/submit` | ✅ | ⬜ |
+| `doctor.js` | `fetchRegisterOrders` | `GET /doctor/registers/{id}/orders` | ✅ | ✅ |
+| `doctor.js` | `fetchRegisterResults` | §5.5（无 HTTP 聚合） | ✅ 客户端组装 | — |
+| `registrar.js` | `fetchRegistLevels` | `GET /registrar/regist-levels` | ❌ `/admin/regist-levels` | ⬜ |
+| `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ❌ PUT | ✅ POST |
+| `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
+| `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ❌ PUT | ✅ POST |
+| `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ❌ `/admin/schedules/**` | ⬜ |
+| `scheduling.js` | 全部 | §8.5、§9.5 | 🎭 Mock 路径一致 | ⬜ |
+
+---
+
+## 附录 G · 前端整改清单（对齐 v2.2）
+
+| # | 项 | 定稿 | 当前 | 优先级 |
+|---|-----|------|------|--------|
+| G1 | 医技保存结果 | `POST .../result` | `PUT` | P0 |
+| G2 | 管理端排班 | `/admin/scheduling/**` | `/admin/schedules/**` | P0 |
+| G3 | 挂号号别 | `GET /registrar/regist-levels` | `GET /admin/regist-levels` | P0 |
+| G4 | 医嘱 status 30 文案 | 「执行中」 | 「执行完成」 | P1 |
+| G5 | 医技 UI | `ResultReportSections` + result-detail | 单字段 resultText | P1 |
+| G6 | 病历疾病 | 等后端 DTO 后发送 `diseaseEntries` | UI 已有 | P1 |
+| G7 | 废弃文档 | 仅维护 `docs/API.md` | `API_CONTRACT.md` 历史路径 | P0 |
 
 ---
 
@@ -917,6 +1067,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.2 | 2026-06-10 | 对齐 PC 前端审计：§0.3～0.4 前端现状、§5.5 无聚合 results、§8.1 regist-levels、§8.5/§9.5 Mock 排班请假、§6.0 Method 对齐、附录 F/G |
 | v2.1 | 2026-06-09 | 对齐 PC 医生工作台/医技队列 Mock：finish/orders、三段式报告、result-detail/ai-report、状态枚举、AI 草稿结构、白名单与附录 A |
 | v2.0 | 2026-06-04 | **合并**原 `API.md` + `API_INTERFACE_SPEC.md` 为唯一契约；**统一路径**（§〇）；增加实现状态总览 |
 | v1.4 | 2026-06 | DATABASE v1.14 对齐 |

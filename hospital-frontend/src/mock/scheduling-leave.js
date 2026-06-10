@@ -12,11 +12,8 @@
  * approve_admin_id, approve_time, create_time
  */
 import { mockResult } from '../utils/mock'
-import {
-  getSubstitutePoolByDept,
-  MOCK_ALL_DEPARTMENTS,
-  MOCK_SCHEDULES,
-} from './dict'
+import { MOCK_ALL_DEPARTMENTS, MOCK_SCHEDULES } from './dict'
+import { getSubstitutePoolByDept } from './staff-registry'
 
 /** @type {Array<Record<string, unknown>>} */
 const leaveRequests = []
