@@ -54,6 +54,13 @@ public class DoctorController {
         return Result.success(doctorMedicalRecordService.saveMedicalRecord(registerId, request));
     }
 
+    @PostMapping("/medical-records/{registerId}/submit")
+    public Result<Map<String, Object>> submitMedicalRecord(
+            @PathVariable Long registerId,
+            @RequestBody MedicalRecordSaveRequest request) {
+        return Result.success(doctorMedicalRecordService.submitMedicalRecord(registerId, request));
+    }
+
     @GetMapping("/registers/{registerId}/orders")
     public Result<Map<String, Object>> getRegisterOrders(@PathVariable Long registerId) {
         return Result.success(registerOrdersService.getOrdersForDoctor(registerId));

@@ -99,4 +99,25 @@ public class MedicalRecordRepository {
                 .param("inspectionAdvice", inspectionAdvice)
                 .update();
     }
+
+    public Optional<Integer> findStatusByRegisterId(Long registerId) {
+        return jdbcClient.sql("""
+                        SELECT status FROM medical_record
+                        WHERE register_id = :registerId AND delmark = 0
+                        """)
+                .param("registerId", registerId)
+                .query(Integer.class)
+                .optional();
+    }
+
+    public void updateStatus(Long registerId, int status) {
+        jdbcClient.sql("""
+                        UPDATE medical_record
+                        SET status = :status, update_time = NOW()
+                        WHERE register_id = :registerId AND delmark = 0
+                        """)
+                .param("registerId", registerId)
+                .param("status", status)
+                .update();
+    }
 }
