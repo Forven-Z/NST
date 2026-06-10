@@ -2,9 +2,7 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  fetchCheckResult,
-  fetchDisposalResult,
-  fetchInspectionResult,
+  buildRegisterResultsFromOrders,
   fetchRegisterOrders,
 } from '../../api/doctor'
 
@@ -42,13 +40,10 @@ async function loadOrders() {
   if (!props.registerId) return
   loading.value = true
   try {
-    const [ordersRes, resultsRes] = await Promise.all([
-      fetchRegisterOrders(props.registerId),
-      fetchRegisterResults(props.registerId),
-    ])
+    const ordersRes = await fetchRegisterOrders(props.registerId)
     orders.value = ordersRes.data
     const map = {}
-    for (const item of resultsRes.data?.results ?? []) {
+    for (const item of buildRegisterResultsFromOrders(ordersRes.data)) {
       map[`${item.kind}-${item.requestId}`] = item
     }
     resultsMap.value = map

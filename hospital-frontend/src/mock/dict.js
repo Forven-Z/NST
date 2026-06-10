@@ -141,9 +141,6 @@ const DUTY_SHIFT_NAMES = {
   6: '处置值班',
 }
 
-/** 本科室可替班人员（来自员工主数据） */
-export { getSubstitutePoolByDept } from './staff-registry'
-
 function buildStaffDutySchedules(startId) {
   const list = []
   let schedulingId = startId
@@ -333,13 +330,6 @@ export const MOCK_MEDICAL_TECHNOLOGIES = [
   { id: 4, itemCode: 'CHK-CXR', itemName: '胸部 X 线', techType: 'CHECK', price: 90, deptId: 2 },
   { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 6 },
   { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 6 },
-]
-
-export const MOCK_DISEASES = [
-  { id: 101, diseaseCode: 'G43', diseaseName: '偏头痛' },
-  { id: 102, diseaseCode: 'G44', diseaseName: '紧张性头痛' },
-  { id: 103, diseaseCode: 'J06', diseaseName: '急性上呼吸道感染' },
-  { id: 104, diseaseCode: 'R51', diseaseName: '头痛' },
 ]
 
 export const MOCK_DRUGS = [

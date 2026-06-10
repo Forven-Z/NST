@@ -49,3 +49,4 @@ hospital-patient-miniapp/config.local.js
 **/.pytest_cache/
 .cursor/settings.json
 hospital-frontend/.env.development
+hospital-frontend/.env.development

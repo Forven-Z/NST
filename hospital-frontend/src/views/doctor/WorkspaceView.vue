@@ -28,6 +28,8 @@ const confirming = ref(false)
 const callingId = ref(null)
 const finishingId = ref(null)
 const recordSaved = ref(false)
+const recordStatus = ref(0)
+const recordStatusLabel = ref('书写中')
 const diseases = ref([])
 const queue = ref([])
 const visitStateFilter = ref('all')
@@ -189,6 +191,8 @@ async function loadMedicalRecord(registerId) {
     applyDiseaseFields(data)
     aiDiagnosisText.value = data.diagnosis || ''
     recordSaved.value = !!data.readme
+    recordStatus.value = data.status ?? 0
+    recordStatusLabel.value = data.statusLabel || (data.status === 2 ? '已确诊提交' : data.status === 1 ? '已保存' : '书写中')
   } catch (err) {
     ElMessage.error(err.message || '加载病历失败')
   }
@@ -244,23 +248,6 @@ function openRxDialog() {
 function openRxDraftDialog() {
   if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
   rxDraftDialogVisible.value = true
-}
-
-async function onConfirmDiagnosis() {
-  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
-  confirming.value = true
-  try {
-    await confirmMedicalRecord(currentRegisterId.value, {
-      diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
-      cure: recordForm.cure,
-      diseaseIds: recordForm.diseaseIds,
-    })
-    ElMessage.success('确诊已提交')
-  } catch (err) {
-    ElMessage.error(err.message || '确诊提交失败')
-  } finally {
-    confirming.value = false
-  }
 }
 
 function onOrdersChanged() {

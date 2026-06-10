@@ -14,7 +14,6 @@ import {
   mockFetchRegisterOrders,
   mockConfirmMedicalRecord,
   mockFetchRegisterResults,
-  mockConfirmMedicalRecord,
   mockFinishVisit,
   mockSaveMedicalRecord,
 } from '../mock/doctor'
@@ -36,7 +35,7 @@ export function fetchDoctorQueue(params) {
 
 export function callPatient(registerId) {
   if (useMock()) return mockCallPatient(registerId)
-  return request.post(`/doctor/registers/${registerId}/call`)
+  return request.post(`/doctor/call/${registerId}`)
 }
 
 export function finishVisit(registerId) {
@@ -46,7 +45,7 @@ export function finishVisit(registerId) {
 
 export function fetchMedicalRecord(registerId) {
   if (useMock()) return mockFetchMedicalRecord(registerId)
-  return request.get(`/doctor/registers/${registerId}/medical-record`)
+  return request.get(`/doctor/medical-records/${registerId}`)
 }
 
 export function saveMedicalRecord(registerId, data) {
@@ -56,7 +55,7 @@ export function saveMedicalRecord(registerId, data) {
 
 export function confirmMedicalRecord(registerId, data) {
   if (useMock()) return mockConfirmMedicalRecord(registerId, data)
-  return request.post(`/doctor/registers/${registerId}/medical-record/confirm`, data)
+  return request.post(`/doctor/medical-records/${registerId}/submit`, data)
 }
 
 export function fetchDiseases(params) {
@@ -102,9 +101,45 @@ export function fetchRegisterOrders(registerId) {
   return request.get(`/doctor/registers/${registerId}/orders`)
 }
 
-export function fetchRegisterResults(registerId) {
+const REQUEST_ID_KEYS = {
+  inspection: 'inspectionRequestId',
+  check: 'checkRequestId',
+  disposal: 'disposalRequestId',
+}
+
+/** 从 orders 响应组装医技结果（后端无聚合 /results 接口，见 docs/API.md） */
+export function buildRegisterResultsFromOrders(ordersData) {
+  const list = ordersData?.list ?? []
+  const detailByKind = {
+    inspection: ordersData?.inspections ?? [],
+    check: ordersData?.checks ?? [],
+    disposal: ordersData?.disposals ?? [],
+  }
+  const results = []
+  for (const item of list) {
+    if (item.kind === 'prescription' || item.status < 40) continue
+    const idKey = REQUEST_ID_KEYS[item.kind]
+    if (!idKey) continue
+    const detail = detailByKind[item.kind].find((r) => r[idKey] === item.requestId)
+    if (!detail?.resultText) continue
+    results.push({
+      kind: item.kind,
+      requestId: item.requestId,
+      typeLabel: item.typeLabel,
+      itemName: item.itemName,
+      resultText: detail.resultText,
+      resultAttachment: detail.resultAttachment,
+      reportTime: detail.resultTime ?? detail.reportTime,
+    })
+  }
+  return results
+}
+
+export async function fetchRegisterResults(registerId) {
   if (useMock()) return mockFetchRegisterResults(registerId)
-  return request.get(`/doctor/registers/${registerId}/results`)
+  const ordersRes = await request.get(`/doctor/registers/${registerId}/orders`)
+  const results = buildRegisterResultsFromOrders(ordersRes.data ?? {})
+  return { ...ordersRes, data: { registerId: Number(registerId), results } }
 }
 
 export function createPrescription(data) {
