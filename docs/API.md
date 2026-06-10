@@ -184,7 +184,7 @@ Mock 数据结构 **与本文件一致**。
 | ⬜ | P1 | POST | `/doctor/registers/{registerId}/finish` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET/PUT | `/doctor/medical-records/{registerId}` | his | OUTPATIENT_DOCTOR |
 | ⬜ | P1 | POST | `/doctor/medical-records/{registerId}/submit` | his | OUTPATIENT_DOCTOR |
-| ⬜ | P1 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
+| ✅ | P1 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/check-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/inspection-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P3 | POST | `/doctor/disposal-requests` | his | OUTPATIENT_DOCTOR |
@@ -477,7 +477,14 @@ Mock 数据结构 **与本文件一致**。
 
 **效果**：`medical_record.status` → 2，患者端可见
 
-### GET `/doctor/registers/{registerId}/orders` ⬜ P1
+### GET `/doctor/diseases` ✅ P1
+
+**页面**：医生工作台病历「ICD 疾病」多选  
+**Query**：`keyword?`, `page`, `pageSize`（默认 50）  
+**Response `data.list[]`**：`id`, `diseaseCode`, `diseaseName`, `diseaseCategory?`  
+**说明**：只读查共享库 `disease` 表；与 `/admin/diseases` 字段一致，供门诊医生使用（无需 ADMIN 角色）。
+
+### GET `/doctor/registers/{registerId}/orders` ✅ P1
 
 **页面**：医生工作台「本次就诊医嘱」面板（`RegisterOrdersPanel`）  
 **Response**：与 §4 `GET /patient/registers/{id}/orders` **完全相同**（含 `list[]` 汇总 + `checks/inspections/disposals/prescriptions` 明细）
@@ -896,7 +903,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | 优先级 | 模块 | 接口 / 改动 |
 |--------|------|-------------|
 | P0 | his · 医生 | `POST /doctor/registers/{id}/finish` |
-| P0 | his · 医生/患者 | `GET /doctor/registers/{id}/orders`（患者端同路径 ⬜） |
+| P0 | his · 医生/患者 | `GET /doctor/registers/{id}/orders` ✅（患者端同路径 ⬜） |
 | P0 | lis/pacs/disposal | `GET/POST .../result-detail`, `POST .../ai-report` |
 | P1 | his · 医生 | 队列补 `noonLabel`；`triageLevel/triageNote`（或 ai-bridge assignments） |
 | P1 | his · 医生 | `GET /doctor/*-requests/{id}/result` 扩展 §1.7 字段 |

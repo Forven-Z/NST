@@ -2,8 +2,10 @@ package com.hospital.his.controller.doctor;
 
 import com.hospital.common.Result;
 import com.hospital.his.dto.doctor.MedicalRecordSaveRequest;
+import com.hospital.his.service.DoctorDictQueryService;
 import com.hospital.his.service.DoctorMedicalRecordService;
 import com.hospital.his.service.DoctorQueueService;
+import com.hospital.his.service.RegisterOrdersService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +25,8 @@ public class DoctorController {
 
     private final DoctorQueueService doctorQueueService;
     private final DoctorMedicalRecordService doctorMedicalRecordService;
+    private final RegisterOrdersService registerOrdersService;
+    private final DoctorDictQueryService doctorDictQueryService;
 
     @GetMapping("/queues")
     public Result<Map<String, Object>> listQueue(
@@ -48,5 +52,18 @@ public class DoctorController {
             @PathVariable Long registerId,
             @RequestBody MedicalRecordSaveRequest request) {
         return Result.success(doctorMedicalRecordService.saveMedicalRecord(registerId, request));
+    }
+
+    @GetMapping("/registers/{registerId}/orders")
+    public Result<Map<String, Object>> getRegisterOrders(@PathVariable Long registerId) {
+        return Result.success(registerOrdersService.getOrdersForDoctor(registerId));
+    }
+
+    @GetMapping("/diseases")
+    public Result<Map<String, Object>> listDiseases(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return Result.success(doctorDictQueryService.listDiseases(keyword, page, pageSize));
     }
 }

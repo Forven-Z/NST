@@ -81,6 +81,21 @@ public class InspectionRequestRepository {
                 .optional();
     }
 
+    public java.util.List<Map<String, Object>> findByRegisterId(Long registerId) {
+        return jdbcClient.sql("""
+                        SELECT ir.id, ir.register_id, ir.patient_id, ir.medical_technology_id, ir.doctor_id,
+                               ir.item_price, ir.purpose, ir.body_part, ir.remark, ir.status,
+                               ir.result_text, ir.result_time, mt.item_name
+                        FROM inspection_request ir
+                        JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        WHERE ir.register_id = :registerId AND ir.delmark = 0
+                        ORDER BY ir.create_time ASC
+                        """)
+                .param("registerId", registerId)
+                .query((rs, rowNum) -> mapRow(rs))
+                .list();
+    }
+
     /** 患者端：已出结果的检验报告列表 */
     public java.util.List<Map<String, Object>> findResultsByPatient(Long patientId) {
         return jdbcClient.sql("""
