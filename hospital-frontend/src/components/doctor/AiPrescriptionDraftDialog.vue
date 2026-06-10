@@ -6,7 +6,7 @@ import {
   createPrescriptionAiDraft,
   updatePrescriptionAiDraft,
 } from '../../api/doctor'
-import { fetchDrugs } from '../../api/admin'
+import { fetchDrugs } from '../../api/doctor'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

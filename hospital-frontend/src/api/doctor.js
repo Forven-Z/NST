@@ -15,6 +15,8 @@ import {
   mockConfirmMedicalRecord,
   mockFetchRegisterResults,
   mockFinishVisit,
+  mockDoctorMedicalTechnologies,
+  mockDoctorDrugs,
   mockSaveMedicalRecord,
 } from '../mock/doctor'
 import { MOCK_DISEASES } from '../mock/dict'
@@ -61,6 +63,16 @@ export function confirmMedicalRecord(registerId, data) {
 export function fetchDiseases(params) {
   if (useMock()) return mockResult({ list: MOCK_DISEASES, page: 1, pageSize: 50 })
   return request.get('/doctor/diseases', { params })
+}
+
+export function fetchMedicalTechnologies(params) {
+  if (useMock()) return mockDoctorMedicalTechnologies(params)
+  return request.get('/doctor/medical-technologies', { params })
+}
+
+export function fetchDrugs(params) {
+  if (useMock()) return mockDoctorDrugs(params)
+  return request.get('/doctor/drugs', { params })
 }
 
 export function createInspectionOrder(data) {

@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.2 | 2026-06-10  
+> **版本**：v2.3 | 2026-06-10  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
 > **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14**（业务 ID 即各表 `id`）  
@@ -217,6 +217,8 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P1 | POST | `/doctor/medical-records/{registerId}/submit` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET | `/doctor/diseases` | his | OUTPATIENT_DOCTOR |
+| ✅ | P1 | GET | `/doctor/medical-technologies` | his | OUTPATIENT_DOCTOR |
+| ✅ | P1 | GET | `/doctor/drugs` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/check-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | POST | `/doctor/inspection-requests` | his | OUTPATIENT_DOCTOR |
 | ✅ | P3 | POST | `/doctor/disposal-requests` | his | OUTPATIENT_DOCTOR |
@@ -533,6 +535,20 @@ Mock 数据结构 **与本文件一致**。
 **Query**：`keyword?`, `page`, `pageSize`（默认 50）  
 **Response `data.list[]`**：`id`, `diseaseCode`, `diseaseName`, `diseaseCategory?`  
 **说明**：只读查共享库 `disease` 表；与 `/admin/diseases` 字段一致，供门诊医生使用（无需 ADMIN 角色）。
+
+### GET `/doctor/medical-technologies` ✅ P1
+
+**页面**：医生工作台「开检查 / 开检验 / 开处置」弹窗（`DoctorTechOrderDialog`）  
+**Query**：`keyword?`, `techType?`（CHECK / INSPECTION / DISPOSAL）, `page`, `pageSize`（默认 50）  
+**Response `data.list[]`**：`id`, `itemCode`, `itemName`, `techType`, `price`, `deptId?`  
+**说明**：只读查共享库 `medical_technology` 表；与 `/admin/medical-technologies` 字段一致，供门诊医生开立医技医嘱（无需 ADMIN 角色）。
+
+### GET `/doctor/drugs` ✅ P1
+
+**页面**：医生工作台「手工开处方 / AI 处方草稿」弹窗（`DoctorPrescriptionDialog`、`AiPrescriptionDraftDialog`）  
+**Query**：`keyword?`, `page`, `pageSize`（默认 50）  
+**Response `data.list[]`**：`id`, `drugCode`, `drugName`, `drugFormat`, `drugDosage`, `drugType`, `unit`, `retailPrice`, `stockQty`  
+**说明**：只读查共享库 `drug_info` 表；与 `/admin/drugs` 字段一致，供门诊医生开立处方（无需 ADMIN 角色）。
 
 ### GET `/doctor/registers/{registerId}/orders` ✅ P1
 
@@ -1038,6 +1054,8 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `doctor.js` | `confirmMedicalRecord` | `POST /doctor/medical-records/{id}/submit` | ✅ | ✅ |
 | `doctor.js` | `fetchRegisterOrders` | `GET /doctor/registers/{id}/orders` | ✅ | ✅ |
 | `doctor.js` | `fetchRegisterResults` | §5.5（无 HTTP 聚合） | ✅ 客户端组装 | — |
+| `doctor.js` | `fetchMedicalTechnologies` | `GET /doctor/medical-technologies` | ✅ | ✅ |
+| `doctor.js` | `fetchDrugs` | `GET /doctor/drugs` | ✅ | ✅ |
 | `registrar.js` | `fetchRegistLevels` | `GET /registrar/regist-levels` | ❌ `/admin/regist-levels` | ⬜ |
 | `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
@@ -1057,6 +1075,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | G4 | 医嘱 status 30 文案 | 「执行中」 | 「执行完成」 | P1 |
 | G5 | 医技 UI | `ResultReportSections` + result-detail | 单字段 resultText | P1 |
 | G6 | 病历疾病 | 已联调 `diseaseEntries` | ✅ | — |
+| G8 | 医生开单字典 | `GET /doctor/medical-technologies`、`/doctor/drugs` | ✅ | P0 |
 | G7 | 废弃文档 | 仅维护 `docs/API.md` | `API_CONTRACT.md` 历史路径 | P0 |
 
 ---
@@ -1065,6 +1084,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.3 | 2026-06-10 | 医生工作台字典只读：`GET /doctor/medical-technologies`、`GET /doctor/drugs`；附录 G8 |
 | v2.2 | 2026-06-10 | 对齐 PC 前端审计：§0.3～0.4 前端现状、§5.5 无聚合 results、§8.1 regist-levels、§8.5/§9.5 Mock 排班请假、§6.0 Method 对齐、附录 F/G |
 | v2.1 | 2026-06-09 | 对齐 PC 医生工作台/医技队列 Mock：finish/orders、三段式报告、result-detail/ai-report、状态枚举、AI 草稿结构、白名单与附录 A |
 | v2.0 | 2026-06-04 | **合并**原 `API.md` + `API_INTERFACE_SPEC.md` 为唯一契约；**统一路径**（§〇）；增加实现状态总览 |

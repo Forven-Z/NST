@@ -1,4 +1,5 @@
 import { mockResult } from '../utils/mock'
+import { MOCK_DRUGS, MOCK_MEDICAL_TECHNOLOGIES } from './dict'
 import {
   callRegister,
   confirmAiDraft,
@@ -159,4 +160,16 @@ export function mockDiagnosisSuggestForRegister(registerId, recordOverride) {
     needDisposal: false,
     reason: '【Mock】通用初诊建议；请结合病史与查体',
   })
+}
+
+export function mockDoctorMedicalTechnologies(params) {
+  let list = [...MOCK_MEDICAL_TECHNOLOGIES]
+  if (params?.techType) {
+    list = list.filter((t) => t.techType === params.techType)
+  }
+  return mockResult({ list, page: 1, pageSize: params?.pageSize ?? 50 })
+}
+
+export function mockDoctorDrugs() {
+  return mockResult({ list: MOCK_DRUGS, page: 1, pageSize: 50 })
 }

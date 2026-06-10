@@ -78,4 +78,21 @@ public class DoctorController {
             @RequestParam(defaultValue = "50") int pageSize) {
         return Result.success(doctorDictQueryService.listDiseases(keyword, page, pageSize));
     }
+
+    @GetMapping("/medical-technologies")
+    public Result<Map<String, Object>> listMedicalTechnologies(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String techType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return Result.success(doctorDictQueryService.listMedicalTechnologies(keyword, techType, page, pageSize));
+    }
+
+    @GetMapping("/drugs")
+    public Result<Map<String, Object>> listDrugs(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return Result.success(doctorDictQueryService.listDrugs(keyword, page, pageSize));
+    }
 }
