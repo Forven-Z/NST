@@ -13,6 +13,8 @@ import {
   mockFetchMedicalRecord,
   mockFetchRegisterOrders,
   mockConfirmMedicalRecord,
+  mockFetchRegisterResults,
+  mockConfirmMedicalRecord,
   mockFinishVisit,
   mockSaveMedicalRecord,
 } from '../mock/doctor'
@@ -34,7 +36,7 @@ export function fetchDoctorQueue(params) {
 
 export function callPatient(registerId) {
   if (useMock()) return mockCallPatient(registerId)
-  return request.post(`/doctor/call/${registerId}`)
+  return request.post(`/doctor/registers/${registerId}/call`)
 }
 
 export function finishVisit(registerId) {
@@ -44,7 +46,7 @@ export function finishVisit(registerId) {
 
 export function fetchMedicalRecord(registerId) {
   if (useMock()) return mockFetchMedicalRecord(registerId)
-  return request.get(`/doctor/medical-records/${registerId}`)
+  return request.get(`/doctor/registers/${registerId}/medical-record`)
 }
 
 export function saveMedicalRecord(registerId, data) {
@@ -77,16 +79,19 @@ export function createDisposalOrder(data) {
   return request.post('/doctor/disposal-requests', data)
 }
 
+/** @deprecated 请使用 fetchRegisterResults 聚合接口 */
 export function fetchInspectionResult(inspectionRequestId) {
   if (useMock()) return mockFetchInspectionResult(inspectionRequestId)
   return request.get(`/doctor/inspection-requests/${inspectionRequestId}/result`)
 }
 
+/** @deprecated 请使用 fetchRegisterResults */
 export function fetchCheckResult(checkRequestId) {
   if (useMock()) return mockFetchCheckResult(checkRequestId)
   return request.get(`/doctor/check-requests/${checkRequestId}/result`)
 }
 
+/** @deprecated 请使用 fetchRegisterResults */
 export function fetchDisposalResult(disposalRequestId) {
   if (useMock()) return mockFetchDisposalResult(disposalRequestId)
   return request.get(`/doctor/disposal-requests/${disposalRequestId}/result`)
@@ -95,6 +100,11 @@ export function fetchDisposalResult(disposalRequestId) {
 export function fetchRegisterOrders(registerId) {
   if (useMock()) return mockFetchRegisterOrders(registerId)
   return request.get(`/doctor/registers/${registerId}/orders`)
+}
+
+export function fetchRegisterResults(registerId) {
+  if (useMock()) return mockFetchRegisterResults(registerId)
+  return request.get(`/doctor/registers/${registerId}/results`)
 }
 
 export function createPrescription(data) {

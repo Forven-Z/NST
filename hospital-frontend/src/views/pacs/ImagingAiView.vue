@@ -1,20 +1,15 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { INTEGRATION_ENV } from '../../config/integrations'
-import { fetchPacsResultDetail, generatePacsAiReport } from '../../api/pacs'
 
 const route = useRoute()
 const router = useRouter()
 
-const loading = ref(false)
-const generating = ref(false)
-const detail = ref(null)
-
 const checkRequestId = computed(() => Number(route.query.checkRequestId) || null)
-const patientName = computed(() => route.query.patientName || detail.value?.patientName || '-')
-const itemName = computed(() => route.query.itemName || detail.value?.itemName || '-')
+const patientName = computed(() => route.query.patientName || '-')
+const itemName = computed(() => route.query.itemName || '-')
 
 const ctModelUrl = computed(() => {
   if (!INTEGRATION_ENV.ctModelViewerUrl || !checkRequestId.value) return ''
@@ -22,21 +17,6 @@ const ctModelUrl = computed(() => {
   const sep = base.includes('?') ? '&' : '?'
   return `${base}${sep}checkRequestId=${checkRequestId.value}`
 })
-
-onMounted(loadDetail)
-
-async function loadDetail() {
-  if (!checkRequestId.value) return
-  loading.value = true
-  try {
-    const res = await fetchPacsResultDetail(checkRequestId.value)
-    detail.value = res.data
-  } catch (err) {
-    ElMessage.error(err.message || '加载检查详情失败')
-  } finally {
-    loading.value = false
-  }
-}
 
 function openCtModelViewer() {
   if (ctModelUrl.value) {
@@ -76,7 +56,7 @@ function goBack() {
       description="打开 CT 影像阅片，或生成 AI 影像分析报告。"
     />
 
-    <el-card v-loading="loading" shadow="never">
+    <el-card shadow="never">
       <template #header>
         <div class="card-header">
           <div>
@@ -88,7 +68,7 @@ function goBack() {
       </template>
 
       <div v-if="!checkRequestId" class="empty-hint">
-        请从「检查队列」或「影像任务」点击「影像 AI 工作台」进入。
+        请从「检查队列」点击「影像 AI 工作台」进入。
       </div>
 
       <template v-else>
@@ -149,7 +129,6 @@ function goBack() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 16px;
 }
 
 @media (max-width: 720px) {

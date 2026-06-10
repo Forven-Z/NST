@@ -409,8 +409,38 @@ export function getMedicalRecord(registerId) {
   return state.medicalRecords[Number(registerId)] || {}
 }
 
+const RECORD_STATUS_LABEL = { 0: '书写中', 1: '已保存', 2: '已确诊提交' }
+
 export function saveMedicalRecord(registerId, data) {
-  state.medicalRecords[Number(registerId)] = { ...data }
+  state.medicalRecords[Number(registerId)] = {
+    ...data,
+    status: 1,
+    statusLabel: RECORD_STATUS_LABEL[1],
+  }
+  return state.medicalRecords[Number(registerId)]
+}
+
+export function confirmMedicalRecord(registerId, data) {
+  const existing = getMedicalRecord(registerId)
+  state.medicalRecords[Number(registerId)] = {
+    ...existing,
+    ...data,
+    status: 2,
+    statusLabel: RECORD_STATUS_LABEL[2],
+    confirmed: true,
+    confirmedAt: nowIso(),
+  }
+  return state.medicalRecords[Number(registerId)]
+}
+
+export function confirmMedicalRecord(registerId, data) {
+  const existing = getMedicalRecord(registerId)
+  state.medicalRecords[Number(registerId)] = {
+    ...existing,
+    ...data,
+    confirmed: true,
+    confirmedAt: nowIso(),
+  }
   return state.medicalRecords[Number(registerId)]
 }
 
@@ -671,6 +701,33 @@ export function getRegisterOrders(registerId) {
     disposals: state.disposalRequests.filter((r) => r.registerId === rid),
     prescriptions: state.prescriptions.filter((r) => r.registerId === rid),
   }
+}
+
+export function getRegisterResults(registerId) {
+  const orders = getRegisterOrders(registerId)
+  const results = []
+  for (const item of orders.list) {
+    if (item.kind === 'prescription' || item.status < 40) continue
+    try {
+      let detail
+      if (item.kind === 'inspection') detail = getInspectionResult(item.requestId)
+      else if (item.kind === 'check') detail = getCheckResult(item.requestId)
+      else if (item.kind === 'disposal') detail = getDisposalResult(item.requestId)
+      else continue
+      results.push({
+        kind: item.kind,
+        requestId: item.requestId,
+        typeLabel: item.typeLabel,
+        itemName: item.itemName,
+        resultText: detail.resultText,
+        resultAttachment: detail.resultAttachment,
+        reportTime: detail.reportTime,
+      })
+    } catch {
+      /* 尚未出具 */
+    }
+  }
+  return { registerId: Number(registerId), orders: orders.list, results }
 }
 
 export function getImagingStudies(params = {}) {

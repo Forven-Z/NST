@@ -46,4 +46,4 @@ npm run dev
 | **4** | ADR-015 草稿编辑确认弹窗、医技 resultText 录入 | ✅（SSE 待 lml 联调） |
 | **5** | 管理员排班 + Timefold（P5） | 占位 |
 
-对照 [API.md](../docs/API.md) 附录 A · [TEAM_COLLABORATION.md](../docs/TEAM_COLLABORATION.md) §九。
+对照 [API.md](../docs/API.md) · [TEAM_COLLABORATION.md](../docs/TEAM_COLLABORATION.md) §九。

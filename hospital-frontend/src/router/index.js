@@ -23,6 +23,11 @@ const router = createRouter({
           name: 'doctor-workspace',
           component: () => import('../views/doctor/WorkspaceView.vue'),
         },
+        {
+          path: 'my-schedules',
+          name: 'doctor-my-schedules',
+          component: () => import('../views/doctor/MyScheduleView.vue'),
+        },
       ],
     },
     {
@@ -32,6 +37,11 @@ const router = createRouter({
       children: [
         { path: '', redirect: '/lis/queue' },
         { path: 'queue', name: 'lis-queue', component: () => import('../views/lis/QueueView.vue') },
+        {
+          path: 'my-schedules',
+          name: 'lis-my-schedules',
+          component: () => import('../views/doctor/MyScheduleView.vue'),
+        },
       ],
     },
     {
@@ -51,6 +61,11 @@ const router = createRouter({
           name: 'pacs-imaging-ai',
           component: () => import('../views/pacs/ImagingAiView.vue'),
         },
+        {
+          path: 'my-schedules',
+          name: 'pacs-my-schedules',
+          component: () => import('../views/doctor/MyScheduleView.vue'),
+        },
       ],
     },
     {
@@ -64,6 +79,11 @@ const router = createRouter({
           name: 'disposal-queue',
           component: () => import('../views/disposal/QueueView.vue'),
         },
+        {
+          path: 'my-schedules',
+          name: 'disposal-my-schedules',
+          component: () => import('../views/doctor/MyScheduleView.vue'),
+        },
       ],
     },
     {
@@ -76,6 +96,11 @@ const router = createRouter({
           path: 'pending',
           name: 'pharmacy-pending',
           component: () => import('../views/pharmacy/PendingView.vue'),
+        },
+        {
+          path: 'my-schedules',
+          name: 'pharmacy-my-schedules',
+          component: () => import('../views/doctor/MyScheduleView.vue'),
         },
       ],
     },
@@ -100,6 +125,11 @@ const router = createRouter({
           name: 'registrar-refund',
           component: () => import('../views/registrar/RefundView.vue'),
         },
+        {
+          path: 'my-schedules',
+          name: 'registrar-my-schedules',
+          component: () => import('../views/doctor/MyScheduleView.vue'),
+        },
       ],
     },
     {
@@ -107,7 +137,17 @@ const router = createRouter({
       component: () => import('../layouts/AdminLayout.vue'),
       meta: { requiresAuth: true, role: 'ADMIN' },
       children: [
-        { path: '', redirect: '/admin/dict' },
+        { path: '', redirect: '/admin/employees' },
+        {
+          path: 'departments',
+          name: 'admin-departments',
+          component: () => import('../views/admin/DepartmentsView.vue'),
+        },
+        {
+          path: 'employees',
+          name: 'admin-employees',
+          component: () => import('../views/admin/EmployeesView.vue'),
+        },
         {
           path: 'dict',
           name: 'admin-dict',

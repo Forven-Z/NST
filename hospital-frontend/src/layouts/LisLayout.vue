@@ -1,7 +1,10 @@
 <script setup>
 import StaffShell from '../components/layout/StaffShell.vue'
 
-const menuItems = [{ path: '/lis/queue', label: '检验队列' }]
+const menuItems = [
+  { path: '/lis/queue', label: '检验队列' },
+  { path: '/lis/my-schedules', label: '我的排班' },
+]
 </script>
 
 <template>

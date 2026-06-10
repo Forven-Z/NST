@@ -5,6 +5,7 @@ const menuItems = [
   { path: '/registrar/register', label: '窗口挂号' },
   { path: '/registrar/charge', label: '窗口收费' },
   { path: '/registrar/refund', label: '退费退号' },
+  { path: '/registrar/my-schedules', label: '我的排班' },
 ]
 </script>
 

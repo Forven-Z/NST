@@ -128,6 +128,47 @@ async function onSelectRow(row) {
   ordersPanelRef.value?.reload?.()
 }
 
+function applyDiseaseFields(data) {
+  if (Array.isArray(data.diseaseEntries) && data.diseaseEntries.length) {
+    const primary = data.diseaseEntries.find((e) => e.diseaseType === 1)
+    const secondary = data.diseaseEntries.filter((e) => e.diseaseType === 2).map((e) => e.diseaseId)
+    recordForm.primaryDiseaseId = primary?.diseaseId ?? null
+    recordForm.secondaryDiseaseIds = secondary
+    recordForm.diseaseIds = [
+      ...(primary ? [primary.diseaseId] : []),
+      ...secondary.filter((id) => id !== primary?.diseaseId),
+    ]
+    return
+  }
+  const ids = data.diseaseIds || []
+  recordForm.diseaseIds = ids
+  recordForm.primaryDiseaseId = ids[0] ?? null
+  recordForm.secondaryDiseaseIds = ids.slice(1)
+}
+
+function buildDiseaseEntries() {
+  const entries = []
+  if (recordForm.primaryDiseaseId) {
+    entries.push({ diseaseId: recordForm.primaryDiseaseId, diseaseType: 1 })
+  }
+  for (const id of recordForm.secondaryDiseaseIds || []) {
+    if (id && id !== recordForm.primaryDiseaseId) {
+      entries.push({ diseaseId: id, diseaseType: 2 })
+    }
+  }
+  return entries
+}
+
+function buildRecordPayload() {
+  const diseaseEntries = buildDiseaseEntries()
+  return {
+    ...recordForm,
+    diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
+    diseaseEntries,
+    diseaseIds: diseaseEntries.map((e) => e.diseaseId),
+  }
+}
+
 async function loadMedicalRecord(registerId) {
   try {
     const res = await fetchMedicalRecord(registerId)
@@ -145,6 +186,7 @@ async function loadMedicalRecord(registerId) {
       inspectionAdvice: data.inspectionAdvice || '',
       diseaseIds: data.diseaseIds || [],
     })
+    applyDiseaseFields(data)
     aiDiagnosisText.value = data.diagnosis || ''
     recordSaved.value = !!data.readme
   } catch (err) {
@@ -170,6 +212,21 @@ async function onSaveRecord() {
     ElMessage.error(err.message || '保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function onConfirmDiagnosis() {
+  if (!currentRegisterId.value) return ElMessage.warning('请先选择接诊中的患者')
+  confirming.value = true
+  try {
+    const res = await confirmMedicalRecord(currentRegisterId.value, buildRecordPayload())
+    recordStatus.value = res.data?.status ?? 2
+    recordStatusLabel.value = res.data?.statusLabel || '已确诊提交'
+    ElMessage.success('确诊已提交')
+  } catch (err) {
+    ElMessage.error(err.message || '确诊提交失败')
+  } finally {
+    confirming.value = false
   }
 }
 
@@ -366,6 +423,13 @@ function formatGender(gender) {
               · {{ currentPatient.registLevelName }}
             </template>
           </span>
+          <el-tag
+            v-if="currentRegisterId"
+            :type="recordStatus === 2 ? 'success' : recordStatus === 1 ? 'warning' : 'info'"
+            size="small"
+          >
+            病历 {{ recordStatusLabel }}
+          </el-tag>
           <div class="header-actions">
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('CHECK')">开检查</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('INSPECTION')">开检验</el-button>

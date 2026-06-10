@@ -1,12 +1,6 @@
 import request from './request'
 import { useMock } from '../utils/mock'
-import {
-  mockLisExecute,
-  mockLisGenerateAiReport,
-  mockLisQueue,
-  mockLisResultDetail,
-  mockLisSaveResult,
-} from '../mock/lis'
+import { mockLisExecute, mockLisQueue, mockLisSaveResult } from '../mock/lis'
 
 export function fetchLisQueue(params) {
   if (useMock()) return mockLisQueue(params)

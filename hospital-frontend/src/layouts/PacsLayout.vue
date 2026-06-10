@@ -5,6 +5,7 @@ const menuItems = [
   { path: '/pacs/queue', label: '检查队列' },
   { path: '/pacs/imaging', label: '影像任务' },
   { path: '/pacs/imaging-ai', label: '影像 AI 工作台' },
+  { path: '/pacs/my-schedules', label: '我的排班' },
 ]
 </script>
 
