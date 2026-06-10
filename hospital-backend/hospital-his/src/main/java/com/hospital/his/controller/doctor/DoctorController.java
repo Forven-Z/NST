@@ -42,6 +42,11 @@ public class DoctorController {
         return Result.success(doctorQueueService.callPatient(registerId));
     }
 
+    @PostMapping("/registers/{registerId}/finish")
+    public Result<Map<String, Object>> finishVisit(@PathVariable Long registerId) {
+        return Result.success(doctorQueueService.finishVisit(registerId));
+    }
+
     @GetMapping("/medical-records/{registerId}")
     public Result<Map<String, Object>> getMedicalRecord(@PathVariable Long registerId) {
         return Result.success(doctorMedicalRecordService.getMedicalRecord(registerId));

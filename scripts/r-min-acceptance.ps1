@@ -90,6 +90,23 @@ Test-Step 'D3c submit medical record' ($d3c.code -eq 200 -and $d3c.data.status -
 $d4 = Invoke-RestMethod -Uri "$base/patient/medical-records/$registerId" -Headers $patientHeaders
 Test-Step 'D4 patient read record' ($d4.code -eq 200 -and $d4.data.readme -eq 'accept chief') ($d4 | ConvertTo-Json -Compress)
 
+# D5 - finish visit
+$d5 = Invoke-RestMethod -Uri "$base/doctor/registers/$registerId/finish" -Method POST -Headers $doctorHeaders
+Test-Step 'D5 finish visit' ($d5.code -eq 200 -and $d5.data.visitState -eq 3) ($d5 | ConvertTo-Json -Compress)
+
+# D5b - idempotent finish
+$d5b = Invoke-RestMethod -Uri "$base/doctor/registers/$registerId/finish" -Method POST -Headers $doctorHeaders
+Test-Step 'D5b idempotent finish' ($d5b.code -eq 200 -and $d5b.data.visitState -eq 3) ($d5b | ConvertTo-Json -Compress)
+
+# D5c - medical record blocked after finish
+$d5c = Invoke-RestMethod -Uri "$base/doctor/medical-records/$registerId" -Method PUT -Headers $doctorHeaders -ContentType 'application/json' -Body $recBody
+$d5cOk = ($d5c.code -ne 200)
+Test-Step 'D5c record blocked after finish' $d5cOk ($d5c | ConvertTo-Json -Compress)
+
+# D6 - patient queue status after finish
+$d6 = Invoke-RestMethod -Uri "$base/patient/registers/$registerId/queue-status" -Headers $patientHeaders
+Test-Step 'D6 patient queue after finish' ($d6.code -eq 200 -and $d6.data.visitState -eq 3) ($d6 | ConvertTo-Json -Compress)
+
 Write-Host ""
 Write-Host "Summary: PASS=$passed FAIL=$failed registerId=$registerId"
 if ($failed -eq 0) { Write-Host "R-min ACCEPTANCE: PASSED" -ForegroundColor Green } else { Write-Host "R-min ACCEPTANCE: FAILED" -ForegroundColor Red }

@@ -212,7 +212,7 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2 | GET | `/patient/reports/{type}/{requestId}` | his | PATIENT |
 | ✅ | P1 | GET | `/doctor/queues` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | POST | `/doctor/call/{registerId}` | his | OUTPATIENT_DOCTOR |
-| ⬜ | P1 | POST | `/doctor/registers/{registerId}/finish` | his | OUTPATIENT_DOCTOR |
+| ✅ | P1 | POST | `/doctor/registers/{registerId}/finish` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET/PUT | `/doctor/medical-records/{registerId}` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | POST | `/doctor/medical-records/{registerId}/submit` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | GET | `/doctor/registers/{registerId}/orders` | his | OUTPATIENT_DOCTOR |
@@ -499,7 +499,7 @@ Mock 数据结构 **与本文件一致**。
 **效果**：`visit_state` → 2（接诊中）  
 **Response `data`**：`registerId`, `visitState`
 
-### POST `/doctor/registers/{registerId}/finish` ⬜ P1
+### POST `/doctor/registers/{registerId}/finish` ✅ P1
 
 **页面**：医生工作台「结束看诊」  
 **前置**：当前医生、`visit_state = 2`  
@@ -969,7 +969,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 角色 | 页面 | 主要接口（定稿） | Mock |
 |------|------|------------------|------|
-| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/registers/{id}/orders`（§5.5 组装结果）, `/registers/{id}/finish` ⬜, `/medical-records/{id}/submit` ✅, `/*-requests` 开单 | 部分 |
+| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/registers/{id}/orders`（§5.5 组装结果）, `/registers/{id}/finish` ✅, `/medical-records/{id}/submit` ✅, `/*-requests` 开单 | 部分 |
 | 医生 | 我的排班 | §8.5 `/staff/**` | 🎭 |
 | 医生 | AI 辅助 | `/ai/diagnosis/suggest` STUB, `/*/ai-draft` STUB | 🎭 |
 | LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`；result 用 **POST** | 部分 |
@@ -1013,7 +1013,6 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 优先级 | 模块 | 接口 / 改动 |
 |--------|------|-------------|
-| P0 | his · 医生 | `POST /doctor/registers/{id}/finish` |
 | P0 | his · 挂号 | `GET /registrar/regist-levels`（REGISTRAR 只读） |
 | P0 | 前端 | 医技 result：`PUT`→`POST`；admin：`schedules`→`scheduling`（附录 G） |
 | P0 | his · 医生/患者 | 患者端 `GET /patient/registers/{id}/orders` ⬜ |
@@ -1033,7 +1032,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 |------|------|----------|----------|------|
 | `doctor.js` | `fetchDoctorQueue` | `GET /doctor/queues` | ✅ | ✅ |
 | `doctor.js` | `callPatient` | `POST /doctor/call/{id}` | ✅ | ✅ |
-| `doctor.js` | `finishVisit` | `POST /doctor/registers/{id}/finish` | ✅ | ⬜ |
+| `doctor.js` | `finishVisit` | `POST /doctor/registers/{id}/finish` | ✅ | ✅ |
 | `doctor.js` | `fetchMedicalRecord` | `GET /doctor/medical-records/{id}` | ✅ | ✅ |
 | `doctor.js` | `saveMedicalRecord` | `PUT /doctor/medical-records/{id}` | ✅ | ✅ |
 | `doctor.js` | `confirmMedicalRecord` | `POST /doctor/medical-records/{id}/submit` | ✅ | ✅ |

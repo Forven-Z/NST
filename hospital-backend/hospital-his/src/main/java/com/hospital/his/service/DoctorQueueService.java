@@ -62,4 +62,26 @@ public class DoctorQueueService {
         registerRepository.markCalled(registerId);
         return Map.of("registerId", registerId, "visitState", VisitState.IN_CONSULTATION);
     }
+
+    @Transactional
+    public Map<String, Object> finishVisit(Long registerId) {
+        Long employeeId = AuthContextHolder.require().getEmployeeId();
+        Map<String, Object> register = registerRepository.findById(registerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
+
+        if (!employeeId.equals(((Number) register.get("employeeId")).longValue())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权操作该挂号");
+        }
+
+        int currentState = ((Number) register.get("visitState")).intValue();
+        if (currentState == VisitState.FINISHED) {
+            return Map.of("registerId", registerId, "visitState", VisitState.FINISHED);
+        }
+        if (currentState != VisitState.IN_CONSULTATION) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅接诊中状态可结束看诊");
+        }
+
+        registerRepository.markFinished(registerId);
+        return Map.of("registerId", registerId, "visitState", VisitState.FINISHED);
+    }
 }
