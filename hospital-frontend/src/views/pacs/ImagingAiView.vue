@@ -79,12 +79,14 @@ function onUploadProgress(e) {
 
 function startInferenceProgress() {
   stopProgressTimer()
-  setProgress(30, 'CNN 推理中（约 15–60 秒）…')
+  setProgress(30, 'CNN 推理中（CPU 约 3–8 分钟，请勿重复点击）…')
   progressTimer = setInterval(() => {
     if (progressPct.value < 88) {
       setProgress(progressPct.value + 1)
+    } else if (progressPct.value < 95) {
+      setProgress(progressPct.value + 1, 'CNN 仍在推理，请耐心等待…')
     }
-  }, 1200)
+  }, 3000)
 }
 
 function currentFiles() {
