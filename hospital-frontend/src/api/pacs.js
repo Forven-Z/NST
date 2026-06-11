@@ -15,7 +15,7 @@ export function executePacsRequest(id) {
 
 export function savePacsResult(id, data) {
   if (useMock()) return mockPacsSaveResult(id, data)
-  return request.put(`/pacs/requests/${id}/result`, data)
+  return request.post(`/pacs/requests/${id}/result`, data)
 }
 
 export function fetchImagingStudies(params) {

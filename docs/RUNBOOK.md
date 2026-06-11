@@ -339,10 +339,20 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | 步骤 | 预期 |
 |------|------|
 | 医生开检验 → 患者缴费 | `inspection_request.status=20` |
-| `GET /lis/queue` → 录入结果 | `status=40` |
-| 医生查看结果 | 可见 |
+| `GET /lis/queue` → `POST execute` | `status=30`（执行中） |
+| `GET result-detail`（发布前） | 含 `criticalItems[]`（血常规 WBC 异常时非空） |
+| 患者退费（execute 后） | **失败**（400，status=30 不可退） |
+| `POST result` 发布 | `status=40` |
+| 医生查看结果 | §1.7 全字段（`instrumentData`、`reportTime` 等） |
+| 患者 `GET /patient/reports?type=lab` | 有 `summary`，**无** `instrumentData` |
 
-脚本：`scripts/r-lis-acceptance.ps1`
+**手动联调（第三阶段）**
+
+1. **lab01** 登录 PC 检验科 → 队列选血常规 →「开始执行」→ 录入页应见仪器 STUB 与 `criticalItems` 对应异常项 → 点「发布」应弹出 **危急值确认** 对话框 → 确认后发布成功。
+2. **execute 后退费负例**：患者端或小程序对同一检验账单发起退费 → 应返回错误（与 `RefundService` 一致）。
+3. **doctor01** 医生工作台 → 本次就诊医嘱 → 检验「查看结果」→ 三段式只读（仪器 / AI / 医师）+ 报告时间。
+
+脚本：`scripts/r-lis-acceptance.ps1`（自动化覆盖 E3a～E5）
 
 ### 12.4 R-pacs / 药房 / 逆向 — P3
 
