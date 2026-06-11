@@ -38,6 +38,6 @@ cd NST
 
 ## 当前阶段
 
-**P3 核心已完成**（门诊 + 检验 + 检查 + 发药 + 退号退费退药）；详见 [docs/PROGRESS.md](./docs/PROGRESS.md)。
+**P3 核心已完成**（门诊 + 检验 + 检查 + 发药 + 退号退费退药）；**PACS 检查队列对齐 LIS 三段式**进行中，详见 [docs/PROGRESS.md](./docs/PROGRESS.md) 与 [PACS-LIS 实施计划](./docs/superpowers/plans/2026-06-11-pacs-lis-alignment.md)。
 
 **数据模型 v1.14 已定稿**：表结构、API、后端代码、前端 Mock 已对齐；联调前请按 [docs/sql/README.md](./docs/sql/README.md) 重建本地库。

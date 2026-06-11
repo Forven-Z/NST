@@ -1,8 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { INTEGRATION_ENV } from '../../config/integrations'
+import { generatePacsAiReport } from '../../api/pacs'
+
+const generating = ref(false)
+const detail = ref(null)
 
 const route = useRoute()
 const router = useRouter()
@@ -34,7 +38,12 @@ async function onAgentAiAnalysis() {
     detail.value = res.data
     ElMessage.success('AI 影像分析报告已生成，请返回队列核对录入')
   } catch (err) {
-    ElMessage.error(err.message || 'AI 分析生成失败')
+    const msg = err.message || ''
+    if (msg.includes('404') || msg.includes('501')) {
+      ElMessage.warning('AI 影像分析接口开发中')
+    } else {
+      ElMessage.error(msg || 'AI 分析生成失败')
+    }
   } finally {
     generating.value = false
   }
@@ -53,7 +62,7 @@ function goBack() {
       show-icon
       class="tip"
       title="影像 AI 工作台"
-      description="打开 CT 影像阅片，或生成 AI 影像分析报告。"
+      description="打开 CT 影像阅片，或生成 AI 检查报告草稿（文本 STUB）。完整 CNN 链路由影像组后续实现。"
     />
 
     <el-card shadow="never">

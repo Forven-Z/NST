@@ -2,7 +2,7 @@
 
 > **更新频率**：建议 **每周** 或里程碑完成时更新。  
 > **状态**：⬜ 未开始 · 🟨 进行中 · ✅ 已完成 · ⏸ 阻塞  
-> **版本**：2026-06-04  
+> **版本**：2026-06-11  
 > **数据模型对齐**：文档 + 后端 + 前端 Mock + 小程序 Mock 已同步 **DATABASE_DESIGN v1.14**（业务单号即表 `id`；药品 `drugFormat`/`drugDosage`/`drugType`）
 
 ---
@@ -11,9 +11,9 @@
 
 | 项 | 值 |
 |----|-----|
-| **目标阶段** | P3（R-pacs）— 核心已完成 |
-| **本迭代 DoD** | 见 [IMPLEMENTATION_PLAN.md §五](./IMPLEMENTATION_PLAN.md#五p3--r-pacs检查--处方--发药) |
-| **当前步骤** | ✅ 药房发药闭环 → Python AI / 排班 CRUD |
+| **目标阶段** | P3（R-pacs）— 核心已完成；**PACS 对齐 LIS 三段式** ✅ |
+| **本迭代 DoD** | [PACS-LIS 对齐规格](./superpowers/specs/2026-06-11-pacs-lis-alignment-design.md) · [实施计划](./superpowers/plans/2026-06-11-pacs-lis-alignment.md) |
+| **当前步骤** | 影像任务 `imaging-studies` & CNN 由 **wsh** 后续实现；下一阶段 Disposal 三段式对齐 |
 | **联调清单** | [RUNBOOK.md](./RUNBOOK.md) §十二 · [TEAM_COLLABORATION.md](./TEAM_COLLABORATION.md) |
 
 ---
@@ -49,6 +49,7 @@
 | hospital-his · 开立检验 | API §5.4 | ✅ | | `POST /doctor/inspection-requests` |
 | hospital-his · 医生读检验结果 | API §5.4 · 改进方案 §5.1 | ✅ | | `GET /doctor/inspection-requests/{id}/result` §1.7 全字段 |
 | hospital-his · 开立检查 | API §5.3 | ✅ | | `POST /doctor/check-requests` |
+| hospital-his · 医生读检查结果 | API §5.4 · §1.7 | ✅ | | `GET /doctor/check-requests/{id}/result` §1.7 全字段 |
 | hospital-his · 开立处方 | API §5.5 | ✅ | | `POST /doctor/prescriptions` |
 | hospital-his · 药房发药 | API §5.6 | ✅ | | `GET /pharmacy/pending`, `POST .../dispense`, `return-drug` |
 | hospital-his · 退号/退费 | API §5.9 | ✅ | | `/registrar/refunds`, `/registrar/registers/{id}/cancel` |
@@ -56,7 +57,9 @@
 | hospital-lis · 队列/结果/报告 | API §6 | ✅ | | 第二阶段三段式 + **第三阶段** `criticalItems`、危急值发布前弹窗、退费边界联调 |
 | hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | `GET /disposal/queue`, `POST /disposal/requests/{id}/result` |
 | hospital-management · 字典只读 | API §6 | ✅ | | `GET /admin/departments` 等 |
-| hospital-pacs · 队列/结果 | API §5.7 | ✅ | | `GET /pacs/queue`, 影像 upload STUB |
+| hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
+| hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
+| hospital-pacs · 影像任务/CNN | API §6 · §8 | ⬜ | lzr+wsh | `imaging-studies`、MinIO upload、`hospital-ai` 回调 |
 | hospital-ai-bridge · STUB | API §7 | ✅ | | `/ai/health`, triage/assistant 占位 |
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
 | hospital-disposal | MICRO §2.5a | ✅ | | :9105 |
@@ -76,7 +79,9 @@
 | PC · LIS 检验科队列 | API.md §6 | ✅ | | `TechQueuePanel` 三段式 + 危急值发布前确认弹窗 |
 | PC · 药师发药 | §2.6 | ✅ | | `/pharmacy/pending` 待发药 + 发药/退药 |
 | PC · 收费员退费 | §2.3 | ✅ | | `/registrar/refund` 按病历号查询 + 退费 |
-| PC · PACS 影像任务 | §2.5 | ✅ | | `/pacs/imaging` Mock 列表 |
+| PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + `fetchPacsResultDetail`；对齐 LIS |
+| PC · PACS 影像任务 | §2.5 | 🟨 | zty | `/pacs/imaging` 关 Mock 显示开发中空态；后端 `imaging-studies` ⬜ |
+| PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai` 最小可运行；CNN 由 wsh 后续 |
 | 小程序 · 登录/挂号 | §一 | ✅ | | `hospital-patient-miniapp/` |
 | 小程序 · 支付 | §一 | ✅ | | 待缴列表 + 模拟支付 |
 | 小程序 · 报告/医嘱 | §一 | ✅ | | 报告 Tab + `pages/orders` 医嘱进度 |
@@ -108,6 +113,8 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-11 | **PACS 对齐 LIS 实现完成**：后端 `result-detail`/`ai-report` STUB/双字段 `result`；HIS 医生读结果 §1.7；前端 `QueueView` 三段式 + `ImagingAiView`/`ImagingView` 最小修复；[API.md](./API.md) v2.5 |
+| 2026-06-11 | **PACS 对齐 LIS** 设计定稿：[规格](./superpowers/specs/2026-06-11-pacs-lis-alignment-design.md) · [计划](./superpowers/plans/2026-06-11-pacs-lis-alignment.md)；不含 MinIO/CNN |
 | 2026-06-11 | LIS 第三阶段（改进方案 §五 5.1～5.4 ✅）：医生读结果 §1.7、`criticalItems`、危急值弹窗、退费边界、`r-lis` E3～E5 扩展 |
 | 2026-06-11 | LIS 第二阶段：三段式报告 UI、`POST ai-report` STUB、仪器 STUB、`POST result` 合成、队列分诊 STUB |
 | 2026-06-10 | 实现 `GET /doctor/registers/{registerId}/orders`（医嘱汇总，ADR-005 只读聚合） |

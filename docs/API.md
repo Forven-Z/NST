@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.3 | 2026-06-10  
+> **版本**：v2.5 | 2026-06-11  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
 > **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14**（业务 ID 即各表 `id`）  
@@ -47,14 +47,14 @@
 ### 0.3 PC 前端（`hospital-frontend`）对齐说明
 
 > 源码：`hospital-frontend/src/api/*.js` · 开关：`.env.development` → `VITE_USE_MOCK`  
-> **定稿路径以 §0.1 为准**；下表说明当前前端封装与联调现状（2026-06-10 审计）。
+> **定稿路径以 §0.1 为准**；下表说明当前前端封装与联调现状（2026-06-11 审计）。
 
 | api 模块 | 页面/组件 | 定稿符合度 | 说明 |
 |----------|-----------|------------|------|
 | `auth.js` | 登录 | ✅ | `POST /auth/staff/login` |
 | `doctor.js` | `WorkspaceView`、`RegisterOrdersPanel` | ⚠️ 部分 | 病历/叫号/orders/submit 已对齐；`finish` 后端 ⬜；医嘱结果见 §5.5 |
 | `registrar.js` | 挂号/收费/退费 | ⚠️ | 核心路径 ✅；号别暂调 `GET /admin/regist-levels`（§8.1） |
-| `lis.js` / `pacs.js` / `disposal.js` | `TechQueuePanel`、影像页 | ⚠️ | 队列/execute ✅；**保存结果 Method 应为 POST**（前端仍 PUT，见附录 G） |
+| `lis.js` / `pacs.js` / `disposal.js` | `TechQueuePanel`、影像页 | ⚠️ | LIS/PACS 三段式 ✅；Disposal 单字段 ⬜；saveResult 均为 **POST** |
 | `pharmacy.js` | 待发药 | ✅ | |
 | `admin.js` | 字典/员工/排班 | ⚠️ | 字典 GET ✅；CRUD/排班路径应为 `/admin/scheduling/**`（前端仍 `schedules`） |
 | `scheduling.js` | `MyScheduleView`、`SchedulingView` | 🎭 Mock | §8.5 / §9.5 整套接口仅 Mock，后端 ⬜ P5 |
@@ -65,11 +65,12 @@
 
 完整清单见 **附录 G**。联调前优先：
 
-1. 医技 `saveResult`：`PUT` → `POST`（`lis.js` / `pacs.js` / `disposal.js`）
-2. 管理端排班：`/admin/schedules` → `/admin/scheduling`（`admin.js`）
-3. 挂号号别：改用 `GET /registrar/regist-levels`（后端待增）或文档批准的临时只读代理
-4. `RegisterOrdersPanel`：status `30` 文案改为「执行中」（§1.7）
-5. 废弃 `API_CONTRACT.md` 中历史路径，统一读本文件
+1. ~~医技 `saveResult`：`PUT` → `POST`~~（`lis.js` / `pacs.js` / `disposal.js` 已 POST ✅）
+2. ~~**PACS 对齐 LIS**：`result-detail` / `ai-report` STUB / `QueueView` 三段式~~（✅ 2026-06-11）
+3. 管理端排班：`/admin/schedules` → `/admin/scheduling`（`admin.js`）
+4. 挂号号别：改用 `GET /registrar/regist-levels`（后端待增）或文档批准的临时只读代理
+5. `RegisterOrdersPanel`：status `30` 文案改为「执行中」（§1.7）
+6. 废弃 `API_CONTRACT.md` 中历史路径，统一读本文件
 
 ---
 
@@ -235,8 +236,8 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P3 | GET | `/pacs/queue` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | POST | `/pacs/requests/{id}/execute` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | POST | `/pacs/requests/{id}/result` | pacs | CHECK_DOCTOR |
-| ⬜ | P3 | GET | `/pacs/requests/{id}/result-detail` | pacs | CHECK_DOCTOR |
-| STUB | P4 | POST | `/pacs/requests/{id}/ai-report` | pacs | CHECK_DOCTOR |
+| ✅ | P3 | GET | `/pacs/requests/{id}/result-detail` | pacs | CHECK_DOCTOR |
+| STUB | P3 | POST | `/pacs/requests/{id}/ai-report` | pacs | CHECK_DOCTOR（文本 STUB，镜像 LIS；非 CNN） |
 | ⬜ | P3 | GET | `/pacs/imaging-studies` | pacs | CHECK_DOCTOR |
 | STUB | P4 | POST | `/pacs/imaging/upload` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | GET | `/disposal/queue` | disposal | DISPOSAL_DOCTOR |
@@ -584,7 +585,7 @@ Mock 数据结构 **与本文件一致**。
 
 同上，返回 `disposalRequestId`
 
-### GET `/doctor/check-requests/{id}/result` ✅（响应扩展 ⬜）
+### GET `/doctor/check-requests/{id}/result` ✅（响应扩展 ✅）
 
 ### GET `/doctor/inspection-requests/{id}/result` ✅（响应扩展 ✅）
 
@@ -610,7 +611,7 @@ Mock 数据结构 **与本文件一致**。
 }
 ```
 
-> **检验**（`GET /doctor/inspection-requests/{id}/result`）已返回 §1.7 全字段；检查/处置仍为 `resultText` 单字段，待后续扩展。
+> **检验 / 检查**（`GET /doctor/inspection-requests/{id}/result`、`GET /doctor/check-requests/{id}/result`）均已返回 §1.7 全字段；处置仍为 `resultText` 单字段。
 
 ### POST `/doctor/prescriptions` ✅ P3
 
@@ -698,7 +699,7 @@ Mock 数据结构 **与本文件一致**。
 ## 六、医技执行
 
 > 医技队列 UI（`TechQueuePanel`）**目标**使用 **result-detail** 加载三段式报告，**ai-report** 生成 AI 报告，**result** 保存医师确认后的结果。  
-> **联调现状**：LIS 已完整接入三段式报告（`ResultReportSections` + `result-detail` + `ai-report` STUB + 合成 `resultText`）；PACS/Disposal 仍为单字段或 ⬜。
+> **联调现状**：LIS / PACS 均已完整接入三段式报告（`ResultReportSections` + `result-detail` + `ai-report` STUB + 合成 `resultText`）。Disposal 仍为单字段或 ⬜。
 
 ### 6.0 前端 Method 对齐
 
@@ -759,10 +760,18 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | GET | `/pacs/queue?status=20` | `checkRequestId` |
 | ✅ | POST | `/pacs/requests/{id}/execute` | status→30 |
 | ✅ | POST | `/pacs/requests/{id}/result` | 保存结果 |
-| ⬜ | GET | `/pacs/requests/{id}/result-detail` | 报告详情 |
-| STUB | POST | `/pacs/requests/{id}/ai-report` | AI 影像分析（可联动 hospital-ai CNN） |
-| ⬜ | GET | `/pacs/imaging-studies` | 影像任务列表 |
-| STUB | POST | `/pacs/imaging/upload` | 影像上传 |
+| ✅ | GET | `/pacs/requests/{id}/result-detail` | 报告详情（§1.7；镜像 LIS） |
+| STUB | POST | `/pacs/requests/{id}/ai-report` | 检查 AI 报告 **文本 STUB**（按 itemName 模板；非 CNN） |
+| ⬜ | GET | `/pacs/imaging-studies` | 影像任务列表（**影像组**；与三段式报告独立） |
+| STUB | POST | `/pacs/imaging/upload` | 影像上传（MinIO；P4 / 影像组） |
+
+**`GET /pacs/requests/{id}/result-detail` Response `data`**（§1.7，与 LIS 对称；**无** `criticalItems`）：
+
+| 字段 | 说明 |
+|------|------|
+| `checkRequestId`, `status`, `itemName`, `patientName`, `medicalRecordNo` | 基本信息 |
+| `instrumentData`, `aiReportText`, `doctorReportText`, `aiReportStatus` | 三段式报告（检查 STUB 文案） |
+| `resultText`, `resultAttachment`, `reportTime` | 已发布内容（status=40 时有值） |
 
 **imaging-studies 列表项**：`studyId`, `checkRequestId`, `patientName`, `itemName`, `modality`, `status`, `uploadStatus`, `resultReady`
 
@@ -1047,9 +1056,10 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | P0 | his · 挂号 | `GET /registrar/regist-levels`（REGISTRAR 只读） |
 | P0 | 前端 | 医技 result：`PUT`→`POST`；admin：`schedules`→`scheduling`（附录 G） |
 | P0 | his · 医生/患者 | 患者端 `GET /patient/registers/{id}/orders` ⬜ |
-| P0 | lis/pacs/disposal | `GET .../result-detail`, `POST .../ai-report` |
+| P0 | lis/pacs/disposal | `GET .../result-detail`, `POST .../ai-report`（LIS/PACS ✅；Disposal ⬜） |
 | P1 | his · 医生 | 队列补 `noonLabel`；`triageLevel/triageNote` |
-| P1 | his · 医生 | `GET /doctor/*-requests/{id}/result` 扩展 §1.7 字段 |
+| P1 | his · 医生 | ~~`GET /doctor/check-requests/{id}/result` 扩展 §1.7~~（检验/检查 ✅） |
+| P1 | his · 医生 | `GET /doctor/disposal-requests/{id}/result` 扩展 §1.7 |
 | P1 | lis/pacs/disposal | `POST .../result` 支持 `{ aiReportText, doctorReportText }` |
 | P2 | ai-bridge | STUB：`diagnosis/suggest`、`*-requests/ai-draft` |
 | P2 | mgmt | `/admin/scheduling/**` CRUD、`/admin/employees` CRUD |
@@ -1073,7 +1083,9 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `doctor.js` | `fetchDrugs` | `GET /doctor/drugs` | ✅ | ✅ |
 | `registrar.js` | `fetchRegistLevels` | `GET /registrar/regist-levels` | ❌ `/admin/regist-levels` | ⬜ |
 | `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ✅ POST | ✅ POST |
-| `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
+| `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ✅ POST | ✅ POST |
+| `pacs.js` | `fetchPacsResultDetail` | `GET /pacs/requests/{id}/result-detail` | ✅ | ✅ |
+| `pacs.js` | `generatePacsAiReport` | `POST /pacs/requests/{id}/ai-report` | ✅ | STUB |
 | `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ❌ `/admin/schedules/**` | ⬜ |
 | `scheduling.js` | 全部 | §8.5、§9.5 | 🎭 Mock 路径一致 | ⬜ |
@@ -1084,11 +1096,11 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | # | 项 | 定稿 | 当前 | 优先级 |
 |---|-----|------|------|--------|
-| G1 | 医技保存结果 | `POST .../result` | `PUT` | P0 |
+| G1 | 医技保存结果 | `POST .../result` | lis/pacs/disposal 已 POST ✅ | — |
 | G2 | 管理端排班 | `/admin/scheduling/**` | `/admin/schedules/**` | P0 |
 | G3 | 挂号号别 | `GET /registrar/regist-levels` | `GET /admin/regist-levels` | P0 |
 | G4 | 医嘱 status 30 文案 | 「执行中」 | 「执行完成」 | P1 |
-| G5 | 医技 UI | `ResultReportSections` + result-detail | LIS ✅；PACS/Disposal 单字段 | P2 |
+| G5 | 医技 UI | `ResultReportSections` + result-detail | LIS/PACS ✅；Disposal 单字段 | P1 |
 | G6 | 病历疾病 | 已联调 `diseaseEntries` | ✅ | — |
 | G8 | 医生开单字典 | `GET /doctor/medical-technologies`、`/doctor/drugs` | ✅ | P0 |
 | G7 | 废弃文档 | 仅维护 `docs/API.md` | `API_CONTRACT.md` 历史路径 | P0 |
@@ -1099,6 +1111,8 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.5 | 2026-06-11 | **PACS 对齐 LIS 实现完成**：`result-detail` / `ai-report` STUB / 双字段 `result`；HIS `GET /doctor/check-requests/{id}/result` §1.7；前端 `QueueView` 三段式、`fetchPacsResultDetail`；`imaging-studies` 仍 ⬜ |
+| v2.4 | 2026-06-11 | PACS 对齐 LIS 契约补充：§6 PACS result-detail 字段表、ai-report 定为 P3 文本 STUB；修正 §0.3/附录 F/G1（pacs.js 已 POST）；链入 superpowers 计划 |
 | v2.3 | 2026-06-10 | 医生工作台字典只读：`GET /doctor/medical-technologies`、`GET /doctor/drugs`；附录 G8 |
 | v2.2 | 2026-06-10 | 对齐 PC 前端审计：§0.3～0.4 前端现状、§5.5 无聚合 results、§8.1 regist-levels、§8.5/§9.5 Mock 排班请假、§6.0 Method 对齐、附录 F/G |
 | v2.1 | 2026-06-09 | 对齐 PC 医生工作台/医技队列 Mock：finish/orders、三段式报告、result-detail/ai-report、状态枚举、AI 草稿结构、白名单与附录 A |
