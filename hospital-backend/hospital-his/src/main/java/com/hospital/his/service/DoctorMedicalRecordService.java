@@ -4,6 +4,7 @@ import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.doctor.MedicalRecordSaveRequest;
+import com.hospital.his.repository.MedicalRecordDiseaseRepository;
 import com.hospital.his.repository.MedicalRecordRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
@@ -11,7 +12,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -20,23 +24,55 @@ public class DoctorMedicalRecordService {
 
     private final RegisterRepository registerRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final MedicalRecordDiseaseRepository medicalRecordDiseaseRepository;
     private final PatientFamilyService patientFamilyService;
+
+    private static final Map<Integer, String> RECORD_STATUS_LABELS = Map.of(
+            0, "书写中",
+            1, "已保存",
+            2, "已确诊提交"
+    );
 
     public Map<String, Object> getMedicalRecord(Long registerId) {
         assertDoctorOwnsRegister(registerId);
         return medicalRecordRepository.findByRegisterId(registerId)
-                .map(m -> new HashMap<String, Object>(m))
+                .map(this::enrichWithDiseases)
                 .orElseGet(HashMap::new);
     }
 
     @Transactional
     public Map<String, Object> saveMedicalRecord(Long registerId, MedicalRecordSaveRequest request) {
         Map<String, Object> register = assertDoctorOwnsRegister(registerId);
+        int currentStatus = medicalRecordRepository.findStatusByRegisterId(registerId).orElse(0);
+        persistMedicalRecord(registerId, register, request);
+        if (currentStatus < 2) {
+            medicalRecordRepository.updateStatus(registerId, 1);
+        }
+        return medicalRecordRepository.findByRegisterId(registerId)
+                .map(this::enrichWithDiseases)
+                .orElse(Map.of());
+    }
+
+    @Transactional
+    public Map<String, Object> submitMedicalRecord(Long registerId, MedicalRecordSaveRequest request) {
+        Map<String, Object> register = assertDoctorOwnsRegister(registerId);
+        persistMedicalRecord(registerId, register, request);
+        medicalRecordRepository.updateStatus(registerId, 2);
+        return medicalRecordRepository.findByRegisterId(registerId)
+                .map(this::enrichWithDiseases)
+                .orElse(Map.of());
+    }
+
+    private long persistMedicalRecord(Long registerId, Map<String, Object> register, MedicalRecordSaveRequest request) {
         Long patientId = ((Number) register.get("patientId")).longValue();
         Long doctorId = AuthContextHolder.require().getEmployeeId();
 
-        if (medicalRecordRepository.findByRegisterId(registerId).isEmpty()) {
-            medicalRecordRepository.insert(registerId, patientId, doctorId);
+        long medicalRecordId;
+        var existing = medicalRecordRepository.findByRegisterId(registerId);
+        if (existing.isEmpty()) {
+            medicalRecordId = medicalRecordRepository.insert(registerId, patientId, doctorId);
+        } else {
+            medicalRecordId = ((Number) existing.get().get("id")).longValue();
         }
 
         medicalRecordRepository.update(
@@ -53,7 +89,10 @@ public class DoctorMedicalRecordService {
                 request.getInspectionAdvice()
         );
 
-        return medicalRecordRepository.findByRegisterId(registerId).orElse(Map.of());
+        if (hasDiseasePayload(request)) {
+            medicalRecordDiseaseRepository.replaceAll(medicalRecordId, resolveDiseaseEntries(request));
+        }
+        return medicalRecordId;
     }
 
     public Map<String, Object> getPatientMedicalRecord(Long registerId) {
@@ -61,7 +100,62 @@ public class DoctorMedicalRecordService {
         registerRepository.findDetailForOwner(registerId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "无权查看该病历"));
         return medicalRecordRepository.findByRegisterId(registerId, true)
+                .map(this::enrichWithDiseases)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "病历不存在或未提交"));
+    }
+
+    private Map<String, Object> enrichWithDiseases(Map<String, Object> record) {
+        Map<String, Object> enriched = new HashMap<>(record);
+        Long medicalRecordId = ((Number) record.get("id")).longValue();
+        List<Map<String, Object>> diseaseEntries = medicalRecordDiseaseRepository.findByMedicalRecordId(medicalRecordId);
+        enriched.put("diseaseEntries", diseaseEntries);
+        enriched.put("diseaseIds", MedicalRecordDiseaseRepository.toDiseaseIds(diseaseEntries));
+        int status = ((Number) record.get("status")).intValue();
+        enriched.put("statusLabel", RECORD_STATUS_LABELS.getOrDefault(status, String.valueOf(status)));
+        return enriched;
+    }
+
+    private boolean hasDiseasePayload(MedicalRecordSaveRequest request) {
+        return request.getDiseaseEntries() != null || request.getDiseaseIds() != null;
+    }
+
+    private List<Map<String, Object>> resolveDiseaseEntries(MedicalRecordSaveRequest request) {
+        if (request.getDiseaseEntries() != null && !request.getDiseaseEntries().isEmpty()) {
+            List<Map<String, Object>> entries = new ArrayList<>();
+            for (MedicalRecordSaveRequest.DiseaseEntry entry : request.getDiseaseEntries()) {
+                if (entry.getDiseaseId() == null) {
+                    continue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("diseaseId", entry.getDiseaseId());
+                row.put("diseaseType", entry.getDiseaseType() != null ? entry.getDiseaseType() : 2);
+                entries.add(row);
+            }
+            return entries;
+        }
+
+        List<Long> diseaseIds = request.getDiseaseIds();
+        if (diseaseIds == null || diseaseIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> entries = new ArrayList<>();
+        Map<String, Object> primary = new LinkedHashMap<>();
+        primary.put("diseaseId", diseaseIds.get(0));
+        primary.put("diseaseType", 1);
+        entries.add(primary);
+
+        for (int i = 1; i < diseaseIds.size(); i++) {
+            Long diseaseId = diseaseIds.get(i);
+            if (diseaseId == null || diseaseId.equals(diseaseIds.get(0))) {
+                continue;
+            }
+            Map<String, Object> secondary = new LinkedHashMap<>();
+            secondary.put("diseaseId", diseaseId);
+            secondary.put("diseaseType", 2);
+            entries.add(secondary);
+        }
+        return entries;
     }
 
     private Map<String, Object> assertDoctorOwnsRegister(Long registerId) {

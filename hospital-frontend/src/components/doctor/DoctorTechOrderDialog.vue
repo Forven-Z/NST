@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { fetchMedicalTechnologies } from '../../api/admin'
+import { fetchMedicalTechnologies } from '../../api/doctor'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

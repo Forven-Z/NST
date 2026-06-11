@@ -81,6 +81,17 @@ public class RegisterRepository {
                 .update();
     }
 
+    public void markFinished(Long registerId) {
+        jdbcClient.sql("""
+                        UPDATE register
+                        SET visit_state = 3, visit_end_time = :now, update_time = NOW()
+                        WHERE id = :id
+                        """)
+                .param("id", registerId)
+                .param("now", OffsetDateTime.now())
+                .update();
+    }
+
     public Optional<Map<String, Object>> findById(Long registerId) {
         return jdbcClient.sql("""
                         SELECT r.id, r.patient_id, r.employee_id, r.scheduling_id, r.visit_state, r.visit_date,

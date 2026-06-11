@@ -42,6 +42,11 @@ public class DoctorController {
         return Result.success(doctorQueueService.callPatient(registerId));
     }
 
+    @PostMapping("/registers/{registerId}/finish")
+    public Result<Map<String, Object>> finishVisit(@PathVariable Long registerId) {
+        return Result.success(doctorQueueService.finishVisit(registerId));
+    }
+
     @GetMapping("/medical-records/{registerId}")
     public Result<Map<String, Object>> getMedicalRecord(@PathVariable Long registerId) {
         return Result.success(doctorMedicalRecordService.getMedicalRecord(registerId));
@@ -52,6 +57,13 @@ public class DoctorController {
             @PathVariable Long registerId,
             @RequestBody MedicalRecordSaveRequest request) {
         return Result.success(doctorMedicalRecordService.saveMedicalRecord(registerId, request));
+    }
+
+    @PostMapping("/medical-records/{registerId}/submit")
+    public Result<Map<String, Object>> submitMedicalRecord(
+            @PathVariable Long registerId,
+            @RequestBody MedicalRecordSaveRequest request) {
+        return Result.success(doctorMedicalRecordService.submitMedicalRecord(registerId, request));
     }
 
     @GetMapping("/registers/{registerId}/orders")
@@ -65,5 +77,22 @@ public class DoctorController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize) {
         return Result.success(doctorDictQueryService.listDiseases(keyword, page, pageSize));
+    }
+
+    @GetMapping("/medical-technologies")
+    public Result<Map<String, Object>> listMedicalTechnologies(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String techType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return Result.success(doctorDictQueryService.listMedicalTechnologies(keyword, techType, page, pageSize));
+    }
+
+    @GetMapping("/drugs")
+    public Result<Map<String, Object>> listDrugs(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return Result.success(doctorDictQueryService.listDrugs(keyword, page, pageSize));
     }
 }

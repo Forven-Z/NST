@@ -149,13 +149,12 @@ function applyDiseaseFields(data) {
 }
 
 function buildDiseaseEntries() {
-  const entries = []
-  if (recordForm.primaryDiseaseId) {
-    entries.push({ diseaseId: recordForm.primaryDiseaseId, diseaseType: 1 })
-  }
-  for (const id of recordForm.secondaryDiseaseIds || []) {
-    if (id && id !== recordForm.primaryDiseaseId) {
-      entries.push({ diseaseId: id, diseaseType: 2 })
+  const ids = recordForm.diseaseIds || []
+  if (!ids.length) return []
+  const entries = [{ diseaseId: ids[0], diseaseType: 1 }]
+  for (let i = 1; i < ids.length; i++) {
+    if (ids[i] != null && ids[i] !== ids[0]) {
+      entries.push({ diseaseId: ids[i], diseaseType: 2 })
     }
   }
   return entries
@@ -205,12 +204,9 @@ async function onSaveRecord() {
   }
   saving.value = true
   try {
-    await saveMedicalRecord(currentRegisterId.value, {
-      ...recordForm,
-      diagnosis: aiDiagnosisText.value.trim() || recordForm.diagnosis,
-      diseaseIds: recordForm.diseaseIds,
-    })
+    await saveMedicalRecord(currentRegisterId.value, buildRecordPayload())
     recordSaved.value = true
+    await loadMedicalRecord(currentRegisterId.value)
     ElMessage.success('病历已保存')
   } catch (err) {
     ElMessage.error(err.message || '保存失败')

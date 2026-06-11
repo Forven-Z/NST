@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -15,6 +16,37 @@ public class DrugRepository {
 
     public DrugRepository(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
+    }
+
+    public List<Map<String, Object>> listDrugs(String keyword, int offset, int limit) {
+        return jdbcClient.sql("""
+                        SELECT id, drug_code, drug_name, drug_format, drug_dosage, drug_type,
+                               unit, retail_price, stock_qty
+                        FROM drug_info
+                        WHERE delmark = 0
+                          AND (CAST(:keyword AS VARCHAR) IS NULL OR CAST(:keyword AS VARCHAR) = ''
+                               OR drug_name ILIKE :pattern OR drug_code ILIKE :pattern)
+                        ORDER BY id
+                        LIMIT :limit OFFSET :offset
+                        """)
+                .param("keyword", keyword)
+                .param("pattern", likePattern(keyword))
+                .param("limit", limit)
+                .param("offset", offset)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("id", rs.getLong("id"));
+                    row.put("drugCode", rs.getString("drug_code"));
+                    row.put("drugName", rs.getString("drug_name"));
+                    row.put("drugFormat", rs.getString("drug_format"));
+                    row.put("drugDosage", rs.getString("drug_dosage"));
+                    row.put("drugType", rs.getString("drug_type"));
+                    row.put("unit", rs.getString("unit"));
+                    row.put("retailPrice", rs.getBigDecimal("retail_price"));
+                    row.put("stockQty", rs.getObject("stock_qty", Integer.class));
+                    return row;
+                })
+                .list();
     }
 
     public Optional<Map<String, Object>> findById(Long drugId) {
@@ -82,5 +114,9 @@ public class DrugRepository {
                 .param("id", drugId)
                 .param("qty", quantity.intValue())
                 .update();
+    }
+
+    private String likePattern(String keyword) {
+        return keyword == null || keyword.isBlank() ? null : "%" + keyword.trim() + "%";
     }
 }

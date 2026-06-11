@@ -72,14 +72,40 @@ Test-Step 'D1 doctor queue' ($d1.code -eq 200 -and $inQueue) "registerId $regist
 $d2 = Invoke-RestMethod -Uri "$base/doctor/call/$registerId" -Method POST -Headers $doctorHeaders
 Test-Step 'D2 call patient' ($d2.code -eq 200 -and $d2.data.visitState -eq 2) ($d2 | ConvertTo-Json -Compress)
 
-# D3
+# D3 - save medical record (status should become 1, patient still cannot read)
 $recBody = @{ readme = 'accept chief'; present = 'accept present'; diagnosis = 'accept dx'; cure = 'accept plan' } | ConvertTo-Json -Compress
 $d3 = Invoke-RestMethod -Uri "$base/doctor/medical-records/$registerId" -Method PUT -Headers $doctorHeaders -ContentType 'application/json' -Body $recBody
-Test-Step 'D3 save medical record' ($d3.code -eq 200) ($d3 | ConvertTo-Json -Compress)
+Test-Step 'D3 save medical record' ($d3.code -eq 200 -and $d3.data.status -eq 1) ($d3 | ConvertTo-Json -Compress)
 
-# D4
+# D3b - patient cannot read before submit
+$d3b = Invoke-RestMethod -Uri "$base/patient/medical-records/$registerId" -Headers $patientHeaders
+$d3bOk = ($d3b.code -ne 200)
+Test-Step 'D3b patient blocked before submit' $d3bOk ($d3b | ConvertTo-Json -Compress)
+
+# D3c - submit diagnosis
+$d3c = Invoke-RestMethod -Uri "$base/doctor/medical-records/$registerId/submit" -Method POST -Headers $doctorHeaders -ContentType 'application/json' -Body $recBody
+Test-Step 'D3c submit medical record' ($d3c.code -eq 200 -and $d3c.data.status -eq 2) ($d3c | ConvertTo-Json -Compress)
+
+# D4 - patient read after submit
 $d4 = Invoke-RestMethod -Uri "$base/patient/medical-records/$registerId" -Headers $patientHeaders
-Test-Step 'D4 patient read record' ($d4.code -eq 200 -and $d4.data.readme) ($d4 | ConvertTo-Json -Compress)
+Test-Step 'D4 patient read record' ($d4.code -eq 200 -and $d4.data.readme -eq 'accept chief') ($d4 | ConvertTo-Json -Compress)
+
+# D5 - finish visit
+$d5 = Invoke-RestMethod -Uri "$base/doctor/registers/$registerId/finish" -Method POST -Headers $doctorHeaders
+Test-Step 'D5 finish visit' ($d5.code -eq 200 -and $d5.data.visitState -eq 3) ($d5 | ConvertTo-Json -Compress)
+
+# D5b - idempotent finish
+$d5b = Invoke-RestMethod -Uri "$base/doctor/registers/$registerId/finish" -Method POST -Headers $doctorHeaders
+Test-Step 'D5b idempotent finish' ($d5b.code -eq 200 -and $d5b.data.visitState -eq 3) ($d5b | ConvertTo-Json -Compress)
+
+# D5c - medical record blocked after finish
+$d5c = Invoke-RestMethod -Uri "$base/doctor/medical-records/$registerId" -Method PUT -Headers $doctorHeaders -ContentType 'application/json' -Body $recBody
+$d5cOk = ($d5c.code -ne 200)
+Test-Step 'D5c record blocked after finish' $d5cOk ($d5c | ConvertTo-Json -Compress)
+
+# D6 - patient queue status after finish
+$d6 = Invoke-RestMethod -Uri "$base/patient/registers/$registerId/queue-status" -Headers $patientHeaders
+Test-Step 'D6 patient queue after finish' ($d6.code -eq 200 -and $d6.data.visitState -eq 3) ($d6 | ConvertTo-Json -Compress)
 
 Write-Host ""
 Write-Host "Summary: PASS=$passed FAIL=$failed registerId=$registerId"
