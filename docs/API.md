@@ -230,7 +230,7 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2 | GET | `/lis/queue` | lis | LAB_DOCTOR |
 | ✅ | P2 | POST | `/lis/requests/{id}/execute` | lis | LAB_DOCTOR |
 | ✅ | P2 | POST | `/lis/requests/{id}/result` | lis | LAB_DOCTOR |
-| ⬜ | P2 | GET | `/lis/requests/{id}/result-detail` | lis | LAB_DOCTOR |
+| ✅ | P2 | GET | `/lis/requests/{id}/result-detail` | lis | LAB_DOCTOR |
 | STUB | P4 | POST | `/lis/requests/{id}/ai-report` | lis | LAB_DOCTOR |
 | ✅ | P3 | GET | `/pacs/queue` | pacs | CHECK_DOCTOR |
 | ✅ | P3 | POST | `/pacs/requests/{id}/execute` | pacs | CHECK_DOCTOR |
@@ -692,13 +692,13 @@ Mock 数据结构 **与本文件一致**。
 ## 六、医技执行
 
 > 医技队列 UI（`TechQueuePanel`）**目标**使用 **result-detail** 加载三段式报告，**ai-report** 生成 AI 报告，**result** 保存医师确认后的结果。  
-> **联调现状**：`TechQueuePanel` 简化版仅编辑 `resultText`（+ 可选 `resultAttachment`）；`ResultReportSections.vue` 已存在但未接入队列页。`result-detail` / `ai-report` 后端 ⬜。
+> **联调现状**：LIS 已接入 `result-detail` 加载（单字段录入）；`ResultReportSections.vue` 与 `ai-report` 后端仍为第二阶段。PACS/Disposal `result-detail` ⬜。
 
 ### 6.0 前端 Method 对齐
 
 | 定稿 | 当前 `hospital-frontend` | 文件 |
 |------|--------------------------|------|
-| `POST /{svc}/requests/{id}/result` | ❌ `PUT` | `lis.js`, `pacs.js`, `disposal.js` |
+| `POST /{svc}/requests/{id}/result` | ✅ `POST` | `lis.js`, `pacs.js`, `disposal.js` |
 
 后端 LIS/PACS/Disposal Controller 均为 `@PostMapping`；前端 PUT 将返回 **405**，见附录 G。
 
@@ -731,7 +731,7 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | GET | `/lis/queue?status=20` | 待执行队列 |
 | ✅ | POST | `/lis/requests/{id}/execute` | status→30（执行中） |
 | ✅ | POST | `/lis/requests/{id}/result` | 保存结果 → status 40 |
-| ⬜ | GET | `/lis/requests/{id}/result-detail` | 报告详情 |
+| ✅ | GET | `/lis/requests/{id}/result-detail` | 报告详情 |
 | STUB | POST | `/lis/requests/{id}/ai-report` | AI 检验报告 |
 
 **队列项**：`inspectionRequestId`, `medicalRecordNo`, `patientName`, `itemName`, `itemPrice`, `status`, `triageLevel?`, `triageNote?`
@@ -1057,7 +1057,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `doctor.js` | `fetchMedicalTechnologies` | `GET /doctor/medical-technologies` | ✅ | ✅ |
 | `doctor.js` | `fetchDrugs` | `GET /doctor/drugs` | ✅ | ✅ |
 | `registrar.js` | `fetchRegistLevels` | `GET /registrar/regist-levels` | ❌ `/admin/regist-levels` | ⬜ |
-| `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ❌ PUT | ✅ POST |
+| `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ✅ POST | ✅ POST |
 | `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ❌ `/admin/schedules/**` | ⬜ |

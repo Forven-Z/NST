@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { INTEGRATION_ROUTES, TRIAGE_LEVEL_MAP } from '../../config/integrations'
@@ -12,6 +12,7 @@ const props = defineProps({
   executeRequest: { type: Function, required: true },
   saveResult: { type: Function, required: true },
   generateAiSuggestion: { type: Function, default: null },
+  fetchResultDetail: { type: Function, default: null },
   defaultStatus: { type: Number, default: 20 },
   workflowHint: { type: String, default: '' },
   showTriage: { type: Boolean, default: false },
@@ -27,9 +28,12 @@ const statusFilter = ref(props.defaultStatus)
 const list = ref([])
 
 const resultDialogVisible = ref(false)
+const detailLoading = ref(false)
 const resultText = ref('')
 const resultAttachment = ref('')
 const currentRow = ref(null)
+
+const isReadOnlyResult = computed(() => currentRow.value?.status === 40)
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
@@ -74,11 +78,27 @@ async function onExecute(row) {
   }
 }
 
-function openResultDialog(row) {
+async function openResultDialog(row) {
   currentRow.value = row
   resultText.value = row.resultText || ''
   resultAttachment.value = row.resultAttachment || ''
   resultDialogVisible.value = true
+
+  if (!props.fetchResultDetail) return
+
+  detailLoading.value = true
+  try {
+    const res = await props.fetchResultDetail(rowId(row))
+    const data = res.data
+    if (data) {
+      resultText.value = data.resultText || ''
+      resultAttachment.value = data.resultAttachment || ''
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '加载结果详情失败')
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 async function onGenerateAiSuggestion() {
@@ -213,6 +233,14 @@ async function onSaveResult() {
             >
               录入结果
             </el-button>
+            <el-button
+              v-if="row.status === 40"
+              type="primary"
+              link
+              @click="openResultDialog(row)"
+            >
+              查看结果
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -220,36 +248,45 @@ async function onSaveResult() {
 
     <el-dialog
       v-model="resultDialogVisible"
-      :title="`录入结果 · ${currentRow?.itemName || ''}`"
+      :title="`${isReadOnlyResult ? '查看结果' : '录入结果'} · ${currentRow?.itemName || ''}`"
       width="560px"
       destroy-on-close
     >
-      <el-form label-position="top">
-        <el-form-item label="结果文本（resultText）" required>
+      <el-form v-loading="detailLoading" label-position="top">
+        <el-form-item label="结果文本（resultText）" :required="!isReadOnlyResult">
           <el-input
             v-model="resultText"
             type="textarea"
             :rows="8"
+            :readonly="isReadOnlyResult"
             placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
           />
         </el-form-item>
         <el-form-item label="结果附件（resultAttachment，可选）">
           <el-input
             v-model="resultAttachment"
+            :readonly="isReadOnlyResult"
             placeholder="如 minio://bucket/key/report.pdf"
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button
-          v-if="generateAiSuggestion"
+          v-if="generateAiSuggestion && !isReadOnlyResult"
           :loading="generatingAiId === rowId(currentRow)"
           @click="onGenerateAiSuggestion"
         >
           生成 AI 建议填入
         </el-button>
-        <el-button @click="resultDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="!!savingId" @click="onSaveResult">保存并发布</el-button>
+        <el-button @click="resultDialogVisible = false">{{ isReadOnlyResult ? '关闭' : '取消' }}</el-button>
+        <el-button
+          v-if="!isReadOnlyResult"
+          type="primary"
+          :loading="!!savingId"
+          @click="onSaveResult"
+        >
+          保存并发布
+        </el-button>
       </template>
     </el-dialog>
   </div>

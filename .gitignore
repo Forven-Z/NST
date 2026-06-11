@@ -41,6 +41,12 @@ logs/
 work/
 *.log
 
+# Superpowers 代理计划/设计文档（本地生成，不提交）
+docs/superpowers/
+
+# 本地改动建议 / 方案草稿（不提交）
+docs/changes/
+
 # 小程序本地联调配置（不提交）
 hospital-patient-miniapp/config.local.js
 
@@ -48,5 +54,4 @@ hospital-patient-miniapp/config.local.js
 **/coverage/
 **/.pytest_cache/
 .cursor/settings.json
-hospital-frontend/.env.development
 hospital-frontend/.env.development

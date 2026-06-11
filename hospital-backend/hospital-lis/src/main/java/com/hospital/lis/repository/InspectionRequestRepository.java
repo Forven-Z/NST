@@ -83,6 +83,37 @@ public class InspectionRequestRepository {
                 .update();
     }
 
+    public Optional<Map<String, Object>> findResultDetail(Long id) {
+        return jdbcClient.sql("""
+                        SELECT ir.id AS inspection_request_id,
+                               ir.status,
+                               ir.result_text,
+                               ir.result_attachment,
+                               ir.result_time,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               mt.item_name
+                        FROM inspection_request ir
+                        JOIN patient p ON ir.patient_id = p.id
+                        JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        WHERE ir.id = :id AND ir.delmark = 0
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("inspectionRequestId", rs.getLong("inspection_request_id"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("resultText", rs.getString("result_text"));
+                    row.put("resultAttachment", rs.getString("result_attachment"));
+                    row.put("reportTime", rs.getObject("result_time", OffsetDateTime.class));
+                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
+                    row.put("patientName", rs.getString("patient_name"));
+                    row.put("itemName", rs.getString("item_name"));
+                    return row;
+                })
+                .optional();
+    }
+
     public void saveResult(Long id, Long resultInputId, String resultText, String resultAttachment) {
         jdbcClient.sql("""
                         UPDATE inspection_request

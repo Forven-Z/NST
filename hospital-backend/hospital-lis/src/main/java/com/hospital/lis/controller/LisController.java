@@ -35,6 +35,11 @@ public class LisController {
         return Result.success(lisInspectionService.listQueue(status, page, pageSize));
     }
 
+    @GetMapping("/requests/{id}/result-detail")
+    public Result<Map<String, Object>> resultDetail(@PathVariable Long id) {
+        return Result.success(lisInspectionService.getResultDetail(id));
+    }
+
     @PostMapping("/requests/{id}/execute")
     public Result<Map<String, Object>> execute(@PathVariable Long id) {
         return Result.success(lisInspectionService.execute(id));

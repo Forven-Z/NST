@@ -77,6 +77,8 @@ Test-Step 'E3 lis queue' ($e3q.code -eq 200 -and $inQueue) "inspection $inspecti
 $resultBody = @{ resultText = 'WBC 6.5 normal' } | ConvertTo-Json -Compress
 $e3r = Invoke-RestMethod -Uri "$base/lis/requests/$inspectionId/result" -Method POST -Headers $labHeaders -ContentType 'application/json' -Body $resultBody
 Test-Step 'E3 save result' ($e3r.code -eq 200 -and $e3r.data.status -eq 40) ($e3r | ConvertTo-Json -Compress)
+$e3d = Invoke-RestMethod -Uri "$base/lis/requests/$inspectionId/result-detail" -Headers $labHeaders
+Test-Step 'E3 result-detail' ($e3d.code -eq 200 -and $e3d.data.status -eq 40 -and $e3d.data.resultText -eq 'WBC 6.5 normal') ($e3d | ConvertTo-Json -Compress)
 
 # E4: doctor read result
 $e4 = Invoke-RestMethod -Uri "$base/doctor/inspection-requests/$inspectionId/result" -Headers $doctorHeaders

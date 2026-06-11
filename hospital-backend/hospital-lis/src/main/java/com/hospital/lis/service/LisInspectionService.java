@@ -48,6 +48,23 @@ public class LisInspectionService {
         return result;
     }
 
+    public Map<String, Object> getResultDetail(Long inspectionRequestId) {
+        Map<String, Object> row = inspectionRequestRepository.findResultDetail(inspectionRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
+
+        int currentStatus = ((Number) row.get("status")).intValue();
+        if (currentStatus < InspectionRequestStatus.PAID) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "尚未缴费，无法查看");
+        }
+
+        Map<String, Object> result = new HashMap<>(row);
+        result.put("instrumentData", "");
+        result.put("aiReportText", "");
+        result.put("doctorReportText", "");
+        result.put("aiReportStatus", "PENDING");
+        return result;
+    }
+
     @Transactional
     public Map<String, Object> saveResult(Long inspectionRequestId, InspectionResultRequest request) {
         Long inputId = AuthContextHolder.require().getEmployeeId();

@@ -3,6 +3,7 @@ import TechQueuePanel from '../../components/tech/TechQueuePanel.vue'
 import {
   executeLisRequest,
   fetchLisQueue,
+  fetchLisResultDetail,
   generateLisAiReport,
   saveLisResult,
 } from '../../api/lis'
@@ -18,8 +19,9 @@ async function generateLisAiSuggestion(id) {
     title="检验待执行队列"
     tech-type="INSPECTION"
     request-id-key="inspectionRequestId"
-    workflow-hint="流程：患者缴费 → 开始执行 → 录入 resultText（可选 AI 建议填入）→ 医生工作站查看结果。API：PUT /lis/requests/{id}/result"
+    workflow-hint="流程：患者缴费 → 开始执行 → 录入 resultText（可选 AI 建议）→ 医生工作站查看。API：POST /lis/requests/{id}/result，GET .../result-detail"
     :fetch-queue="fetchLisQueue"
+    :fetch-result-detail="fetchLisResultDetail"
     :execute-request="executeLisRequest"
     :save-result="saveLisResult"
     :generate-ai-suggestion="generateLisAiSuggestion"
