@@ -2,7 +2,7 @@
 
 > **用途**：约定「前端 + 库表先行、后端分模块并行」的协作方式，减少接口漂移与联调返工。  
 > **适用对象**：全员（前端负责人、各后端模块负责人、联调/答辩）  
-> **配套**：[API.md](./API.md) · [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) · [MICROSERVICES.md](./MICROSERVICES.md) · [PROGRESS.md](./PROGRESS.md)
+> **配套**：[API.md](./API.md) · [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) · [MICROSERVICES.md](./MICROSERVICES.md) · [PROGRESS.md](./PROGRESS.md) · [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)（影像 MinIO · 按 `patient_id` 查结果）
 
 ---
 
@@ -315,9 +315,12 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 | 4   | 可演示前端                     | `hospital-frontend/`、`hospital-patient-miniapp/` |
 | 5   | Mock 说明                   | `hospital-frontend/src/mock/README.md`（建议新建）     |
 | 6   | 未实现 API 列表                | 见下表「当前 PENDING 摘要」或 `PROGRESS.md`                |
+| 7   | **影像 MinIO 跨模块访问**（P4+）   | [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) · [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) |
 
 
 后端负责人认领后更新 `PROGRESS.md` 负责人列与状态。
+
+**影像数据（his / 患者端 / 管理端必读）**：MinIO 路径 `studies/{checkRequestId}/` **不是** `patient_id`。按患者取结果：`GET /pacs/imaging-studies?patientId=` → 取 `checkRequestId` → `GET /pacs/requests/{id}/result-detail` 与 preview 接口；**禁止**各模块直连 MinIO。详见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)。
 
 ---
 
@@ -336,7 +339,7 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 | `hospital-auth`            | 9101   | **zcl** | ✅   | r-min A1/A2                   |
 | `hospital-his`             | 9102   | **zcl** | ✅   | r-min, r-pharmacy, r-reversal |
 | `hospital-lis`             | 9103   | **lzr** | ✅   | r-lis                         |
-| `hospital-pacs`            | 9104   | **lzr** | 🟨  | r-pacs 核心 ✅；**三段式报告对齐 LIS** 🟨；imaging-studies/CNN ⬜ **wsh** |
+| `hospital-pacs`            | 9104   | **lzr** | 🟨  | r-pacs（upload 待完善）            |
 | `hospital-disposal`        | 9105   | **zcl** | ✅   | 处置队列/执行/结果                    |
 | `hospital-management`      | 9107   | **lzr** | 🟨  | r-modules-smoke；**P5 排班必做**   |
 | `hospital-ai-bridge`       | 9106   | **lml** | 🟨  | r-modules-smoke → r-full      |
@@ -367,16 +370,16 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 - **平台**：gateway 路由/JWT、auth、common；新前缀 PR 统一 Review。
 - **his**：门诊/患者/registrar/pharmacy/**处置**；PENDING 补全（窗口挂号收费、确诊、finish、patient 列表等）；**§5.3～5.5 ai-draft 实现**。
+- **患者/医生看影像结果**：Feign 调 pacs（`imaging-studies?patientId=` → `result-detail`），不直连 MinIO；见 §9.5、[IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)。
 - **前端**：小程序；**草稿 UI 设计**。
 - **文档**：`API.md`、`schema.sql` 变更。
 
 #### lzr — LIS + PACS + 管理
 
-- **lis**：队列、三段式报告 ✅。
-- **pacs（当前迭代）**：镜像 LIS——`result-detail`、`ai-report` 文本 STUB、双字段 `result`、HIS 医生读结果 §1.7；规格见 [PACS-LIS 设计](./superpowers/specs/2026-06-11-pacs-lis-alignment-design.md)。
-- **pacs（影像组 · wsh）**：`GET /pacs/imaging-studies`、MinIO upload、pacs→`hospital-ai` CNN 回调（**不在** LIS 对齐迭代内）。
+- **lis / pacs**：队列、结果、Feign 联调；**MinIO** + 影像 upload；pacs 调 **wsh** CNN 异步链。
+- **pacs 对外**：维护 `imaging-studies`（含 `?patientId=` / `?medicalRecordNo=`）、`result-detail`、preview 代理；跨模块约定见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)。
 - **management**：字典 CRUD；**P5 排班 CRUD + Timefold**（必做）。
-- **不改** his / ai-bridge 代码（HIS `getCheckResult` 扩展由 lzr 改 his 只读侧）。
+- **不改** his / ai-bridge 代码。
 
 #### lml — Spring AI（大模型）
 
@@ -387,8 +390,8 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 #### wsh — CNN 影像
 
 - `hospital-ai/` FastAPI：训练、推理 job、MinIO 结果；与 **lzr** pacs callback 联调。
-- **PC 页面**：`/pacs/imaging`、`/pacs/imaging-ai` 完整能力（列表、上传、CNN 报告）；当前 lzr/zty 仅做最小可运行占位。
-- **不负责** LLM 开单（归 lml）；**不负责** 检查队列三段式报告（归 lzr 当前迭代）。
+- **文档**：维护 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md)、[IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)（MinIO 路径规范、`patient_id` 查询流程、SQL/API 示例）。
+- **不负责** LLM 开单（归 lml）。
 
 #### zty — 前端 + 测试
 
@@ -408,7 +411,48 @@ wsh  = hospital-ai（Python CNN，内网）
 
 跨模块：**Feign + API 契约**；改契约 **zcl 先改文档** → 全员 Ack → 再编码。
 
-## 十、当前实现与 PENDING 摘要（2026-06-11）
+### 9.5 影像 MinIO 跨模块交接（wsh · lzr · zcl · 全员）
+
+> **完整说明**：[IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)  
+> **集成链路**：[AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md)
+
+#### 存储分工
+
+| 存储 | 存什么 | 谁写 | 谁读 |
+|------|--------|------|------|
+| **MinIO** `imaging/studies/{checkRequestId}/` | 源 CT、掩码、预览 NIfTI | pacs 上传源；hospital-ai 写结果 | **仅 pacs / hospital-ai**；业务模块**不直连** |
+| **PostgreSQL** `imaging_study` | 路径索引、`report_json`、任务状态 | pacs | his / 管理端可 JOIN；患者端经 API |
+| **PostgreSQL** `check_request` | 医师确认后的 `result_text` | pacs（检查医生录入） | **his、患者端优先读这个** |
+
+#### ID 对应（必记）
+
+```text
+patient.id  ──►  check_request.id（检查申请 ID）  ──►  MinIO studies/{checkRequestId}/
+     │                    │
+     └────────────────────┴── imaging_study.check_request_id / patient_id
+```
+
+MinIO 控制台里的 `studies/1/`、`studies/62001/` 等数字 = **`check_request.id`**，不是患者 ID。
+
+#### 各模块标准用法
+
+| 模块 | 场景 | 做法 |
+|------|------|------|
+| **his（zcl）** | 门诊医生看某患者影像 AI 报告 | Feign/HTTP：`GET /pacs/imaging-studies?patientId=` → `GET /pacs/requests/{checkRequestId}/result-detail`；或 JOIN `check_request` + `imaging_study` |
+| **患者小程序（zcl）** | 患者看本人检查 | JWT 取 `patient_id` → 同上 API；**禁止**传他人 `patientId` |
+| **pacs（lzr + wsh）** | 上传、CNN、预览 | 见 AI_CNN_INTEGRATION；列表 API 已支持 `patientId` / `medicalRecordNo` 筛选 |
+| **lis / disposal** | 一般不读 CT 文件 | 仅需文字时读 `check_request.result_text` |
+| **management（lzr）** | 任务监控 | `GET /pacs/imaging-studies` + `imaging_study.status` |
+
+#### 禁止
+
+- 用 MinIO 文件夹名当 `patient_id`
+- 各服务各自配置 MinIO AK/SK 扫 bucket
+- 在业务库再建「MinIO 文件表」（与 `imaging_study` 重复）
+
+契约变更涉及影像查询时：先改 **API.md** + **IMAGING_DATA_ACCESS.md**，再改 pacs 代码。
+
+## 十、当前实现与 PENDING 摘要（2026-06）
 
 便于后端认领时对齐；**以代码与 [PROGRESS.md](./PROGRESS.md) 为准**，本文仅作协作快照。
 
@@ -418,7 +462,7 @@ wsh  = hospital-ai（Python CNN，内网）
 
 - 患者：微信登录、档案、**家属就诊人**（`GET/POST /patient/family-members`）、线上挂号、模拟支付、退号、病历  
 - 医生：队列、叫号、病历、开检验/检查/处方、查结果  
-- 检验/检查：`/lis/**` 队列、execute、result（LIS 含 result-detail / ai-report STUB ✅）；`/pacs/**` 队列、execute、单字段 result ✅  
+- 检验/检查：`/lis/**`、`/pacs/**` 队列、execute、result  
 - 药房：待发药、发药、退药  
 - 收费员（**部分**）：按病历号查账单、退费、退号（`controller.registrar`；**窗口挂号/收费结算仍 PENDING**，见 §9.3）  
 - 管理：字典只读
@@ -429,7 +473,6 @@ wsh  = hospital-ai（Python CNN，内网）
 
 | 能力 | 典型 API | 负责人 |
 |------|----------|--------|
-| **PACS 三段式报告（对齐 LIS）** | `GET/POST /pacs/requests/{id}/result-detail`、`ai-report`；HIS `GET /doctor/check-requests/{id}/result` §1.7 | **lzr** · [计划](./superpowers/plans/2026-06-11-pacs-lis-alignment.md) |
 | **窗口挂号 / 收费结算** | `POST /registrar/registers`、`POST /registrar/charges`（或等价 settle） | zcl · his（§9.3） |
 | 门诊确诊 / 结束看诊 | `POST .../medical-record/confirm`、`POST .../finish` | zcl · his |
 | **处置全流程（必做）** | `/doctor/disposal-requests/**`（his 开立）、`/disposal/**`（disposal 执行/结果） | zcl · his + disposal |
@@ -437,7 +480,7 @@ wsh  = hospital-ai（Python CNN，内网）
 | **AI 检查/检验/处置草稿** | `POST/PUT/confirm …/ai-draft/**` | lml 生成 + zcl · his |
 | AI 处方草稿 | `/prescriptions/ai-draft/**` | lml + zcl |
 | 字典/排班 CRUD、Timefold | `/admin/**`、`/admin/scheduling/**` | lzr · management（P5 必做） |
-| MinIO + CNN 链路 | `GET /pacs/imaging-studies`、`POST /pacs/imaging/upload`、`hospital-ai` jobs | **wsh** + lzr（与三段式报告迭代分离） |
+| MinIO + CNN 链路 | `/pacs/imaging/upload`、`hospital-ai` jobs；跨模块查患者影像见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) | lzr + wsh |
 | 患者缴费/退款列表 | `GET /patient/payments`、`GET /patient/refunds` | zcl · his |
 | AI SSE / RAG | `/ai/assistant/stream`、`/ai/rag/**` | lml |
 
@@ -463,10 +506,10 @@ wsh  = hospital-ai（Python CNN，内网）
 
 | 日期      | 说明                                             |
 | ------- | ---------------------------------------------- |
-| 2026-06-11 | PACS 对齐 LIS 分工：lzr 三段式报告；wsh 影像任务/CNN；链入 superpowers 规格/计划 |
 | 2026-06 | §2.3 扁平 `controller.*` 定稿；DATABASE §4.3 **`patient_family_link`** 字段说明 |
 | 2026-06 | §3.3 标注 DATABASE **v1.14** 定稿；§十 与 §9.3 分工对齐 |
 | 2026-06 | §九 六人分工定稿；ADR-015 AI 开单（suggest + ai-draft 三步） |
+| 2026-06 | §8 Handoff 增影像交付物；**§9.5** 影像 MinIO 跨模块交接；配套 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) |
 | 2026-05 | 首版及后续协作/Git 约定迭代                               |
 
 

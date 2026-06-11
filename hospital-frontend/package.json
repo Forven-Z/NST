@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@niivue/niivue": "0.57.0",
     "axios": "^1.9.0",
     "element-plus": "^2.9.10",
     "pinia": "^3.0.2",

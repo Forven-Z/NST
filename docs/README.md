@@ -25,7 +25,8 @@
 | **L4 按需** | [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md) | Windows 首次装环境 |
 | **活文档** | [PROGRESS.md](./PROGRESS.md) | 实现进度（每周更新） |
 | **SQL** | [sql/README.md](./sql/README.md) | 建表与 seed |
-| **迭代设计** | [superpowers/specs/](./superpowers/specs/) · [superpowers/plans/](./superpowers/plans/) | 功能设计规格与实施计划（按迭代追加） |
+| **L4 按需** | [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) | **影像 MinIO + 按 patient_id 查结果**（跨模块必读） |
+| **L4 按需** | [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) | CT CNN 集成与 pacs API |
 
 > **已合并删除**（勿再引用）：`API_INTERFACE_SPEC.md`、`FRONTEND_API_MAP.md`（正文）→ **API.md v2.1**；`INTEGRATION_CHECKLIST.md` → RUNBOOK §十二；`DEVELOPMENT_RATIONALE.md` → IMPLEMENTATION_PLAN §八；`TECH_ARCHITECTURE.md` → MICROSERVICES §八。
 
@@ -105,4 +106,3 @@
 | v1.0～v1.6 | 2026-05 | 见历史条目 |
 | v1.7 | 2026-05 | **文档精简**：合并 INTEGRATION / RATIONALE / TECH；分层阅读 L1～L4；删除过时 §代码现状 |
 | v2.1 | 2026-06 | 全库文档对齐 **DATABASE v1.14**；`API.md` v1.4 端口/字段修正 |
-| v2.2 | 2026-06-11 | 增补 **superpowers** 设计/计划目录索引；PACS 对齐 LIS 迭代文档入链 |
