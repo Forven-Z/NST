@@ -4,9 +4,12 @@ import { ElMessage } from 'element-plus'
 import ResultReportSections from '../medical/ResultReportSections.vue'
 import {
   buildRegisterResultsFromOrders,
+  fetchCheckResult,
   fetchInspectionResult,
   fetchRegisterOrders,
 } from '../../api/doctor'
+
+const REPORT_SECTION_KINDS = new Set(['inspection', 'check'])
 
 const props = defineProps({
   registerId: { type: Number, default: null },
@@ -18,7 +21,7 @@ const resultsMap = ref({})
 const resultDialogVisible = ref(false)
 const resultDetail = ref(null)
 const resultLoading = ref(false)
-const inspectionDetail = ref(null)
+const medTechDetail = ref(null)
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
@@ -33,7 +36,7 @@ watch(
   (id) => {
     resultDialogVisible.value = false
     resultDetail.value = null
-    inspectionDetail.value = null
+    medTechDetail.value = null
     resultsMap.value = {}
     if (id) loadOrders()
     else orders.value = null
@@ -69,16 +72,18 @@ async function onViewResult(row) {
     return ElMessage.warning('结果尚未出具')
   }
   resultDetail.value = { ...row }
-  inspectionDetail.value = null
+  medTechDetail.value = null
   resultDialogVisible.value = true
 
-  if (row.kind === 'inspection') {
+  if (REPORT_SECTION_KINDS.has(row.kind)) {
     resultLoading.value = true
     try {
-      const res = await fetchInspectionResult(row.requestId)
-      inspectionDetail.value = res.data
+      const fetcher = row.kind === 'inspection' ? fetchInspectionResult : fetchCheckResult
+      const res = await fetcher(row.requestId)
+      medTechDetail.value = res.data
     } catch (err) {
-      ElMessage.error(err.message || '加载检验结果失败')
+      const label = row.kind === 'inspection' ? '检验' : '检查'
+      ElMessage.error(err.message || `加载${label}结果失败`)
     } finally {
       resultLoading.value = false
     }
@@ -137,18 +142,18 @@ defineExpose({ reload: loadOrders })
       destroy-on-close
     >
       <div v-loading="resultLoading">
-        <template v-if="resultDetail?.kind === 'inspection' && inspectionDetail">
+        <template v-if="medTechDetail && REPORT_SECTION_KINDS.has(resultDetail?.kind)">
           <ResultReportSections
-            :instrument-data="inspectionDetail.instrumentData"
-            :ai-report-text="inspectionDetail.aiReportText"
-            :doctor-report-text="inspectionDetail.doctorReportText"
-            :ai-report-status="inspectionDetail.aiReportStatus"
+            :instrument-data="medTechDetail.instrumentData"
+            :ai-report-text="medTechDetail.aiReportText"
+            :doctor-report-text="medTechDetail.doctorReportText"
+            :ai-report-status="medTechDetail.aiReportStatus"
             :editable-ai="false"
             :editable-doctor="false"
           />
           <el-descriptions :column="1" border class="meta-desc">
-            <el-descriptions-item v-if="inspectionDetail.reportTime" label="报告时间">
-              {{ inspectionDetail.reportTime }}
+            <el-descriptions-item v-if="medTechDetail.reportTime" label="报告时间">
+              {{ medTechDetail.reportTime }}
             </el-descriptions-item>
           </el-descriptions>
         </template>

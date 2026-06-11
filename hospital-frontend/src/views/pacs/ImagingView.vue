@@ -7,6 +7,7 @@ import { fetchImagingStudies } from '../../api/pacs'
 
 const router = useRouter()
 const loading = ref(false)
+const devPending = ref(false)
 const statusFilter = ref('')
 const list = ref([])
 
@@ -20,13 +21,15 @@ onMounted(loadList)
 
 async function loadList() {
   loading.value = true
+  devPending.value = false
   try {
     const res = await fetchImagingStudies({
       status: statusFilter.value || undefined,
     })
     list.value = res.data?.list ?? []
   } catch (err) {
-    ElMessage.error(err.message || '加载影像任务失败')
+    devPending.value = true
+    list.value = []
   } finally {
     loading.value = false
   }
@@ -70,7 +73,9 @@ function goImagingAi(row) {
         </div>
       </template>
 
-      <el-table v-loading="loading" :data="list" empty-text="暂无影像任务">
+      <el-empty v-if="devPending && !loading" description="影像任务列表开发中，将由影像组后续接入 GET /pacs/imaging-studies" />
+
+      <el-table v-if="!devPending" v-loading="loading" :data="list" empty-text="暂无影像任务">
         <el-table-column prop="medicalRecordNo" label="病历号" width="150" />
         <el-table-column prop="patientName" label="患者" width="100" />
         <el-table-column prop="itemName" label="检查项目" min-width="140" />

@@ -336,7 +336,7 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 | `hospital-auth`            | 9101   | **zcl** | ✅   | r-min A1/A2                   |
 | `hospital-his`             | 9102   | **zcl** | ✅   | r-min, r-pharmacy, r-reversal |
 | `hospital-lis`             | 9103   | **lzr** | ✅   | r-lis                         |
-| `hospital-pacs`            | 9104   | **lzr** | 🟨  | r-pacs（upload 待完善）            |
+| `hospital-pacs`            | 9104   | **lzr** | 🟨  | r-pacs 核心 ✅；**三段式报告对齐 LIS** 🟨；imaging-studies/CNN ⬜ **wsh** |
 | `hospital-disposal`        | 9105   | **zcl** | ✅   | 处置队列/执行/结果                    |
 | `hospital-management`      | 9107   | **lzr** | 🟨  | r-modules-smoke；**P5 排班必做**   |
 | `hospital-ai-bridge`       | 9106   | **lml** | 🟨  | r-modules-smoke → r-full      |
@@ -372,9 +372,11 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 #### lzr — LIS + PACS + 管理
 
-- **lis / pacs**：队列、结果、Feign 联调；**MinIO** + 影像 upload；pacs 调 **wsh** CNN 异步链。
+- **lis**：队列、三段式报告 ✅。
+- **pacs（当前迭代）**：镜像 LIS——`result-detail`、`ai-report` 文本 STUB、双字段 `result`、HIS 医生读结果 §1.7；规格见 [PACS-LIS 设计](./superpowers/specs/2026-06-11-pacs-lis-alignment-design.md)。
+- **pacs（影像组 · wsh）**：`GET /pacs/imaging-studies`、MinIO upload、pacs→`hospital-ai` CNN 回调（**不在** LIS 对齐迭代内）。
 - **management**：字典 CRUD；**P5 排班 CRUD + Timefold**（必做）。
-- **不改** his / ai-bridge 代码。
+- **不改** his / ai-bridge 代码（HIS `getCheckResult` 扩展由 lzr 改 his 只读侧）。
 
 #### lml — Spring AI（大模型）
 
@@ -385,7 +387,8 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 #### wsh — CNN 影像
 
 - `hospital-ai/` FastAPI：训练、推理 job、MinIO 结果；与 **lzr** pacs callback 联调。
-- **不负责** LLM 开单（归 lml）。
+- **PC 页面**：`/pacs/imaging`、`/pacs/imaging-ai` 完整能力（列表、上传、CNN 报告）；当前 lzr/zty 仅做最小可运行占位。
+- **不负责** LLM 开单（归 lml）；**不负责** 检查队列三段式报告（归 lzr 当前迭代）。
 
 #### zty — 前端 + 测试
 
@@ -405,7 +408,7 @@ wsh  = hospital-ai（Python CNN，内网）
 
 跨模块：**Feign + API 契约**；改契约 **zcl 先改文档** → 全员 Ack → 再编码。
 
-## 十、当前实现与 PENDING 摘要（2026-06）
+## 十、当前实现与 PENDING 摘要（2026-06-11）
 
 便于后端认领时对齐；**以代码与 [PROGRESS.md](./PROGRESS.md) 为准**，本文仅作协作快照。
 
@@ -415,7 +418,7 @@ wsh  = hospital-ai（Python CNN，内网）
 
 - 患者：微信登录、档案、**家属就诊人**（`GET/POST /patient/family-members`）、线上挂号、模拟支付、退号、病历  
 - 医生：队列、叫号、病历、开检验/检查/处方、查结果  
-- 检验/检查：`/lis/**`、`/pacs/**` 队列、execute、result  
+- 检验/检查：`/lis/**` 队列、execute、result（LIS 含 result-detail / ai-report STUB ✅）；`/pacs/**` 队列、execute、单字段 result ✅  
 - 药房：待发药、发药、退药  
 - 收费员（**部分**）：按病历号查账单、退费、退号（`controller.registrar`；**窗口挂号/收费结算仍 PENDING**，见 §9.3）  
 - 管理：字典只读
@@ -426,6 +429,7 @@ wsh  = hospital-ai（Python CNN，内网）
 
 | 能力 | 典型 API | 负责人 |
 |------|----------|--------|
+| **PACS 三段式报告（对齐 LIS）** | `GET/POST /pacs/requests/{id}/result-detail`、`ai-report`；HIS `GET /doctor/check-requests/{id}/result` §1.7 | **lzr** · [计划](./superpowers/plans/2026-06-11-pacs-lis-alignment.md) |
 | **窗口挂号 / 收费结算** | `POST /registrar/registers`、`POST /registrar/charges`（或等价 settle） | zcl · his（§9.3） |
 | 门诊确诊 / 结束看诊 | `POST .../medical-record/confirm`、`POST .../finish` | zcl · his |
 | **处置全流程（必做）** | `/doctor/disposal-requests/**`（his 开立）、`/disposal/**`（disposal 执行/结果） | zcl · his + disposal |
@@ -433,7 +437,7 @@ wsh  = hospital-ai（Python CNN，内网）
 | **AI 检查/检验/处置草稿** | `POST/PUT/confirm …/ai-draft/**` | lml 生成 + zcl · his |
 | AI 处方草稿 | `/prescriptions/ai-draft/**` | lml + zcl |
 | 字典/排班 CRUD、Timefold | `/admin/**`、`/admin/scheduling/**` | lzr · management（P5 必做） |
-| MinIO + CNN 链路 | `/pacs/imaging/upload`、`hospital-ai` jobs | lzr + wsh |
+| MinIO + CNN 链路 | `GET /pacs/imaging-studies`、`POST /pacs/imaging/upload`、`hospital-ai` jobs | **wsh** + lzr（与三段式报告迭代分离） |
 | 患者缴费/退款列表 | `GET /patient/payments`、`GET /patient/refunds` | zcl · his |
 | AI SSE / RAG | `/ai/assistant/stream`、`/ai/rag/**` | lml |
 
@@ -459,6 +463,7 @@ wsh  = hospital-ai（Python CNN，内网）
 
 | 日期      | 说明                                             |
 | ------- | ---------------------------------------------- |
+| 2026-06-11 | PACS 对齐 LIS 分工：lzr 三段式报告；wsh 影像任务/CNN；链入 superpowers 规格/计划 |
 | 2026-06 | §2.3 扁平 `controller.*` 定稿；DATABASE §4.3 **`patient_family_link`** 字段说明 |
 | 2026-06 | §3.3 标注 DATABASE **v1.14** 定稿；§十 与 §9.3 分工对齐 |
 | 2026-06 | §九 六人分工定稿；ADR-015 AI 开单（suggest + ai-draft 三步） |

@@ -595,7 +595,16 @@ export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  return formatResultPayload(row, 'checkRequestId')
+  ensureInstrumentData(row, 'CHECK')
+  const parsed = parsePublishedText(row.resultText)
+  return {
+    ...formatResultPayload(row, 'checkRequestId'),
+    instrumentData: row.instrumentData || '',
+    aiReportText: row.aiReportText || parsed.aiReportText,
+    doctorReportText: row.doctorReportText || parsed.doctorReportText,
+    aiReportStatus: row.aiReportStatus || 'READY',
+    status: row.status,
+  }
 }
 
 export function getDisposalResult(disposalRequestId) {
