@@ -106,8 +106,6 @@ common (Result, JWT DTO)
 |---|------|------|------|
 | 3.1 | his | 开立检查、处方、处置 | |
 | 3.2 | pacs | 检查队列、结果、`/pacs/imaging/upload` | ADR-002 |
-| 3.2a | pacs + his + 前端 | **对齐 LIS 三段式**（result-detail、ai-report STUB、§1.7 医生读结果） | [规格](./superpowers/specs/2026-06-11-pacs-lis-alignment-design.md) |
-| 3.2b | pacs + wsh | 影像任务列表、MinIO、CNN（**独立迭代**） | P4 |
 | 3.3 | his | 药房发药 | `prescription.status=30` |
 | 3.4 | MinIO | 影像 bucket | P3 检查上传 |
 
@@ -202,5 +200,4 @@ common → auth → his → [management] → gateway → 前端联调
 |------|------|------|
 | v1.0 | 2026-05 | 首版 P0.5～P4 任务与 P1 DoD |
 | v2.0 | 2026-05 | 合并 DEVELOPMENT_RATIONALE；协作约定链 TEAM_COLLABORATION |
-| v2.2 | 2026-06-11 | §五 增补 3.2a PACS 对齐 LIS 三段式与 3.2b 影像/CNN 分工 |
 | v2.1 | 2026-06 | §3.1 HIS 包命名与 `MICROSERVICES.md` §2.3 扁平 `controller.*` 对齐 |

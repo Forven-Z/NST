@@ -21,7 +21,7 @@ cd NST
 | [hospital-backend/](./hospital-backend/) | Java 17 · Spring Boot 3.2.4 · Spring Cloud 2023.0 · 微服务 |
 | [hospital-frontend/](./hospital-frontend/) | Vue 3 · 医生/管理 PC |
 | [hospital-patient-miniapp/](./hospital-patient-miniapp/) | 患者微信小程序（原生） |
-| [hospital-ai/](./hospital-ai/) | Python FastAPI · CNN（待建） |
+| [hospital-ai/](./hospital-ai/) | Python FastAPI · CT 金属伪影 CNN（见 [docs/AI_CNN_INTEGRATION.md](./docs/AI_CNN_INTEGRATION.md)） |
 
 ## 快速入口
 
@@ -35,9 +35,10 @@ cd NST
 - **环境搭建**：[docs/DEV_ENV_SETUP.md](./docs/DEV_ENV_SETUP.md)
 - **API 契约**：[docs/API.md](./docs/API.md)（Base URL：`http://localhost:9000`）
 - **建库脚本**：[docs/sql/README.md](./docs/sql/README.md)
+- **影像数据怎么按患者查**：[docs/IMAGING_DATA_ACCESS.md](./docs/IMAGING_DATA_ACCESS.md)（MinIO 路径 + `patientId` API）
 
 ## 当前阶段
 
-**P3 核心已完成**（门诊 + 检验 + 检查 + 发药 + 退号退费退药）；**PACS 检查队列对齐 LIS 三段式**进行中，详见 [docs/PROGRESS.md](./docs/PROGRESS.md) 与 [PACS-LIS 实施计划](./docs/superpowers/plans/2026-06-11-pacs-lis-alignment.md)。
+**P3 核心已完成**（门诊 + 检验 + 检查 + 发药 + 退号退费退药）；详见 [docs/PROGRESS.md](./docs/PROGRESS.md)。
 
 **数据模型 v1.14 已定稿**：表结构、API、后端代码、前端 Mock 已对齐；联调前请按 [docs/sql/README.md](./docs/sql/README.md) 重建本地库。

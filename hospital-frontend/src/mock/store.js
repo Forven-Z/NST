@@ -34,32 +34,6 @@ function ensureInstrumentData(row, techType) {
   return row.instrumentData
 }
 
-function parsePublishedText(resultText) {
-  if (!resultText) return { aiReportText: '', doctorReportText: '' }
-  const match = resultText.trim().match(/^AI：([\s\S]*?)(?:\n医师：([\s\S]*))?$/)
-  if (match) {
-    return {
-      aiReportText: (match[1] || '').trim(),
-      doctorReportText: (match[2] || '').trim(),
-    }
-  }
-  return { aiReportText: resultText.trim(), doctorReportText: '' }
-}
-
-function parseCriticalItems(instrumentData) {
-  if (!instrumentData) return []
-  const items = []
-  for (const line of instrumentData.split('\n')) {
-    const m = line.trim().match(/^(.+?)\s{2,}([\d.]+)\s+(\S+(?:\s+\S+)?)\s+参考\s+([\d.]+-[\d.]+)/)
-    if (!m) continue
-    const value = Number(m[2])
-    const [lo, hi] = m[4].split('-').map(Number)
-    if (value > hi) items.push({ name: m[1].trim(), value: m[2], unit: m[3], refRange: m[4], flag: 'HIGH' })
-    else if (value < lo) items.push({ name: m[1].trim(), value: m[2], unit: m[3], refRange: m[4], flag: 'LOW' })
-  }
-  return items
-}
-
 let nextPatientId = 100
 let nextRegisterId = 30000
 let nextBillId = 81000
@@ -579,32 +553,14 @@ export function getInspectionResult(inspectionRequestId) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(inspectionRequestId))
   if (!row) throw new Error('检验申请不存在')
   if (row.status < 40) throw new Error('检验结果尚未出具，请待检验科录入')
-  ensureInstrumentData(row, 'INSPECTION')
-  const parsed = parsePublishedText(row.resultText)
-  return {
-    ...formatResultPayload(row, 'inspectionRequestId'),
-    instrumentData: row.instrumentData || '',
-    aiReportText: row.aiReportText || parsed.aiReportText,
-    doctorReportText: row.doctorReportText || parsed.doctorReportText,
-    aiReportStatus: row.aiReportStatus || 'READY',
-    status: row.status,
-  }
+  return formatResultPayload(row, 'inspectionRequestId')
 }
 
 export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  ensureInstrumentData(row, 'CHECK')
-  const parsed = parsePublishedText(row.resultText)
-  return {
-    ...formatResultPayload(row, 'checkRequestId'),
-    instrumentData: row.instrumentData || '',
-    aiReportText: row.aiReportText || parsed.aiReportText,
-    doctorReportText: row.doctorReportText || parsed.doctorReportText,
-    aiReportStatus: row.aiReportStatus || 'READY',
-    status: row.status,
-  }
+  return formatResultPayload(row, 'checkRequestId')
 }
 
 export function getDisposalResult(disposalRequestId) {
@@ -638,11 +594,6 @@ export function getTechResultDetail(techType, id) {
       : 'disposalRequestId'
   return {
     ...formatResultPayload(row, idKey),
-    instrumentData: row.instrumentData || '',
-    aiReportText: row.aiReportText || '',
-    doctorReportText: row.doctorReportText || '',
-    aiReportStatus: row.aiReportStatus || 'PENDING',
-    criticalItems: parseCriticalItems(row.instrumentData || ''),
     status: row.status,
     medicalRecordNo: row.medicalRecordNo,
     patientName: row.patientName,
@@ -662,7 +613,7 @@ export function generateTechAiReport(techType, id) {
 const ORDER_STATUS_LABEL = {
   10: '已开立',
   20: '已缴费',
-  30: '执行中',
+  30: '执行完成',
   40: '已出结果',
   50: '已退费',
 }
@@ -864,14 +815,6 @@ export function saveInspectionResult(id, payload) {
   if (!row) throw new Error('申请不存在')
   if (typeof payload === 'string') {
     row.resultText = payload
-  } else if (payload.aiReportText != null || payload.doctorReportText != null) {
-    if (payload.aiReportText != null) row.aiReportText = payload.aiReportText
-    if (payload.doctorReportText != null) row.doctorReportText = payload.doctorReportText
-    row.resultAttachment = payload.resultAttachment ?? row.resultAttachment ?? ''
-    const parts = []
-    if (row.aiReportText) parts.push(`AI：${row.aiReportText}`)
-    if (row.doctorReportText) parts.push(`医师：${row.doctorReportText}`)
-    row.resultText = parts.join('\n')
   } else {
     row.resultText = payload.resultText ?? ''
     row.resultAttachment = payload.resultAttachment ?? ''

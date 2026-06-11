@@ -5,8 +5,6 @@ import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
-import com.hospital.common.support.MedTechReportSupport;
-import com.hospital.common.support.MedTechReportSupport.ParsedPublishedText;
 import com.hospital.his.dto.doctor.CreateInspectionRequest;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
@@ -90,22 +88,12 @@ public class InspectionOrderService {
         if (status < InspectionRequestStatus.RESULT_READY) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "检验结果尚未出具");
         }
-        String itemName = (String) row.get("itemName");
-        String resultText = (String) row.get("resultText");
-        ParsedPublishedText parsed = MedTechReportSupport.parsePublishedText(resultText);
-        Object resultTime = row.get("resultTime");
-
         Map<String, Object> result = new HashMap<>();
         result.put("inspectionRequestId", row.get("inspectionRequestId"));
-        result.put("itemName", itemName);
+        result.put("itemName", row.get("itemName"));
         result.put("status", status);
-        result.put("instrumentData", MedTechReportSupport.instrumentDataFor(itemName));
-        result.put("aiReportText", parsed.aiReportText());
-        result.put("doctorReportText", parsed.doctorReportText());
-        result.put("aiReportStatus", "READY");
-        result.put("resultText", resultText);
-        result.put("reportTime", resultTime);
-        result.put("resultTime", resultTime);
+        result.put("resultText", row.get("resultText"));
+        result.put("resultTime", row.get("resultTime"));
         return result;
     }
 }

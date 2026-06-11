@@ -3,6 +3,7 @@ package com.hospital.pacs.controller;
 import com.hospital.common.Result;
 import com.hospital.pacs.dto.CheckResultRequest;
 import com.hospital.pacs.service.PacsCheckService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,25 +40,10 @@ public class PacsController {
         return Result.success(pacsCheckService.execute(id));
     }
 
-    @GetMapping("/requests/{id}/result-detail")
-    public Result<Map<String, Object>> resultDetail(@PathVariable Long id) {
-        return Result.success(pacsCheckService.getResultDetail(id));
-    }
-
-    @PostMapping("/requests/{id}/ai-report")
-    public Result<Map<String, Object>> generateAiReport(@PathVariable Long id) {
-        return Result.success(pacsCheckService.generateAiReport(id));
-    }
-
     @PostMapping("/requests/{id}/result")
     public Result<Map<String, Object>> saveResult(
             @PathVariable Long id,
-            @RequestBody CheckResultRequest request) {
+            @Valid @RequestBody CheckResultRequest request) {
         return Result.success(pacsCheckService.saveResult(id, request));
-    }
-
-    @PostMapping("/imaging/upload")
-    public Result<Map<String, Object>> imagingUploadStub() {
-        return Result.success(pacsCheckService.imagingUploadStub());
     }
 }
