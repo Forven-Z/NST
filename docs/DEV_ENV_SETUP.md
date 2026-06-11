@@ -1103,21 +1103,28 @@ python -m venv .venv
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-### 8.3 安装 Python 依赖（P4 前可暂缓）
+### 8.3 安装 hospital-ai（CNN · 默认 GPU）
 
-待 `hospital-ai/requirements.txt` 提交后执行：
+> **勿**在 Windows 上单独执行 `pip install torch` 或 `pip install -r requirements.txt`（会装 **CPU 版** `torch+x.cpu`，推理极慢）。  
+> 代码逻辑是「有 CUDA 就用 GPU」（`model/Config.py`），前提是本机安装 **CUDA 版 PyTorch**。
 
-```powershell
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-pip install fastapi uvicorn python-multipart minio httpx
-```
-
-验证 FastAPI（后期）：
+在项目根目录执行（推荐）：
 
 ```powershell
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-curl http://localhost:8000/v1/health
+powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
 ```
+
+脚本会：创建 `.venv` → 安装 **cu124** 版 `torch` → 安装 `requirements.txt` 其余依赖。
+
+验证（`device` 须含 `cuda`，不能是 `cpu`）：
+
+```powershell
+cd hospital-ai
+.\.venv\Scripts\python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+curl http://127.0.0.1:8000/v1/health
+```
+
+权重 `hospital-ai/model/weights/best.pth` 本机复制，不进 Git。详见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) §八。
 
 > **P1～P3**：可不启动 `hospital-ai`；Java 对 CNN 接口返回 STUB 即可。
 

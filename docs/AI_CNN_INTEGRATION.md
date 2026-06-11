@@ -105,8 +105,12 @@ hospital-ai :8000（Python，仅 pacs 内网调用，不经 Gateway）
 2. Nacos :8848
 3. MinIO :9001
 4. Java：auth → management → his → pacs → gateway
-5. hospital-ai：
-   cd hospital-ai && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+5. hospital-ai（**必须先装 GPU 版 PyTorch**，勿只 `pip install -r requirements.txt`）：
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
+   ```
+   验证：`http://127.0.0.1:8000/v1/health` 中 `"device":"cuda:0"` 或含 `cuda`（非 `cpu`）。
+   一键启动：`scripts/start-r-pacs-ai.bat`（已绑定 `.venv` 内 Python）。
 6. 演示检查单（队列非空，与 Mock #62001 对齐）：
    psql -U postgres -d hospital -f docs/sql/seed-demo-check.sql
    或：powershell -File scripts/seed-demo-check.ps1
@@ -131,7 +135,7 @@ HOSPITAL_AI_BASE_URL=http://127.0.0.1:8000
 1. `check01 / 123456` 登录 PC 前端  
 2. 检查队列 → 开始执行 → **影像 AI 工作台**  
 3. 选择 NIfTI 或 DICOM 文件夹（**选文件后自动上传源数据至 MinIO**，无需单独点上传）  
-4. 点击 **开始 AI 检测**（约 15–60 秒；掩码与预览由 hospital-ai 自动写入 MinIO）  
+4. 点击 **开始 AI 检测**（GPU 约 15–60 秒；**CPU 可能 5–8 分钟**，进度条在 88% 附近会等待后端；勿重复点击）  
 5. 查看 AI 报告 + Niivue 三视图  
 6. 返回队列录入 `resultText`
 
@@ -158,3 +162,15 @@ hospital-ai 内网（pacs 调用）：
 | GET | `/v1/health` |
 
 回调：`POST http://127.0.0.1:9104/internal/imaging/callback`
+
+---
+
+## 八、GPU / CPU 说明（必读）
+
+| 项 | 说明 |
+|----|------|
+| 代码默认 | `Config.py`：`cuda` 可用则用 GPU，否则 `cpu` |
+| Git 仓库 | **不包含** `.venv`；`requirements.txt` **不含** torch，避免误装 CPU 版 |
+| 正确安装 | `scripts/setup-hospital-ai.ps1` → 安装 `cu124` 版 PyTorch |
+| 自检 | `GET /v1/health` → `device` 应为 `cuda`；若为 `cpu` 推理极慢 |
+| 权重 | `hospital-ai/model/weights/best.pth` 本机放置，不进 Git |
