@@ -56,7 +56,8 @@
 | hospital-his · 窗口挂号/收费 | API §八 | ✅ | | `POST /registrar/registers`（待支付）+ `POST /registrar/charges` |
 | hospital-lis · 队列/结果/报告 | API §6 | ✅ | | 第二阶段三段式 + **第三阶段** `criticalItems`、危急值发布前弹窗、退费边界联调 |
 | hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | `GET /disposal/queue`, `POST /disposal/requests/{id}/result` |
-| hospital-management · 字典只读 | API §6 | ✅ | | `GET /admin/departments` 等 |
+| hospital-management · 字典只读 | API §9.1 | ✅ | | `GET /admin/departments` 等 |
+| hospital-management · 科室/员工/排班 CRUD | API §9.2–9.3 | ✅ | | `POST/PUT/DELETE /admin/**` + auth 内部开户 |
 | hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
 | hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
 | hospital-pacs · 影像任务/CNN | API §6 · §8 | ⬜ | lzr+wsh | `imaging-studies`、MinIO upload、`hospital-ai` 回调 |
@@ -64,7 +65,7 @@
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
 | hospital-disposal | MICRO §2.5a | ✅ | | :9105 |
 | hospital-pacs | MICRO §2.5 | ✅ | | :9104 |
-| hospital-management | MICRO §2.6 | ✅ | | :9107 字典只读 |
+| hospital-management | MICRO §2.6 | ✅ | | :9107 字典只读 + 科室/员工/排班 CRUD |
 | hospital-ai-bridge | MICRO §2.7 | ✅ | | :9106 STUB |
 | hospital-ai (Python) | API §8 | ⬜ | | P4 |
 
@@ -82,6 +83,7 @@
 | PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + `fetchPacsResultDetail`；对齐 LIS |
 | PC · PACS 影像任务 | §2.5 | 🟨 | zty | `/pacs/imaging` 关 Mock 显示开发中空态；后端 `imaging-studies` ⬜ |
 | PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai` 最小可运行；CNN 由 wsh 后续 |
+| PC · admin | API §9 | ✅ | | 科室/员工/排班核心页关 Mock 可联调；P5 请假/AI 仅 Mock |
 | 小程序 · 登录/挂号 | §一 | ✅ | | `hospital-patient-miniapp/` |
 | 小程序 · 支付 | §一 | ✅ | | 待缴列表 + 模拟支付 |
 | 小程序 · 报告/医嘱 | §一 | ✅ | | 报告 Tab + `pages/orders` 医嘱进度 |
@@ -97,6 +99,7 @@
 | R-pacs（P3） | ✅ | 2026-05-31 | King | `scripts/r-pacs-acceptance.ps1` 7/7 PASS |
 | R-pharmacy（P3） | ✅ | 2026-05-31 | King | `scripts/r-pharmacy-acceptance.ps1` 4/4 PASS |
 | R-reversal（P3） | ✅ | 2026-05-31 | King | `scripts/r-reversal-acceptance.ps1` 4/4 PASS |
+| R-mgmt（P1） | ✅ | 2026-06-11 | | `scripts/r-mgmt-acceptance.ps1` 12/12 PASS |
 | R-full（P4） | ⬜ | | |
 
 ---
