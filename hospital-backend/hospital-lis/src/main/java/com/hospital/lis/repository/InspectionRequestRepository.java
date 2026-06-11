@@ -1,5 +1,6 @@
 package com.hospital.lis.repository;
 
+import com.hospital.lis.support.LisReportStubSupport;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -27,10 +28,14 @@ public class InspectionRequestRepository {
                                mt.item_name,
                                ir.item_price,
                                ir.status,
-                               ir.order_time
+                               ir.order_time,
+                               rl.level_code AS regist_level_code,
+                               rl.level_name AS regist_level_name
                         FROM inspection_request ir
                         JOIN patient p ON ir.patient_id = p.id
                         JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        JOIN register r ON ir.register_id = r.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
                         WHERE ir.delmark = 0
                           AND (CAST(:status AS INTEGER) IS NULL OR ir.status = CAST(:status AS INTEGER))
                         ORDER BY ir.order_time
@@ -49,6 +54,10 @@ public class InspectionRequestRepository {
                     row.put("itemPrice", rs.getBigDecimal("item_price"));
                     row.put("status", rs.getInt("status"));
                     row.put("orderTime", rs.getObject("order_time", OffsetDateTime.class));
+                    String levelCode = rs.getString("regist_level_code");
+                    String levelName = rs.getString("regist_level_name");
+                    row.put("triageLevel", LisReportStubSupport.triageLevelForRegistLevelCode(levelCode));
+                    row.put("triageNote", LisReportStubSupport.triageNoteForRegistLevel(levelName));
                     return row;
                 })
                 .list();

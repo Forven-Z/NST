@@ -47,12 +47,13 @@
 | hospital-his · 医生队列/病历 | API §5.1–5.2 | ✅ | | `/doctor/queues`, `/doctor/call/{id}` |
 | hospital-his · 医生医嘱汇总 | API §5.3 | ✅ | | `GET /doctor/registers/{id}/orders` |
 | hospital-his · 开立检验 | API §5.4 | ✅ | | `POST /doctor/inspection-requests` |
+| hospital-his · 医生读检验结果 | API §5.4 · 改进方案 §5.1 | ✅ | | `GET /doctor/inspection-requests/{id}/result` §1.7 全字段 |
 | hospital-his · 开立检查 | API §5.3 | ✅ | | `POST /doctor/check-requests` |
 | hospital-his · 开立处方 | API §5.5 | ✅ | | `POST /doctor/prescriptions` |
 | hospital-his · 药房发药 | API §5.6 | ✅ | | `GET /pharmacy/pending`, `POST .../dispense`, `return-drug` |
 | hospital-his · 退号/退费 | API §5.9 | ✅ | | `/registrar/refunds`, `/registrar/registers/{id}/cancel` |
 | hospital-his · 窗口挂号/收费 | API §八 | ✅ | | `POST /registrar/registers`（待支付）+ `POST /registrar/charges` |
-| hospital-lis · 队列/结果 | API §5.7 | ✅ | | `GET /lis/queue`, `POST /lis/requests/{id}/result` |
+| hospital-lis · 队列/结果/报告 | API §6 | ✅ | | 第二阶段三段式 + **第三阶段** `criticalItems`、危急值发布前弹窗、退费边界联调 |
 | hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | `GET /disposal/queue`, `POST /disposal/requests/{id}/result` |
 | hospital-management · 字典只读 | API §6 | ✅ | | `GET /admin/departments` 等 |
 | hospital-pacs · 队列/结果 | API §5.7 | ✅ | | `GET /pacs/queue`, 影像 upload STUB |
@@ -71,7 +72,8 @@
 | 模块 | 文档 | 状态 | 负责人 | 备注 |
 |------|------|------|--------|------|
 | PC · 登录页 | API.md §二 | ✅ | | `/login` |
-| PC · 医生队列/病历 | API.md §五 | ✅ | | 开单对话框 + 医嘱面板 + 完整病历字段 |
+| PC · 医生队列/病历 | API.md §五 | ✅ | | 开单对话框 + 医嘱面板 + 检验结果三段式只读（`RegisterOrdersPanel`） |
+| PC · LIS 检验科队列 | API.md §6 | ✅ | | `TechQueuePanel` 三段式 + 危急值发布前确认弹窗 |
 | PC · 药师发药 | §2.6 | ✅ | | `/pharmacy/pending` 待发药 + 发药/退药 |
 | PC · 收费员退费 | §2.3 | ✅ | | `/registrar/refund` 按病历号查询 + 退费 |
 | PC · PACS 影像任务 | §2.5 | ✅ | | `/pacs/imaging` Mock 列表 |
@@ -86,7 +88,7 @@
 | 组合 | 状态 | 验收日期 | 验收人 |
 |------|------|----------|--------|
 | R-min（P1） | ✅ | 2026-05-31 | King | `scripts/r-min-acceptance.ps1` 10/10 PASS |
-| R-lis（P2） | ✅ | 2026-05-31 | King | `scripts/r-lis-acceptance.ps1` 9/9 PASS |
+| R-lis（P2） | ✅ | 2026-06-11 | King | `scripts/r-lis-acceptance.ps1`（含 execute、criticalItems、退费负例、E5 患者报告） |
 | R-pacs（P3） | ✅ | 2026-05-31 | King | `scripts/r-pacs-acceptance.ps1` 7/7 PASS |
 | R-pharmacy（P3） | ✅ | 2026-05-31 | King | `scripts/r-pharmacy-acceptance.ps1` 4/4 PASS |
 | R-reversal（P3） | ✅ | 2026-05-31 | King | `scripts/r-reversal-acceptance.ps1` 4/4 PASS |
@@ -106,6 +108,8 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-11 | LIS 第三阶段（改进方案 §五 5.1～5.4 ✅）：医生读结果 §1.7、`criticalItems`、危急值弹窗、退费边界、`r-lis` E3～E5 扩展 |
+| 2026-06-11 | LIS 第二阶段：三段式报告 UI、`POST ai-report` STUB、仪器 STUB、`POST result` 合成、队列分诊 STUB |
 | 2026-06-10 | 实现 `GET /doctor/registers/{registerId}/orders`（医嘱汇总，ADR-005 只读聚合） |
 | 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
 | 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |

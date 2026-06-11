@@ -7,11 +7,6 @@ import {
   generateLisAiReport,
   saveLisResult,
 } from '../../api/lis'
-
-async function generateLisAiSuggestion(id) {
-  const res = await generateLisAiReport(id)
-  return { data: { resultText: res.data?.aiReportText || res.data?.resultText || '' } }
-}
 </script>
 
 <template>
@@ -19,12 +14,13 @@ async function generateLisAiSuggestion(id) {
     title="检验待执行队列"
     tech-type="INSPECTION"
     request-id-key="inspectionRequestId"
-    workflow-hint="流程：患者缴费 → 开始执行 → 录入 resultText（可选 AI 建议）→ 医生工作站查看。API：POST /lis/requests/{id}/result，GET .../result-detail"
+    workflow-hint="流程：患者缴费 → 开始执行 → 查看仪器数据 → 生成 AI 报告 → 补充医师意见 → 发布。API：GET result-detail · POST ai-report · POST result"
+    use-report-sections
     :fetch-queue="fetchLisQueue"
     :fetch-result-detail="fetchLisResultDetail"
     :execute-request="executeLisRequest"
     :save-result="saveLisResult"
-    :generate-ai-suggestion="generateLisAiSuggestion"
+    :generate-ai-report="generateLisAiReport"
     show-triage
   />
 </template>

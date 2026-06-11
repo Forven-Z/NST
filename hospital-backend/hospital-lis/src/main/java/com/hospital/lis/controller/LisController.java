@@ -3,7 +3,6 @@ package com.hospital.lis.controller;
 import com.hospital.common.Result;
 import com.hospital.lis.dto.InspectionResultRequest;
 import com.hospital.lis.service.LisInspectionService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,6 +39,11 @@ public class LisController {
         return Result.success(lisInspectionService.getResultDetail(id));
     }
 
+    @PostMapping("/requests/{id}/ai-report")
+    public Result<Map<String, Object>> generateAiReport(@PathVariable Long id) {
+        return Result.success(lisInspectionService.generateAiReport(id));
+    }
+
     @PostMapping("/requests/{id}/execute")
     public Result<Map<String, Object>> execute(@PathVariable Long id) {
         return Result.success(lisInspectionService.execute(id));
@@ -48,7 +52,7 @@ public class LisController {
     @PostMapping("/requests/{id}/result")
     public Result<Map<String, Object>> saveResult(
             @PathVariable Long id,
-            @Valid @RequestBody InspectionResultRequest request) {
+            @RequestBody InspectionResultRequest request) {
         return Result.success(lisInspectionService.saveResult(id, request));
     }
 }
