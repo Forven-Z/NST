@@ -90,17 +90,18 @@ export function fetchMedicalTechnologies(params) {
 
 export function fetchAdminSchedules(params) {
   if (useMock()) return mockAdminSchedules(params)
-  return request.get('/admin/schedules', { params })
+  return request.get('/admin/scheduling', { params })
 }
 
 export function createAdminSchedule(data) {
   if (useMock()) return mockCreateAdminSchedule(data)
-  return request.post('/admin/schedules', data)
+  const { employeeId, registLevelId, workDate, noonType, totalQuota } = data
+  return request.post('/admin/scheduling', { employeeId, registLevelId, workDate, noonType, totalQuota })
 }
 
 export function publishAdminSchedule(schedulingId) {
   if (useMock()) return mockPublishAdminSchedule(schedulingId)
-  return request.post(`/admin/schedules/${schedulingId}/publish`)
+  return request.post(`/admin/scheduling/${schedulingId}/publish`)
 }
 
 export function fetchAiSchedulingSuggest(params) {
@@ -110,6 +111,10 @@ export function fetchAiSchedulingSuggest(params) {
 
 export function updateAdminSchedule(schedulingId, data) {
   if (useMock()) return mockUpdateAdminSchedule(schedulingId, data)
-  return request.put(`/admin/schedules/${schedulingId}`, data)
+  const payload = {}
+  if (data.employeeId != null) payload.employeeId = data.employeeId
+  if (data.totalQuota != null) payload.totalQuota = data.totalQuota
+  if (data.publishStatus != null) payload.publishStatus = data.publishStatus
+  return request.put(`/admin/scheduling/${schedulingId}`, payload)
 }
 

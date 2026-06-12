@@ -15,8 +15,16 @@ spring:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${NACOS_NAMESPACE:}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 5000
+            read-timeout: 10000
 
 hospital:
   auth:
     jwt:
       secret: ${JWT_SECRET:hospital-dev-secret-key-change-in-production-min-32-chars!!}
+  internal:
+    service-name: hospital-management

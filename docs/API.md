@@ -56,7 +56,7 @@
 | `registrar.js` | 挂号/收费/退费 | ⚠️ | 核心路径 ✅；号别暂调 `GET /admin/regist-levels`（§8.1） |
 | `lis.js` / `pacs.js` / `disposal.js` | `TechQueuePanel`、影像页 | ⚠️ | 队列/execute ✅；**保存结果 Method 应为 POST**（前端仍 PUT，见附录 G） |
 | `pharmacy.js` | 待发药 | ✅ | |
-| `admin.js` | 字典/员工/排班 | ⚠️ | 字典 GET ✅；CRUD/排班路径应为 `/admin/scheduling/**`（前端仍 `schedules`） |
+| `admin.js` | 字典/员工/排班 | ✅ | 字典 GET ✅；科室/员工/排班 CRUD 路径 `/admin/scheduling/**` |
 | `scheduling.js` | `MyScheduleView`、`SchedulingView` | 🎭 Mock | §8.5 / §9.5 整套接口仅 Mock，后端 ⬜ P5 |
 
 **图例**：✅ 关 Mock 可联调 · ⚠️ 路径或字段待改 · 🎭 仅 Mock · ⬜ 契约已定后端未实现
@@ -65,11 +65,12 @@
 
 完整清单见 **附录 G**。联调前优先：
 
-1. 医技 `saveResult`：`PUT` → `POST`（`lis.js` / `pacs.js` / `disposal.js`）
-2. 管理端排班：`/admin/schedules` → `/admin/scheduling`（`admin.js`）
-3. 挂号号别：改用 `GET /registrar/regist-levels`（后端待增）或文档批准的临时只读代理
-4. `RegisterOrdersPanel`：status `30` 文案改为「执行中」（§1.7）
-5. 废弃 `API_CONTRACT.md` 中历史路径，统一读本文件
+1. ~~医技 `saveResult`：`PUT` → `POST`~~（`lis.js` / `pacs.js` / `disposal.js` 已 POST ✅）
+2. ~~**PACS 对齐 LIS**：`result-detail` / `ai-report` STUB / `QueueView` 三段式~~（✅ 2026-06-11）
+3. 管理端排班：`/admin/schedules` → `/admin/scheduling`（`admin.js`）✅
+4. 挂号号别：改用 `GET /registrar/regist-levels`（后端待增）或文档批准的临时只读代理
+5. `RegisterOrdersPanel`：status `30` 文案改为「执行中」（§1.7）
+6. 废弃 `API_CONTRACT.md` 中历史路径，统一读本文件
 
 ---
 
@@ -868,6 +869,9 @@ Mock 数据结构 **与本文件一致**。
 | GET | `/admin/health` | — |
 | GET | `/admin/departments` | `department` |
 | GET | `/admin/departments/{id}` | |
+| ✅ POST | `/admin/departments` | 创建科室 |
+| ✅ PUT | `/admin/departments/{id}` | 更新科室（不可改 `deptCode`） |
+| ✅ DELETE | `/admin/departments/{id}` | 逻辑删 |
 | GET | `/admin/regist-levels` | `regist_level` |
 | GET | `/admin/settle-categories` | `settle_category` |
 | GET | `/admin/medical-technologies` | `medical_technology` |
@@ -877,19 +881,19 @@ Mock 数据结构 **与本文件一致**。
 **Query 公共**：`page`, `pageSize`, `keyword`  
 **医技 `list[]`**：`id`, `itemCode`, `itemName`, `techType`（CHECK/INSPECTION/DISPOSAL）, `price`
 
-### 9.2 排班 ⬜ P1/P5
+### 9.2 排班 ✅ P1
 
 | Method | 路径 | 说明 |
 |--------|------|------|
-| ⬜ GET | `/admin/scheduling` | 排班列表 |
-| ⬜ POST | `/admin/scheduling` | 创建 |
-| ⬜ PUT | `/admin/scheduling/{id}` | 更新（含替班：改 `employeeId`） |
-| ⬜ POST | `/admin/scheduling/{id}/publish` | 发布 |
+| ✅ GET | `/admin/scheduling` | 排班列表 |
+| ✅ POST | `/admin/scheduling` | 创建 |
+| ✅ PUT | `/admin/scheduling/{id}` | 更新（含替班：改 `employeeId`） |
+| ✅ POST | `/admin/scheduling/{id}/publish` | 发布 |
 | P5 | POST | `/admin/scheduling/ai-suggest` | AI 排班建议 |
 | STUB | P5 | POST | `/admin/scheduling/{id}/ai-replace` | 应用 AI 推荐（**定稿**有独立接口；Mock 用 PUT 更新代替） |
 | P5 | POST | `/admin/scheduling/solve` | Timefold 求解 |
 
-> **前端现状（待改）**：`admin.js` 仍使用历史路径 `/admin/schedules/**`（§0.1 禁止）。Mock 与 `SchedulingView.vue` 功能完整；关 Mock 联调前须改为上表定稿路径并实现后端。
+> **前端**：`admin.js` 已改为 `/admin/scheduling/**`；Mock 与 `SchedulingView.vue` 功能完整；关 Mock 可联调科室/员工/排班 CRUD。
 
 **Query**：`workDate`, `deptId`, `employeeId`  
 **Request 示例**：`{ "deptId", "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  
@@ -906,12 +910,12 @@ Mock 数据结构 **与本文件一致**。
 | 🎭 | POST | `/admin/leave-requests/{id}/approve` | Body：`{ adminName? }` |
 | 🎭 | POST | `/admin/leave-requests/{id}/reject` | Body：`{ remark, adminName? }` |
 
-### 9.3 员工 ⬜ P1
+### 9.3 员工 ✅ P1
 
 | Method | 路径 | 说明 |
 |--------|------|------|
-| ⬜ GET | `/admin/employees` | Query: `deptId`, `roleType` |
-| ⬜ CRUD | `/admin/employees/{id}` | 管理端维护 |
+| ✅ GET | `/admin/employees` | Query: `deptId`, `roleType` |
+| ✅ CRUD | `/admin/employees/{id}` | 管理端维护 |
 
 ### 9.4 字典 CRUD 写操作 ⬜ P2
 
@@ -1062,7 +1066,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ❌ PUT | ✅ POST |
-| `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ❌ `/admin/schedules/**` | ⬜ |
+| `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ✅ `/admin/scheduling/**` | ✅ |
 | `scheduling.js` | 全部 | §8.5、§9.5 | 🎭 Mock 路径一致 | ⬜ |
 
 ---
@@ -1071,8 +1075,8 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | # | 项 | 定稿 | 当前 | 优先级 |
 |---|-----|------|------|--------|
-| G1 | 医技保存结果 | `POST .../result` | `PUT` | P0 |
-| G2 | 管理端排班 | `/admin/scheduling/**` | `/admin/schedules/**` | P0 |
+| G1 | 医技保存结果 | `POST .../result` | lis/pacs/disposal 已 POST ✅ | — |
+| G2 | 管理端排班 | `/admin/scheduling/**` | ✅ `/admin/scheduling/**` | — |
 | G3 | 挂号号别 | `GET /registrar/regist-levels` | `GET /admin/regist-levels` | P0 |
 | G4 | 医嘱 status 30 文案 | 「执行中」 | 「执行完成」 | P1 |
 | G5 | 医技 UI | `ResultReportSections` + result-detail | 单字段 resultText | P1 |

@@ -10,6 +10,12 @@ import org.springframework.stereotype.Component;
 public class ManagementProperties {
 
     private Auth auth = new Auth();
+    private Internal internal = new Internal();
+
+    @Data
+    public static class Internal {
+        private String serviceName = "hospital-management";
+    }
 
     @Data
     public static class Auth {
