@@ -106,7 +106,12 @@ export function publishAdminSchedule(schedulingId) {
 
 export function fetchAiSchedulingSuggest(params) {
   if (useMock()) return mockAiSchedulingSuggest(params)
-  return request.post('/admin/schedules/ai-suggest', params || {})
+  return request.post('/admin/scheduling/ai-suggest', params || {})
+}
+
+export function applyAiSchedulingReplace(schedulingId, data) {
+  if (useMock()) return mockUpdateAdminSchedule(schedulingId, data)
+  return request.post(`/admin/scheduling/${schedulingId}/ai-replace`)
 }
 
 export function updateAdminSchedule(schedulingId, data) {

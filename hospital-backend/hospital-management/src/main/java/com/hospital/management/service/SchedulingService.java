@@ -21,11 +21,26 @@ public class SchedulingService {
 
     private final SchedulingRepository schedulingRepository;
     private final EmployeeRepository employeeRepository;
+    private final LeaveRequestService leaveRequestService;
 
     public Map<String, Object> list(Long deptId, Long employeeId, LocalDate workDate, Integer publishStatus) {
         return Map.of(
                 "list", schedulingRepository.listAdminSchedules(deptId, employeeId, workDate, publishStatus)
-                        .stream().map(this::enrich).toList(),
+                        .stream()
+                        .map(this::enrich)
+                        .map(leaveRequestService::enrichScheduleRow)
+                        .toList(),
+                "page", 1,
+                "pageSize", 100
+        );
+    }
+
+    public Map<String, Object> listMySchedules(Long employeeId, LocalDate workDateFrom) {
+        return Map.of(
+                "list", schedulingRepository.listMySchedules(employeeId, workDateFrom).stream()
+                        .map(this::enrich)
+                        .map(leaveRequestService::enrichStaffScheduleRow)
+                        .toList(),
                 "page", 1,
                 "pageSize", 100
         );
@@ -90,6 +105,8 @@ public class SchedulingService {
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "该医生此时段已有排班");
         }
+
+        leaveRequestService.markSubstitutedIfNeeded(id, request.getEmployeeId(), currentEmployeeId);
 
         Map<String, Object> row = enrich(schedulingRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "排班记录不存在")));
