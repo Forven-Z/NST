@@ -90,6 +90,11 @@ function fetchReportDetail(type, requestId) {
   return get('/patient/reports/' + type + '/' + requestId)
 }
 
+function triageChat(data) {
+  if (useMock()) return store.triageChat(data)
+  return post('/ai/triage/chat', data)
+}
+
 module.exports = {
   fetchProfile,
   updateProfile,
@@ -109,4 +114,5 @@ module.exports = {
   fetchMedicalRecord,
   fetchReports,
   fetchReportDetail,
+  triageChat,
 }
