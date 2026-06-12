@@ -71,7 +71,7 @@ function Wait-GatewayLoginReady($seconds) {
 }
 
 Write-Host '========================================' -ForegroundColor Cyan
-Write-Host ' R-min: auth + his + gateway' -ForegroundColor Cyan
+Write-Host ' R-min: auth + his + gateway + ai-bridge' -ForegroundColor Cyan
 Write-Host ' Gateway http://127.0.0.1:9000/api/v1' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
@@ -103,7 +103,7 @@ if (-not (Test-Port 8848)) {
 }
 
 if (-not $SkipBuild) {
-    Write-Host '... mvn package auth his gateway' -ForegroundColor Yellow
+    Write-Host '... mvn package auth his gateway ai-bridge' -ForegroundColor Yellow
     Push-Location $backend
     mvn -q -pl hospital-auth,hospital-his,hospital-gateway -am package -DskipTests
     if ($LASTEXITCODE -ne 0) {
@@ -138,6 +138,7 @@ function Start-ServiceJar($name, $port, $module) {
 try {
     Start-ServiceJar 'hospital-auth' 9101 'hospital-auth'
     Start-ServiceJar 'hospital-his' 9102 'hospital-his'
+    Start-ServiceJar 'hospital-ai-bridge' 9106 'hospital-ai-bridge'
     Start-ServiceJar 'hospital-gateway' 9000 'hospital-gateway'
     if (-not (Wait-GatewayLoginReady 90)) { exit 1 }
 } catch {

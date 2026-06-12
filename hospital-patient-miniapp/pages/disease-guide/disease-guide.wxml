@@ -1,23 +1,97 @@
-<view class="container">
-  <view class="card tip-card">
-    <view class="card-title">按疾病 / 症状挂号</view>
-    <view class="muted">根据常见症状推荐科室，减少挂错号。不确定时可挂内科普通号，由分诊台或医生进一步指引。</view>
+<view class="triage-page">
+  <view class="triage-head">
+    <view>
+      <view class="triage-title">智能导诊</view>
+      <view class="triage-sub">描述症状后获取就诊科室建议</view>
+    </view>
+    <button class="reset-btn" size="mini" bindtap="startTriage">重来</button>
   </view>
 
-  <view class="card">
-    <view class="card-title">请选择与您最接近的描述</view>
+  <scroll-view class="chat-panel" scroll-y scroll-into-view="{{scrollIntoView}}">
     <view
-      wx:for="{{list}}"
+      wx:for="{{messages}}"
       wx:key="id"
-      class="disease-row"
-      data-item="{{item}}"
-      bindtap="onSelect"
+      id="{{item.id}}"
+      class="msg-row {{item.role === 'user' ? 'from-user' : 'from-ai'}}"
     >
-      <view>
-        <view class="disease-name">{{item.name}}</view>
-        <view class="muted">{{item.hint}}</view>
+      <view class="avatar">{{item.role === 'user' ? '我' : 'AI'}}</view>
+      <view class="bubble">{{item.text}}</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="msg-row from-ai">
+      <view class="avatar">AI</view>
+      <view class="bubble typing">正在分析...</view>
+    </view>
+
+    <view wx:if="{{recommendations.length}}" class="recommend-block">
+      <view class="block-title">推荐科室</view>
+      <view
+        wx:for="{{recommendations}}"
+        wx:key="deptId"
+        class="recommend-card"
+        data-item="{{item}}"
+        bindtap="onGoRegister"
+      >
+        <view class="recommend-main">
+          <view>
+            <view class="dept-name">{{item.deptName}}</view>
+            <view class="reason">{{item.reason}}</view>
+          </view>
+          <view class="confidence" wx:if="{{item.confidenceText}}">{{item.confidenceText}}</view>
+        </view>
+        <view class="next-action">{{item.nextAction || '去挂号'}}</view>
       </view>
-      <view class="dept-tag">→ {{item.deptName}}</view>
+    </view>
+
+    <view wx:if="{{emergency}}" class="emergency-card">
+      <view class="block-title">急症提醒</view>
+      <view>如症状严重或持续加重，请立即前往急诊或拨打 120。</view>
+    </view>
+  </scroll-view>
+
+  <view class="quick-row" wx:if="{{quickReplies.length && !loading}}">
+    <scroll-view scroll-x>
+      <view class="quick-inner">
+        <view
+          wx:for="{{quickReplies}}"
+          wx:key="*this"
+          class="quick-chip"
+          data-text="{{item}}"
+          bindtap="onQuickReply"
+        >
+          {{item}}
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="input-bar">
+    <textarea
+      class="symptom-input"
+      value="{{inputValue}}"
+      auto-height
+      maxlength="300"
+      placeholder="请输入主要症状、持续时间和严重程度"
+      bindinput="onInput"
+    />
+    <button class="send-btn" size="mini" loading="{{loading}}" bindtap="onSend">发送</button>
+  </view>
+
+  <view class="safety" wx:if="{{safetyNotice}}">{{safetyNotice}}</view>
+
+  <view wx:if="{{showRecommendModal && primaryRecommendation}}" class="modal-mask" bindtap="onCloseRecommend">
+    <view class="recommend-modal" catchtap="noop">
+      <view class="modal-kicker">导诊建议</view>
+      <view class="modal-title">建议优先挂 {{primaryRecommendation.deptName}}</view>
+      <view class="modal-confidence" wx:if="{{primaryRecommendation.confidenceText}}">
+        推荐置信度 {{primaryRecommendation.confidenceText}}
+      </view>
+      <view class="modal-reason">{{primaryRecommendation.reason}}</view>
+      <view class="modal-notice">本建议仅作就诊分诊参考，最终以医生诊断为准。</view>
+      <view class="modal-actions">
+        <button class="modal-secondary" size="mini" bindtap="onCloseRecommend">继续咨询</button>
+        <button class="modal-primary" size="mini" bindtap="onModalGoRegister">去挂号</button>
+      </view>
     </view>
   </view>
 </view>

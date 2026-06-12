@@ -31,6 +31,7 @@ let nextPaymentId = 90000
 const registers = []
 const bills = []
 const payments = []
+const triageSessions = {}
 
 function ok(data) {
   return Promise.resolve({ success: true, data })
@@ -665,6 +666,122 @@ function getRegisterOrders(registerId) {
   })
 }
 
+function newTriageSessionId() {
+  return 'mock-triage-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+}
+
+function matchTriageDept(text) {
+  var value = String(text || '')
+  if (value.indexOf('儿童') >= 0 || value.indexOf('小孩') >= 0 || value.indexOf('宝宝') >= 0) {
+    return { deptId: 8, deptCode: 'PEDIATRICS', deptName: '儿科', matchedDeptName: '儿科', confidence: 0.82 }
+  }
+  if (value.indexOf('孕') >= 0 || value.indexOf('产检') >= 0 || value.indexOf('妇科') >= 0) {
+    return { deptId: 9, deptCode: 'OBGYN', deptName: '妇产科', matchedDeptName: '妇产科', confidence: 0.82 }
+  }
+  if (value.indexOf('外伤') >= 0 || value.indexOf('肿块') >= 0 || value.indexOf('摔') >= 0 || value.indexOf('伤口') >= 0) {
+    return { deptId: 7, deptCode: 'SURGERY', deptName: '外科', matchedDeptName: '外科', confidence: 0.78 }
+  }
+  return { deptId: 1, deptCode: 'INTERNAL', deptName: '内科', matchedDeptName: '内科', confidence: 0.74 }
+}
+
+function hasAny(text, words) {
+  return words.some(function (word) { return text.indexOf(word) >= 0 })
+}
+
+function triageChat(body) {
+  body = body || {}
+  var sessionId = body.sessionId || newTriageSessionId()
+  var session = triageSessions[sessionId] || { sessionId: sessionId, messages: [] }
+  triageSessions[sessionId] = session
+
+  var message = String(body.message || '').trim()
+  if (!message) {
+    return ok({
+      sessionId: sessionId,
+      reply: '请简单描述你的主要不适，例如：头痛两天、咳嗽发热、腹痛腹泻、皮疹瘙痒等。',
+      stage: 'ASKING',
+      needMoreInfo: true,
+      needRegister: null,
+      emergency: false,
+      emergencyReason: '',
+      summary: '',
+      askedQuestions: ['请简单描述你的主要不适。'],
+      quickReplies: ['发热咳嗽', '头痛头晕', '腹痛腹泻', '胸闷胸痛', '皮疹瘙痒', '其他不适'],
+      recommendedDepartments: [],
+      safetyNotice: '本结果仅用于就诊分诊参考，不能替代医生诊断。如症状严重或持续加重，请及时就医。',
+    })
+  }
+
+  session.messages.push(message)
+  var fullText = session.messages.join(' ')
+  var emergencyWords = ['胸痛', '呼吸困难', '意识不清', '大出血', '剧烈头痛', '昏迷', '抽搐']
+  var durationWords = ['今天', '昨天', '小时', '天', '周', '月', '刚刚', '两天', '三天']
+  var severityWords = ['轻微', '明显', '严重', '剧烈', '很痛', '加重', '持续', '反复']
+
+  if (hasAny(fullText, emergencyWords)) {
+    return ok({
+      sessionId: sessionId,
+      reply: '你描述的症状可能存在急症风险，建议立即前往急诊或拨打 120，不建议仅通过线上分诊处理。',
+      stage: 'EMERGENCY',
+      needMoreInfo: false,
+      needRegister: false,
+      emergency: true,
+      emergencyReason: '描述中包含急症风险信号',
+      summary: '患者描述：' + fullText,
+      askedQuestions: [],
+      quickReplies: [],
+      recommendedDepartments: [],
+      safetyNotice: '本结果仅用于就诊分诊参考，不能替代医生诊断。如症状严重或持续加重，请及时就医。',
+    })
+  }
+
+  if (session.messages.length < 2 && (!hasAny(fullText, durationWords) || !hasAny(fullText, severityWords))) {
+    var questions = []
+    if (!hasAny(fullText, durationWords)) questions.push('这个症状大概持续多久了？')
+    if (!hasAny(fullText, severityWords)) questions.push('症状程度是轻微、明显还是非常剧烈？')
+    return ok({
+      sessionId: sessionId,
+      reply: questions.join(' '),
+      stage: 'ASKING',
+      needMoreInfo: true,
+      needRegister: null,
+      emergency: false,
+      emergencyReason: '',
+      summary: '患者描述：' + fullText,
+      askedQuestions: questions,
+      quickReplies: questions.join(' ').indexOf('多久') >= 0
+        ? ['今天刚出现', '两三天', '一周以上', '不清楚']
+        : ['轻微', '明显', '非常剧烈', '不清楚'],
+      recommendedDepartments: [],
+      safetyNotice: '本结果仅用于就诊分诊参考，不能替代医生诊断。如症状严重或持续加重，请及时就医。',
+    })
+  }
+
+  var dept = matchTriageDept(fullText)
+  return ok({
+    sessionId: sessionId,
+    reply: '根据你提供的信息，建议先选择推荐科室挂号，由医生进一步评估。',
+    stage: 'RECOMMENDED',
+    needMoreInfo: false,
+    needRegister: true,
+    emergency: false,
+    emergencyReason: '',
+    summary: '患者描述：' + fullText,
+    askedQuestions: [],
+    quickReplies: [],
+    recommendedDepartments: [{
+      deptId: dept.deptId,
+      deptCode: dept.deptCode,
+      deptName: dept.deptName,
+      matchedDeptName: dept.matchedDeptName,
+      confidence: dept.confidence,
+      reason: '根据症状描述，建议先到' + dept.deptName + '进行初诊评估。',
+      nextAction: '可点击去挂号，选择该科室号源。',
+    }],
+    safetyNotice: '本结果仅用于就诊分诊参考，不能替代医生诊断。如症状严重或持续加重，请及时就医。',
+  })
+}
+
 module.exports = {
   login,
   patientLogin,
@@ -687,6 +804,7 @@ module.exports = {
   listReports,
   getReportDetail,
   getRegisterOrders,
+  triageChat,
   setProfileFromLogin(data) {
     if (data.patientId) patientId = data.patientId
     if (data.medicalRecordNo) profile.medicalRecordNo = data.medicalRecordNo
