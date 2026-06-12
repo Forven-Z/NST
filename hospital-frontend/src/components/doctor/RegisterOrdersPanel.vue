@@ -1,15 +1,10 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import ResultReportSections from '../medical/ResultReportSections.vue'
 import {
   buildRegisterResultsFromOrders,
-  fetchCheckResult,
-  fetchInspectionResult,
   fetchRegisterOrders,
 } from '../../api/doctor'
-
-const REPORT_SECTION_KINDS = new Set(['inspection', 'check'])
 
 const props = defineProps({
   registerId: { type: Number, default: null },
@@ -20,13 +15,11 @@ const orders = ref(null)
 const resultsMap = ref({})
 const resultDialogVisible = ref(false)
 const resultDetail = ref(null)
-const resultLoading = ref(false)
-const medTechDetail = ref(null)
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
   20: { label: '已缴费', type: 'warning' },
-  30: { label: '执行中', type: 'primary' },
+  30: { label: '执行完成', type: 'primary' },
   40: { label: '已出结果', type: 'success' },
   50: { label: '已退费', type: 'danger' },
 }
@@ -36,7 +29,6 @@ watch(
   (id) => {
     resultDialogVisible.value = false
     resultDetail.value = null
-    medTechDetail.value = null
     resultsMap.value = {}
     if (id) loadOrders()
     else orders.value = null
@@ -64,38 +56,16 @@ async function loadOrders() {
   }
 }
 
-async function onViewResult(row) {
+function onViewResult(row) {
   if (row.kind === 'prescription') {
     return ElMessage.info('处方无文字报告，请至药房查看发药状态')
   }
-  if (row.status < 40) {
-    return ElMessage.warning('结果尚未出具')
-  }
-  resultDetail.value = { ...row }
-  medTechDetail.value = null
-  resultDialogVisible.value = true
-
-  if (REPORT_SECTION_KINDS.has(row.kind)) {
-    resultLoading.value = true
-    try {
-      const fetcher = row.kind === 'inspection' ? fetchInspectionResult : fetchCheckResult
-      const res = await fetcher(row.requestId)
-      medTechDetail.value = res.data
-    } catch (err) {
-      const label = row.kind === 'inspection' ? '检验' : '检查'
-      ElMessage.error(err.message || `加载${label}结果失败`)
-    } finally {
-      resultLoading.value = false
-    }
-    return
-  }
-
   const hit = resultsMap.value[`${row.kind}-${row.requestId}`]
   if (!hit?.resultText) {
-    resultDialogVisible.value = false
     return ElMessage.warning('结果尚未出具')
   }
   resultDetail.value = { ...row, ...hit }
+  resultDialogVisible.value = true
 }
 
 defineExpose({ reload: loadOrders })
@@ -138,39 +108,22 @@ defineExpose({ reload: loadOrders })
     <el-dialog
       v-model="resultDialogVisible"
       :title="`${resultDetail?.typeLabel || ''} · ${resultDetail?.itemName || ''}`"
-      width="720px"
+      width="560px"
       destroy-on-close
     >
-      <div v-loading="resultLoading">
-        <template v-if="medTechDetail && REPORT_SECTION_KINDS.has(resultDetail?.kind)">
-          <ResultReportSections
-            :instrument-data="medTechDetail.instrumentData"
-            :ai-report-text="medTechDetail.aiReportText"
-            :doctor-report-text="medTechDetail.doctorReportText"
-            :ai-report-status="medTechDetail.aiReportStatus"
-            :editable-ai="false"
-            :editable-doctor="false"
-          />
-          <el-descriptions :column="1" border class="meta-desc">
-            <el-descriptions-item v-if="medTechDetail.reportTime" label="报告时间">
-              {{ medTechDetail.reportTime }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </template>
-        <template v-else-if="resultDetail">
-          <el-descriptions :column="1" border>
-            <el-descriptions-item label="结果文本">
-              <pre class="result-text">{{ resultDetail.resultText || '（无）' }}</pre>
-            </el-descriptions-item>
-            <el-descriptions-item v-if="resultDetail.resultAttachment" label="附件">
-              {{ resultDetail.resultAttachment }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="resultDetail.reportTime" label="报告时间">
-              {{ resultDetail.reportTime }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </template>
-      </div>
+      <template v-if="resultDetail">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="结果文本">
+            <pre class="result-text">{{ resultDetail.resultText || '（无）' }}</pre>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="resultDetail.resultAttachment" label="附件">
+            {{ resultDetail.resultAttachment }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="resultDetail.reportTime" label="报告时间">
+            {{ resultDetail.reportTime }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
     </el-dialog>
   </el-card>
 </template>
@@ -184,10 +137,6 @@ defineExpose({ reload: loadOrders })
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.meta-desc {
-  margin-top: 12px;
 }
 
 .result-text {

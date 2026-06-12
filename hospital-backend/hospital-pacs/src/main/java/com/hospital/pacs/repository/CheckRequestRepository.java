@@ -54,6 +54,47 @@ public class CheckRequestRepository {
                 .list();
     }
 
+    public Optional<Map<String, Object>> findDetail(Long id) {
+        return jdbcClient.sql("""
+                        SELECT cr.id,
+                               cr.register_id,
+                               cr.patient_id,
+                               cr.status,
+                               cr.purpose,
+                               cr.body_part,
+                               cr.remark,
+                               cr.result_text,
+                               cr.result_attachment,
+                               cr.result_time,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               mt.item_name
+                        FROM check_request cr
+                        JOIN patient p ON cr.patient_id = p.id
+                        JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+                        WHERE cr.id = :id AND cr.delmark = 0
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("checkRequestId", rs.getLong("id"));
+                    row.put("registerId", rs.getLong("register_id"));
+                    row.put("patientId", rs.getLong("patient_id"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("purpose", rs.getString("purpose"));
+                    row.put("bodyPart", rs.getString("body_part"));
+                    row.put("remark", rs.getString("remark"));
+                    row.put("resultText", rs.getString("result_text"));
+                    row.put("resultAttachment", rs.getString("result_attachment"));
+                    row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
+                    row.put("patientName", rs.getString("patient_name"));
+                    row.put("itemName", rs.getString("item_name"));
+                    return row;
+                })
+                .optional();
+    }
+
     public Optional<Map<String, Object>> findByIdForUpdate(Long id) {
         return jdbcClient.sql("""
                         SELECT id, status FROM check_request
@@ -76,37 +117,6 @@ public class CheckRequestRepository {
                 .param("executorId", executorId)
                 .param("now", OffsetDateTime.now())
                 .update();
-    }
-
-    public Optional<Map<String, Object>> findResultDetail(Long id) {
-        return jdbcClient.sql("""
-                        SELECT cr.id AS check_request_id,
-                               cr.status,
-                               cr.result_text,
-                               cr.result_attachment,
-                               cr.result_time,
-                               p.medical_record_no,
-                               p.real_name AS patient_name,
-                               mt.item_name
-                        FROM check_request cr
-                        JOIN patient p ON cr.patient_id = p.id
-                        JOIN medical_technology mt ON cr.medical_technology_id = mt.id
-                        WHERE cr.id = :id AND cr.delmark = 0
-                        """)
-                .param("id", id)
-                .query((rs, rowNum) -> {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("checkRequestId", rs.getLong("check_request_id"));
-                    row.put("status", rs.getInt("status"));
-                    row.put("resultText", rs.getString("result_text"));
-                    row.put("resultAttachment", rs.getString("result_attachment"));
-                    row.put("reportTime", rs.getObject("result_time", OffsetDateTime.class));
-                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
-                    row.put("patientName", rs.getString("patient_name"));
-                    row.put("itemName", rs.getString("item_name"));
-                    return row;
-                })
-                .optional();
     }
 
     public void saveResult(Long id, Long resultInputId, String resultText, String resultAttachment) {

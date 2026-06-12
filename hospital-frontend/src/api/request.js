@@ -17,7 +17,28 @@ request.interceptors.request.use((config) => {
 })
 
 request.interceptors.response.use(
-  (response) => {
+  async (response) => {
+    if (response.config.responseType === 'blob') {
+      const blob = response.data
+      const contentType = response.headers['content-type'] || blob?.type || ''
+      if (contentType.includes('application/json') || blob?.type === 'application/json') {
+        const text = await blob.text()
+        let message = '请求失败'
+        try {
+          const json = JSON.parse(text)
+          message = json.message || message
+          if (json.code === 401) {
+            const auth = useAuthStore()
+            auth.logout()
+            router.push({ name: 'login' })
+          }
+        } catch {
+          // ignore
+        }
+        return Promise.reject(new Error(message))
+      }
+      return blob
+    }
     const payload = response.data
     if (payload && typeof payload.success === 'boolean' && !payload.success) {
       if (payload.code === 401) {

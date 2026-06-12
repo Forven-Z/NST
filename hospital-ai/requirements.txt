@@ -1,0 +1,13 @@
+# PyTorch 不要直接 pip install torch（Windows 默认会装 CPU 版）
+# 请用：powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
+# 该脚本会安装 CUDA 12.4 版 torch，再安装下列依赖。
+
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9
+simpleitk>=2.3
+numpy>=1.24
+tqdm>=4.66
+minio>=7.2
+httpx>=0.27
+pydantic-settings>=2.0

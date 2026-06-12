@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: hospital-gateway
+  codec:
+    max-in-memory-size: 512MB
   cloud:
     nacos:
       discovery:

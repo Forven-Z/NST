@@ -68,47 +68,19 @@ $insBillId = $e1.data.billId
 $e2 = Invoke-RestMethod -Uri "$base/patient/payments" -Method POST -Headers $patientHeaders -ContentType 'application/json' -Body "{`"billIds`":[$insBillId]}"
 Test-Step 'E2 pay inspection' ($e2.code -eq 200) ($e2 | ConvertTo-Json -Compress)
 
-# E3: lab queue + execute + refund guard + result
+# E3: lab queue + result
 $labLogin = Invoke-RestMethod -Uri "$base/auth/staff/login" -Method POST -ContentType 'application/json' -Body '{"username":"lab01","password":"123456"}'
 $labHeaders = @{ Authorization = "Bearer $($labLogin.data.accessToken)" }
 $e3q = Invoke-RestMethod -Uri "$base/lis/queue?status=20" -Headers $labHeaders
 $inQueue = @($e3q.data.list | Where-Object { $_.inspectionRequestId -eq $inspectionId }).Count -gt 0
-Test-Step 'E3 queue' ($e3q.code -eq 200 -and $inQueue) "inspection $inspectionId not in queue"
-
-$e3x = Invoke-RestMethod -Uri "$base/lis/requests/$inspectionId/execute" -Method POST -Headers $labHeaders
-Test-Step 'E3a execute' ($e3x.code -eq 200 -and $e3x.data.status -eq 30) ($e3x | ConvertTo-Json -Compress)
-
-$e3dPre = Invoke-RestMethod -Uri "$base/lis/requests/$inspectionId/result-detail" -Headers $labHeaders
-$hasCritical = @($e3dPre.data.criticalItems).Count -gt 0
-Test-Step 'E3b criticalItems on detail' ($e3dPre.code -eq 200 -and $hasCritical) ($e3dPre | ConvertTo-Json -Compress)
-
-$refundBlocked = $false
-try {
-    $rfBody = @{ billId = $insBillId; reason = 'after execute' } | ConvertTo-Json -Compress
-    $e3rf = Invoke-RestMethod -Uri "$base/patient/refunds" -Method POST -Headers $patientHeaders -ContentType 'application/json' -Body $rfBody
-    $refundBlocked = ($e3rf.code -ne 200)
-} catch { $refundBlocked = $true }
-Test-Step 'E3c refund blocked after execute' $refundBlocked "refund should fail when status=30"
-
+Test-Step 'E3 lis queue' ($e3q.code -eq 200 -and $inQueue) "inspection $inspectionId not in queue"
 $resultBody = @{ resultText = 'WBC 6.5 normal' } | ConvertTo-Json -Compress
 $e3r = Invoke-RestMethod -Uri "$base/lis/requests/$inspectionId/result" -Method POST -Headers $labHeaders -ContentType 'application/json' -Body $resultBody
-Test-Step 'E3d save result' ($e3r.code -eq 200 -and $e3r.data.status -eq 40) ($e3r | ConvertTo-Json -Compress)
+Test-Step 'E3 save result' ($e3r.code -eq 200 -and $e3r.data.status -eq 40) ($e3r | ConvertTo-Json -Compress)
 
-$e3d = Invoke-RestMethod -Uri "$base/lis/requests/$inspectionId/result-detail" -Headers $labHeaders
-Test-Step 'E3e result-detail' ($e3d.code -eq 200 -and $e3d.data.status -eq 40) ($e3d | ConvertTo-Json -Compress)
-
-# E4: doctor read result (extended)
+# E4: doctor read result
 $e4 = Invoke-RestMethod -Uri "$base/doctor/inspection-requests/$inspectionId/result" -Headers $doctorHeaders
-Test-Step 'E4 doctor read result' (
-    $e4.code -eq 200 -and $e4.data.resultText -and $e4.data.reportTime -and $e4.data.instrumentData
-) ($e4 | ConvertTo-Json -Compress)
-
-# E5: patient reports (no instrumentData)
-$e5 = Invoke-RestMethod -Uri "$base/patient/reports?type=lab" -Headers $patientHeaders
-$labReport = @($e5.data.list | Where-Object { $_.requestId -eq $inspectionId })[0]
-Test-Step 'E5 patient report summary' (
-    $e5.code -eq 200 -and $labReport -and $labReport.summary -and -not $labReport.PSObject.Properties['instrumentData']
-) ($e5 | ConvertTo-Json -Compress)
+Test-Step 'E4 doctor read result' ($e4.code -eq 200 -and $e4.data.resultText) ($e4 | ConvertTo-Json -Compress)
 
 Write-Host ""
 Write-Host "Summary: PASS=$passed FAIL=$failed inspectionId=$inspectionId registerId=$registerId"

@@ -3,7 +3,7 @@
  *
  * 对接说明：
  * - AI 分诊台：GET /ai/triage/assignments → 队列 triageLevel / triageNote
- * - 影像 CNN：hospital-ai FastAPI → aiReportText；本前端跳转 VITE_IMAGING_AI_URL
+ * - 影像 CNN：Gateway → pacs → hospital-ai 异步 job；阅片内嵌于 /pacs/imaging-ai
  * - 医技结果：PUT /lis|pacs|disposal/requests/{id}/result → resultText（无 ai-report 契约接口）
  * - 管理员 AI 排班：POST /admin/scheduling/ai-suggest → suggestions[]
  */
@@ -12,8 +12,8 @@ export const INTEGRATION_ROUTES = {
 }
 
 export const INTEGRATION_ENV = {
-  /** 大模型训练组 CT 阅片/选取软件（含脑部 CT 进度条等），仅跳转 */
-  ctModelViewerUrl: import.meta.env.VITE_CT_MODEL_URL || import.meta.env.VITE_IMAGING_AI_URL || '',
+  /** 影像工作台内嵌于 /pacs/imaging-ai，前端不直连 :8000 */
+  ctModelViewerUrl: '',
 }
 
 export const TRIAGE_LEVEL_MAP = {

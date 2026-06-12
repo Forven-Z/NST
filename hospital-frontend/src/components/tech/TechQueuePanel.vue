@@ -1,8 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import ResultReportSections from '../medical/ResultReportSections.vue'
+import { ElMessage } from 'element-plus'
 import { INTEGRATION_ROUTES, TRIAGE_LEVEL_MAP } from '../../config/integrations'
 
 const props = defineProps({
@@ -13,9 +12,6 @@ const props = defineProps({
   executeRequest: { type: Function, required: true },
   saveResult: { type: Function, required: true },
   generateAiSuggestion: { type: Function, default: null },
-  generateAiReport: { type: Function, default: null },
-  fetchResultDetail: { type: Function, default: null },
-  useReportSections: { type: Boolean, default: false },
   defaultStatus: { type: Number, default: 20 },
   workflowHint: { type: String, default: '' },
   showTriage: { type: Boolean, default: false },
@@ -31,18 +27,9 @@ const statusFilter = ref(props.defaultStatus)
 const list = ref([])
 
 const resultDialogVisible = ref(false)
-const detailLoading = ref(false)
 const resultText = ref('')
 const resultAttachment = ref('')
-const instrumentData = ref('')
-const aiReportText = ref('')
-const doctorReportText = ref('')
-const aiReportStatus = ref('PENDING')
-const criticalItems = ref([])
 const currentRow = ref(null)
-
-const isReadOnlyResult = computed(() => currentRow.value?.status === 40)
-const resultDialogWidth = computed(() => (props.useReportSections ? '720px' : '560px'))
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
@@ -87,53 +74,20 @@ async function onExecute(row) {
   }
 }
 
-function applyDetailData(data) {
-  if (!data) return
-  resultText.value = data.resultText || ''
-  resultAttachment.value = data.resultAttachment || ''
-  instrumentData.value = data.instrumentData || ''
-  aiReportText.value = data.aiReportText || ''
-  doctorReportText.value = data.doctorReportText || ''
-  aiReportStatus.value = data.aiReportStatus || 'PENDING'
-  criticalItems.value = data.criticalItems ?? []
-}
-
-async function openResultDialog(row) {
+function openResultDialog(row) {
   currentRow.value = row
-  applyDetailData(row)
+  resultText.value = row.resultText || ''
+  resultAttachment.value = row.resultAttachment || ''
   resultDialogVisible.value = true
-
-  if (!props.fetchResultDetail) return
-
-  detailLoading.value = true
-  try {
-    const res = await props.fetchResultDetail(rowId(row))
-    applyDetailData(res.data)
-  } catch (err) {
-    ElMessage.error(err.message || '加载结果详情失败')
-  } finally {
-    detailLoading.value = false
-  }
 }
 
-async function onGenerateAiReport() {
-  const generator = props.generateAiReport || props.generateAiSuggestion
-  if (!generator || !currentRow.value) return
+async function onGenerateAiSuggestion() {
+  if (!props.generateAiSuggestion || !currentRow.value) return
   const id = rowId(currentRow.value)
   generatingAiId.value = id
   try {
-    const res = await generator(id)
-    const data = res.data
-    if (props.useReportSections) {
-      applyDetailData(data)
-      if (data?.aiReportText) {
-        ElMessage.success('AI 报告已生成，请核对后补充医师意见')
-      } else {
-        ElMessage.info('暂无 AI 报告')
-      }
-      return
-    }
-    const text = data?.resultText || data?.aiReportText || ''
+    const res = await props.generateAiSuggestion(id)
+    const text = res.data?.resultText || res.data?.aiReportText || ''
     if (text) {
       resultText.value = text
       ElMessage.success('AI 建议已填入结果文本，请核对后保存')
@@ -141,7 +95,7 @@ async function onGenerateAiReport() {
       ElMessage.info('暂无 AI 建议')
     }
   } catch (err) {
-    ElMessage.error(err.message || 'AI 报告生成失败')
+    ElMessage.error(err.message || 'AI 建议生成失败')
   } finally {
     generatingAiId.value = null
   }
@@ -159,48 +113,17 @@ function goImagingAi(row) {
 }
 
 async function onSaveResult() {
+  if (!resultText.value.trim()) {
+    ElMessage.warning('请填写结果文本')
+    return
+  }
   const id = rowId(currentRow.value)
   savingId.value = id
   try {
-    if (props.useReportSections) {
-      if (!aiReportText.value.trim() && !doctorReportText.value.trim()) {
-        ElMessage.warning('请生成或填写 AI 报告，或补充医师意见')
-        return
-      }
-      if (criticalItems.value.length > 0) {
-        const lines = criticalItems.value.map((item) => {
-          const arrow = item.flag === 'HIGH' ? '偏高' : '偏低'
-          return `${item.name}：${item.value} ${item.unit}（参考 ${item.refRange}，${arrow}）`
-        })
-        try {
-          await ElMessageBox.confirm(
-            `检测到以下危急值项：\n\n${lines.join('\n')}\n\n确认发布报告？`,
-            '危急值确认',
-            {
-              type: 'warning',
-              confirmButtonText: '确认发布',
-              cancelButtonText: '返回修改',
-            },
-          )
-        } catch {
-          return
-        }
-      }
-      await props.saveResult(id, {
-        aiReportText: aiReportText.value.trim(),
-        doctorReportText: doctorReportText.value.trim(),
-        resultAttachment: resultAttachment.value.trim() || undefined,
-      })
-    } else {
-      if (!resultText.value.trim()) {
-        ElMessage.warning('请填写结果文本')
-        return
-      }
-      await props.saveResult(id, {
-        resultText: resultText.value.trim(),
-        resultAttachment: resultAttachment.value.trim() || undefined,
-      })
-    }
+    await props.saveResult(id, {
+      resultText: resultText.value.trim(),
+      resultAttachment: resultAttachment.value.trim() || undefined,
+    })
     ElMessage.success('结果已保存，医生可在工作站查看')
     resultDialogVisible.value = false
     await loadList()
@@ -290,14 +213,6 @@ async function onSaveResult() {
             >
               录入结果
             </el-button>
-            <el-button
-              v-if="row.status === 40"
-              type="primary"
-              link
-              @click="openResultDialog(row)"
-            >
-              查看结果
-            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -305,60 +220,36 @@ async function onSaveResult() {
 
     <el-dialog
       v-model="resultDialogVisible"
-      :title="`${isReadOnlyResult ? '查看结果' : '录入结果'} · ${currentRow?.itemName || ''}`"
-      :width="resultDialogWidth"
+      :title="`录入结果 · ${currentRow?.itemName || ''}`"
+      width="560px"
       destroy-on-close
     >
-      <div v-loading="detailLoading">
-        <ResultReportSections
-          v-if="useReportSections"
-          :instrument-data="instrumentData"
-          :ai-report-text="aiReportText"
-          :doctor-report-text="doctorReportText"
-          :ai-report-status="aiReportStatus"
-          :editable-ai="!isReadOnlyResult"
-          :editable-doctor="!isReadOnlyResult"
-          @update:ai-report-text="aiReportText = $event"
-          @update:doctor-report-text="doctorReportText = $event"
-        />
-        <el-form v-else label-position="top">
-          <el-form-item label="结果文本（resultText）" :required="!isReadOnlyResult">
-            <el-input
-              v-model="resultText"
-              type="textarea"
-              :rows="8"
-              :readonly="isReadOnlyResult"
-              placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
-            />
-          </el-form-item>
-        </el-form>
-        <el-form label-position="top" class="attachment-form">
-          <el-form-item label="结果附件（resultAttachment，可选）">
-            <el-input
-              v-model="resultAttachment"
-              :readonly="isReadOnlyResult"
-              placeholder="如 minio://bucket/key/report.pdf"
-            />
-          </el-form-item>
-        </el-form>
-      </div>
+      <el-form label-position="top">
+        <el-form-item label="结果文本（resultText）" required>
+          <el-input
+            v-model="resultText"
+            type="textarea"
+            :rows="8"
+            placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
+          />
+        </el-form-item>
+        <el-form-item label="结果附件（resultAttachment，可选）">
+          <el-input
+            v-model="resultAttachment"
+            placeholder="如 minio://bucket/key/report.pdf"
+          />
+        </el-form-item>
+      </el-form>
       <template #footer>
         <el-button
-          v-if="(generateAiReport || generateAiSuggestion) && !isReadOnlyResult"
+          v-if="generateAiSuggestion"
           :loading="generatingAiId === rowId(currentRow)"
-          @click="onGenerateAiReport"
+          @click="onGenerateAiSuggestion"
         >
-          {{ useReportSections ? '生成 AI 报告' : '生成 AI 建议填入' }}
+          生成 AI 建议填入
         </el-button>
-        <el-button @click="resultDialogVisible = false">{{ isReadOnlyResult ? '关闭' : '取消' }}</el-button>
-        <el-button
-          v-if="!isReadOnlyResult"
-          type="primary"
-          :loading="!!savingId"
-          @click="onSaveResult"
-        >
-          保存并发布
-        </el-button>
+        <el-button @click="resultDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="!!savingId" @click="onSaveResult">保存并发布</el-button>
       </template>
     </el-dialog>
   </div>
@@ -386,10 +277,6 @@ async function onSaveResult() {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.attachment-form {
-  margin-top: 12px;
 }
 
 .muted {

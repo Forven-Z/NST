@@ -14,7 +14,7 @@ export function executeDisposalRequest(id) {
 
 export function saveDisposalResult(id, data) {
   if (useMock()) return mockDisposalResult(id, data)
-  return request.post(`/disposal/requests/${id}/result`, data)
+  return request.put(`/disposal/requests/${id}/result`, data)
 }
 
 export function generateDisposalAiReport(id) {
