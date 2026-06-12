@@ -39,6 +39,18 @@ public final class MedTechReportSupport {
                 【AI 智能检查报告】
                 颅脑 CT 平扫：脑实质密度未见明显异常；脑室系统大小形态正常；中线结构居中。
                 AI 提示：未见明显急性出血或占位征象，请放射科医师结合临床审核。""");
+
+        INSTRUMENT_BY_ITEM.put("洗胃", """
+                【执行记录 · 只读】
+                体位：左侧卧位 · 胃管型号：16Fr
+                入量：温盐水 500 ml · 出量：450 ml（澄清）
+                生命体征：BP 118/76 mmHg · HR 78 次/分 · SpO₂ 98%
+                执行时间：系统自动记录""");
+
+        AI_REPORT_BY_ITEM.put("洗胃", """
+                【AI 处置摘要】
+                洗胃过程顺利，患者生命体征平稳，未见明显误吸或出血征象。
+                AI 提示：请执行医师结合临床观察确认，必要时复查。""");
     }
 
     private static final String DEFAULT_INSTRUMENT = """

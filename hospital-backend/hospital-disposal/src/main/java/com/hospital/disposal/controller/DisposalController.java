@@ -46,4 +46,14 @@ public class DisposalController {
             @Valid @RequestBody DisposalResultRequest request) {
         return Result.success(disposalExecuteService.saveResult(id, request));
     }
+
+    @GetMapping("/requests/{id}/result-detail")
+    public Result<Map<String, Object>> resultDetail(@PathVariable Long id) {
+        return Result.success(disposalExecuteService.getResultDetail(id));
+    }
+
+    @PostMapping("/requests/{id}/ai-report")
+    public Result<Map<String, Object>> generateAiReport(@PathVariable Long id) {
+        return Result.success(disposalExecuteService.generateAiReport(id));
+    }
 }

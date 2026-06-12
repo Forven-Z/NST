@@ -3,14 +3,10 @@ import TechQueuePanel from '../../components/tech/TechQueuePanel.vue'
 import {
   executeDisposalRequest,
   fetchDisposalQueue,
+  fetchDisposalResultDetail,
   generateDisposalAiReport,
   saveDisposalResult,
 } from '../../api/disposal'
-
-async function generateDisposalAiSuggestion(id) {
-  const res = await generateDisposalAiReport(id)
-  return { data: { resultText: res.data?.aiReportText || res.data?.resultText || '' } }
-}
 </script>
 
 <template>
@@ -18,10 +14,11 @@ async function generateDisposalAiSuggestion(id) {
     title="处置待执行队列"
     tech-type="DISPOSAL"
     request-id-key="disposalRequestId"
-    workflow-hint="处置项目须医生开立并缴费后执行。录入 resultText 后医生可查看。API：POST /tech/disposal/{id}/result"
+    workflow-hint="流程：患者缴费 → 开始执行 → 生成 AI 报告 → 补充医师意见 → 发布。API：GET result-detail · POST ai-report · POST result"
     :fetch-queue="fetchDisposalQueue"
+    :fetch-result-detail="fetchDisposalResultDetail"
     :execute-request="executeDisposalRequest"
     :save-result="saveDisposalResult"
-    :generate-ai-suggestion="generateDisposalAiSuggestion"
+    :generate-ai-report="generateDisposalAiReport"
   />
 </template>

@@ -5,6 +5,8 @@ import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.common.support.MedTechReportSupport;
+import com.hospital.common.support.MedTechReportSupport.ParsedPublishedText;
 import com.hospital.his.dto.doctor.CreateInspectionRequest;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.CheckRequestRepository;
@@ -72,9 +74,26 @@ public class CheckOrderService {
         Long doctorId = AuthContextHolder.require().getEmployeeId();
         Map<String, Object> row = checkRequestRepository.findByIdAndDoctor(checkRequestId, doctorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
-        if (((Number) row.get("status")).intValue() < InspectionRequestStatus.RESULT_READY) {
+        int status = ((Number) row.get("status")).intValue();
+        if (status < InspectionRequestStatus.RESULT_READY) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "检查结果尚未出具");
         }
-        return row;
+        String itemName = (String) row.get("itemName");
+        String resultText = row.get("resultText") != null ? String.valueOf(row.get("resultText")) : "";
+        ParsedPublishedText parsed = MedTechReportSupport.parsePublishedText(resultText);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("checkRequestId", row.get("checkRequestId"));
+        result.put("itemName", itemName);
+        result.put("status", status);
+        result.put("resultText", resultText);
+        result.put("resultTime", row.get("resultTime"));
+        result.put("reportTime", row.get("resultTime"));
+        result.put("instrumentData", MedTechReportSupport.instrumentDataFor(itemName));
+        result.put("aiReportText", parsed.aiReportText());
+        result.put("doctorReportText", parsed.doctorReportText());
+        result.put("aiReportStatus",
+                !parsed.aiReportText().isBlank() || !parsed.doctorReportText().isBlank() ? "READY" : "PENDING");
+        return result;
     }
 }
