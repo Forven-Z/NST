@@ -59,6 +59,10 @@ public class DepartmentRecommendService {
         return result;
     }
 
+    public List<String> availableDepartmentNames() {
+        return new ArrayList<>(availableDepartments.keySet());
+    }
+
     private DepartmentRecommendation toAvailableDepartment(AiTriageResult.AiDepartment aiDepartment) {
         DepartmentRecommendation matched = findAvailableDepartment(aiDepartment.getName());
         if (matched != null) {
@@ -90,10 +94,30 @@ public class DepartmentRecommendService {
         if (exact != null) {
             return exact;
         }
+        String aliasDept = inferDepartmentByAlias(name);
+        if (aliasDept != null) {
+            return availableDepartments.get(aliasDept);
+        }
         for (Map.Entry<String, DepartmentRecommendation> entry : availableDepartments.entrySet()) {
             if (name.contains(entry.getKey()) || entry.getKey().contains(name)) {
                 return entry.getValue();
             }
+        }
+        return null;
+    }
+
+    private String inferDepartmentByAlias(String name) {
+        if (containsAny(name, "呼吸", "消化", "神经", "心内", "心血管", "内分泌", "肾内", "血液", "全科")) {
+            return "内科";
+        }
+        if (containsAny(name, "普外", "骨科", "泌尿", "肛肠", "创伤", "伤口", "烧伤", "整形")) {
+            return "外科";
+        }
+        if (containsAny(name, "小儿", "儿内", "儿童", "儿保")) {
+            return "儿科";
+        }
+        if (containsAny(name, "妇科", "产科", "产检", "孕产", "计划生育")) {
+            return "妇产科";
         }
         return null;
     }
