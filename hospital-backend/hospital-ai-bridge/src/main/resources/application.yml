@@ -4,9 +4,25 @@ server:
 spring:
   application:
     name: hospital-ai-bridge
+  ai:
+    openai:
+      api-key: ${DASH_SCOPE_API_KEY:${DASHSCOPE_API_KEY:disabled}}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+          model: ${DASHSCOPE_MODEL:qwen-plus}
+          temperature: 0.2
   cloud:
     nacos:
       discovery:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${NACOS_NAMESPACE:}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
+        enabled: false
+
+hospital:
+  ai:
+    enabled: ${HOSPITAL_AI_ENABLED:true}
+    max-rounds: ${HOSPITAL_AI_MAX_ROUNDS:5}
+    max-follow-up-rounds: ${HOSPITAL_AI_MAX_FOLLOW_UP_ROUNDS:3}
+    safety-notice: 本结果仅用于就诊分诊参考，不能替代医生诊断。如症状严重或持续加重，请及时就医；如出现胸痛、呼吸困难、意识障碍、大出血等情况，请立即前往急诊或拨打 120。
