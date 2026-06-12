@@ -243,8 +243,8 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P3 | GET | `/disposal/queue` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | POST | `/disposal/requests/{id}/execute` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | POST | `/disposal/requests/{id}/result` | disposal | DISPOSAL_DOCTOR |
-| ⬜ | P3 | GET | `/disposal/requests/{id}/result-detail` | disposal | DISPOSAL_DOCTOR |
-| STUB | P4 | POST | `/disposal/requests/{id}/ai-report` | disposal | DISPOSAL_DOCTOR |
+| ✅ | P3 | GET | `/disposal/requests/{id}/result-detail` | disposal | DISPOSAL_DOCTOR |
+| STUB | P3 | POST | `/disposal/requests/{id}/ai-report` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | GET | `/pharmacy/pending` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/dispense` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/return-drug` | his | PHARMACIST |
@@ -762,7 +762,7 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | GET | `/disposal/queue?status=20` | `disposalRequestId` |
 | ✅ | POST | `/disposal/requests/{id}/execute` | status→30 |
 | ✅ | POST | `/disposal/requests/{id}/result` | 保存结果 |
-| ⬜ | GET | `/disposal/requests/{id}/result-detail` | 报告详情 |
+| ✅ | GET | `/disposal/requests/{id}/result-detail` | 报告详情 |
 | STUB | POST | `/disposal/requests/{id}/ai-report` | AI 处置记录辅助 |
 
 ---
@@ -1064,7 +1064,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `registrar.js` | `fetchRegistLevels` | `GET /registrar/regist-levels` | ❌ `/admin/regist-levels` | ⬜ |
 | `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
-| `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ❌ PUT | ✅ POST |
+| `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ✅ POST | ✅ POST |
 | `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ✅ `/admin/scheduling/**` | ✅ |
 | `scheduling.js` | 全部 | §8.5、§9.5 | 🎭 Mock 路径一致 | ⬜ |
 

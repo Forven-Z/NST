@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { INTEGRATION_ROUTES, TRIAGE_LEVEL_MAP } from '../../config/integrations'
+import ResultReportSections from '../medical/ResultReportSections.vue'
 
 const props = defineProps({
   title: { type: String, default: '待执行队列' },
@@ -12,6 +13,8 @@ const props = defineProps({
   executeRequest: { type: Function, required: true },
   saveResult: { type: Function, required: true },
   generateAiSuggestion: { type: Function, default: null },
+  fetchResultDetail: { type: Function, default: null },
+  generateAiReport: { type: Function, default: null },
   defaultStatus: { type: Number, default: 20 },
   workflowHint: { type: String, default: '' },
   showTriage: { type: Boolean, default: false },
@@ -19,16 +22,26 @@ const props = defineProps({
 
 const router = useRouter()
 
+const useReportSections = computed(
+  () => typeof props.fetchResultDetail === 'function'
+    && typeof props.generateAiReport === 'function',
+)
+
 const loading = ref(false)
 const executingId = ref(null)
 const savingId = ref(null)
 const generatingAiId = ref(null)
+const detailLoading = ref(false)
 const statusFilter = ref(props.defaultStatus)
 const list = ref([])
 
 const resultDialogVisible = ref(false)
 const resultText = ref('')
 const resultAttachment = ref('')
+const instrumentData = ref('')
+const aiReportText = ref('')
+const doctorReportText = ref('')
+const aiReportStatus = ref('PENDING')
 const currentRow = ref(null)
 
 const statusMap = {
@@ -65,7 +78,7 @@ async function onExecute(row) {
   executingId.value = id
   try {
     await props.executeRequest(id)
-    ElMessage.success('已开始执行，请录入检查结果')
+    ElMessage.success('已开始执行，请录入结果')
     await loadList()
   } catch (err) {
     ElMessage.error(err.message || '执行失败')
@@ -74,10 +87,33 @@ async function onExecute(row) {
   }
 }
 
-function openResultDialog(row) {
+async function openResultDialog(row) {
   currentRow.value = row
   resultText.value = row.resultText || ''
   resultAttachment.value = row.resultAttachment || ''
+  instrumentData.value = ''
+  aiReportText.value = ''
+  doctorReportText.value = ''
+  aiReportStatus.value = 'PENDING'
+
+  if (useReportSections.value) {
+    detailLoading.value = true
+    try {
+      const res = await props.fetchResultDetail(rowId(row))
+      const d = res.data || {}
+      instrumentData.value = d.instrumentData || ''
+      aiReportText.value = d.aiReportText || ''
+      doctorReportText.value = d.doctorReportText || ''
+      aiReportStatus.value = d.aiReportStatus || 'PENDING'
+      resultAttachment.value = d.resultAttachment || ''
+    } catch (err) {
+      ElMessage.error(err.message || '加载报告详情失败')
+      return
+    } finally {
+      detailLoading.value = false
+    }
+  }
+
   resultDialogVisible.value = true
 }
 
@@ -101,6 +137,23 @@ async function onGenerateAiSuggestion() {
   }
 }
 
+async function onGenerateAiReport() {
+  if (!props.generateAiReport || !currentRow.value) return
+  const id = rowId(currentRow.value)
+  generatingAiId.value = id
+  try {
+    const res = await props.generateAiReport(id)
+    const d = res.data || {}
+    aiReportText.value = d.aiReportText || ''
+    aiReportStatus.value = d.aiReportStatus || 'READY'
+    ElMessage.success('AI 报告已生成')
+  } catch (err) {
+    ElMessage.error(err.message || 'AI 报告生成失败')
+  } finally {
+    generatingAiId.value = null
+  }
+}
+
 function goImagingAi(row) {
   router.push({
     path: INTEGRATION_ROUTES.imagingAiWorkbench,
@@ -113,17 +166,33 @@ function goImagingAi(row) {
 }
 
 async function onSaveResult() {
-  if (!resultText.value.trim()) {
-    ElMessage.warning('请填写结果文本')
-    return
-  }
   const id = rowId(currentRow.value)
-  savingId.value = id
-  try {
-    await props.saveResult(id, {
+  let payload
+
+  if (useReportSections.value) {
+    if (!aiReportText.value.trim() && !doctorReportText.value.trim()) {
+      ElMessage.warning('请生成 AI 报告或填写医师意见')
+      return
+    }
+    payload = {
+      aiReportText: aiReportText.value.trim(),
+      doctorReportText: doctorReportText.value.trim(),
+      resultAttachment: resultAttachment.value.trim() || undefined,
+    }
+  } else {
+    if (!resultText.value.trim()) {
+      ElMessage.warning('请填写结果文本')
+      return
+    }
+    payload = {
       resultText: resultText.value.trim(),
       resultAttachment: resultAttachment.value.trim() || undefined,
-    })
+    }
+  }
+
+  savingId.value = id
+  try {
+    await props.saveResult(id, payload)
     ElMessage.success('结果已保存，医生可在工作站查看')
     resultDialogVisible.value = false
     await loadList()
@@ -221,10 +290,28 @@ async function onSaveResult() {
     <el-dialog
       v-model="resultDialogVisible"
       :title="`录入结果 · ${currentRow?.itemName || ''}`"
-      width="560px"
+      :width="useReportSections ? '720px' : '560px'"
       destroy-on-close
     >
-      <el-form label-position="top">
+      <div v-if="useReportSections" v-loading="detailLoading">
+        <ResultReportSections
+          v-model:ai-report-text="aiReportText"
+          v-model:doctor-report-text="doctorReportText"
+          :instrument-data="instrumentData"
+          :ai-report-status="aiReportStatus"
+          editable-ai
+          editable-doctor
+        />
+        <el-form label-position="top" style="margin-top: 12px">
+          <el-form-item label="结果附件（resultAttachment，可选）">
+            <el-input
+              v-model="resultAttachment"
+              placeholder="如 minio://bucket/key/report.pdf"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+      <el-form v-else label-position="top">
         <el-form-item label="结果文本（resultText）" required>
           <el-input
             v-model="resultText"
@@ -242,7 +329,14 @@ async function onSaveResult() {
       </el-form>
       <template #footer>
         <el-button
-          v-if="generateAiSuggestion"
+          v-if="useReportSections"
+          :loading="generatingAiId === rowId(currentRow)"
+          @click="onGenerateAiReport"
+        >
+          生成 AI 报告
+        </el-button>
+        <el-button
+          v-else-if="generateAiSuggestion"
           :loading="generatingAiId === rowId(currentRow)"
           @click="onGenerateAiSuggestion"
         >

@@ -101,4 +101,39 @@ public class DisposalRequestRepository {
                 .param("resultAttachment", resultAttachment)
                 .update();
     }
+
+    public Optional<Map<String, Object>> findResultDetail(Long id) {
+        return jdbcClient.sql("""
+                        SELECT dr.id AS disposal_request_id,
+                               dr.status,
+                               dr.result_text,
+                               dr.result_attachment,
+                               dr.result_time,
+                               dr.purpose,
+                               dr.body_part,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               mt.item_name
+                        FROM disposal_request dr
+                        JOIN patient p ON dr.patient_id = p.id
+                        JOIN medical_technology mt ON dr.medical_technology_id = mt.id
+                        WHERE dr.id = :id AND dr.delmark = 0
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("disposalRequestId", rs.getLong("disposal_request_id"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("resultText", rs.getString("result_text"));
+                    row.put("resultAttachment", rs.getString("result_attachment"));
+                    row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+                    row.put("purpose", rs.getString("purpose"));
+                    row.put("bodyPart", rs.getString("body_part"));
+                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
+                    row.put("patientName", rs.getString("patient_name"));
+                    row.put("itemName", rs.getString("item_name"));
+                    return row;
+                })
+                .optional();
+    }
 }

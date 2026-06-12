@@ -1,8 +1,10 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import ResultReportSections from '../medical/ResultReportSections.vue'
 import {
   buildRegisterResultsFromOrders,
+  fetchOrderResult,
   fetchRegisterOrders,
 } from '../../api/doctor'
 
@@ -11,6 +13,7 @@ const props = defineProps({
 })
 
 const loading = ref(false)
+const resultLoading = ref(false)
 const orders = ref(null)
 const resultsMap = ref({})
 const resultDialogVisible = ref(false)
@@ -23,6 +26,18 @@ const statusMap = {
   40: { label: '已出结果', type: 'success' },
   50: { label: '已退费', type: 'danger' },
 }
+
+const resultFetchers = {
+  inspection: (id) => fetchOrderResult('inspection', id),
+  check: (id) => fetchOrderResult('check', id),
+  disposal: (id) => fetchOrderResult('disposal', id),
+}
+
+const useReportSections = computed(() => {
+  const detail = resultDetail.value
+  if (!detail) return false
+  return !!(detail.instrumentData || detail.aiReportText || detail.doctorReportText)
+})
 
 watch(
   () => props.registerId,
@@ -56,16 +71,37 @@ async function loadOrders() {
   }
 }
 
-function onViewResult(row) {
+async function onViewResult(row) {
   if (row.kind === 'prescription') {
     return ElMessage.info('处方无文字报告，请至药房查看发药状态')
   }
-  const hit = resultsMap.value[`${row.kind}-${row.requestId}`]
-  if (!hit?.resultText) {
+  if (row.status < 40) {
     return ElMessage.warning('结果尚未出具')
   }
-  resultDetail.value = { ...row, ...hit }
+
+  const fetchResult = resultFetchers[row.kind]
+  if (!fetchResult) {
+    return ElMessage.warning('暂不支持查看该类型结果')
+  }
+
   resultDialogVisible.value = true
+  resultLoading.value = true
+  resultDetail.value = { ...row }
+
+  try {
+    const res = await fetchResult(row.requestId)
+    resultDetail.value = {
+      ...row,
+      ...res.data,
+      reportTime: res.data?.reportTime ?? res.data?.resultTime ?? row.reportTime,
+    }
+  } catch (err) {
+    resultDialogVisible.value = false
+    resultDetail.value = null
+    ElMessage.error(err.message || '加载结果失败')
+  } finally {
+    resultLoading.value = false
+  }
 }
 
 defineExpose({ reload: loadOrders })
@@ -108,14 +144,24 @@ defineExpose({ reload: loadOrders })
     <el-dialog
       v-model="resultDialogVisible"
       :title="`${resultDetail?.typeLabel || ''} · ${resultDetail?.itemName || ''}`"
-      width="560px"
+      :width="useReportSections ? '720px' : '560px'"
       destroy-on-close
     >
-      <template v-if="resultDetail">
-        <el-descriptions :column="1" border>
+      <div v-if="resultDetail" v-loading="resultLoading">
+        <ResultReportSections
+          v-if="useReportSections"
+          :instrument-data="resultDetail.instrumentData"
+          :ai-report-text="resultDetail.aiReportText"
+          :doctor-report-text="resultDetail.doctorReportText"
+          :ai-report-status="resultDetail.aiReportStatus || 'PENDING'"
+        />
+        <el-descriptions v-else :column="1" border>
           <el-descriptions-item label="结果文本">
             <pre class="result-text">{{ resultDetail.resultText || '（无）' }}</pre>
           </el-descriptions-item>
+        </el-descriptions>
+
+        <el-descriptions v-if="!resultLoading" :column="1" border class="result-meta">
           <el-descriptions-item v-if="resultDetail.resultAttachment" label="附件">
             {{ resultDetail.resultAttachment }}
           </el-descriptions-item>
@@ -123,7 +169,7 @@ defineExpose({ reload: loadOrders })
             {{ resultDetail.reportTime }}
           </el-descriptions-item>
         </el-descriptions>
-      </template>
+      </div>
     </el-dialog>
   </el-card>
 </template>
@@ -145,5 +191,9 @@ defineExpose({ reload: loadOrders })
   font-family: inherit;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.result-meta {
+  margin-top: 12px;
 }
 </style>

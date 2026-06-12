@@ -545,7 +545,39 @@ function formatResultPayload(row, idKey) {
     itemName: row.itemName,
     resultText: row.resultText || '',
     resultAttachment: row.resultAttachment || '',
-    reportTime: nowIso(),
+    reportTime: row.resultTime ?? nowIso(),
+  }
+}
+
+function parsePublishedText(resultText) {
+  const text = (resultText || '').trim()
+  if (!text) return { ai: '', doctor: '' }
+  const match = /^AI：([\s\S]*?)(?:\n医师：([\s\S]*))?$/.exec(text)
+  if (match) {
+    return { ai: (match[1] || '').trim(), doctor: (match[2] || '').trim() }
+  }
+  return { ai: text, doctor: '' }
+}
+
+function techTypeForIdKey(idKey) {
+  if (idKey === 'inspectionRequestId') return 'INSPECTION'
+  if (idKey === 'checkRequestId') return 'CHECK'
+  return 'DISPOSAL'
+}
+
+function enrichDoctorResultView(row, idKey) {
+  const parsed = parsePublishedText(row.resultText)
+  const aiReportText = row.aiReportText || parsed.ai
+  const doctorReportText = row.doctorReportText || parsed.doctor
+  const techType = row.techType || techTypeForIdKey(idKey)
+  const instrumentData = row.instrumentData || mockInstrumentData(techType, row.itemName)
+  return {
+    ...formatResultPayload(row, idKey),
+    status: row.status,
+    instrumentData,
+    aiReportText,
+    doctorReportText,
+    aiReportStatus: aiReportText || doctorReportText ? 'READY' : 'PENDING',
   }
 }
 
@@ -553,21 +585,21 @@ export function getInspectionResult(inspectionRequestId) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(inspectionRequestId))
   if (!row) throw new Error('检验申请不存在')
   if (row.status < 40) throw new Error('检验结果尚未出具，请待检验科录入')
-  return formatResultPayload(row, 'inspectionRequestId')
+  return enrichDoctorResultView(row, 'inspectionRequestId')
 }
 
 export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  return formatResultPayload(row, 'checkRequestId')
+  return enrichDoctorResultView(row, 'checkRequestId')
 }
 
 export function getDisposalResult(disposalRequestId) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(disposalRequestId))
   if (!row) throw new Error('处置申请不存在')
   if (row.status < 40) throw new Error('处置记录尚未出具，请待处置科录入')
-  return formatResultPayload(row, 'disposalRequestId')
+  return enrichDoctorResultView(row, 'disposalRequestId')
 }
 
 function findTechRow(techType, id) {
@@ -873,6 +905,15 @@ export function saveDisposalResult(id, payload) {
   if (!row) throw new Error('申请不存在')
   if (typeof payload === 'string') {
     row.resultText = payload
+  } else if (payload.aiReportText || payload.doctorReportText) {
+    const ai = payload.aiReportText?.trim() || ''
+    const doctor = payload.doctorReportText?.trim() || ''
+    if (ai && doctor) row.resultText = `AI：${ai}\n医师：${doctor}`
+    else if (ai) row.resultText = `AI：${ai}`
+    else row.resultText = `医师：${doctor}`
+    row.aiReportText = ai
+    row.doctorReportText = doctor
+    row.resultAttachment = payload.resultAttachment ?? ''
   } else {
     row.resultText = payload.resultText ?? ''
     row.resultAttachment = payload.resultAttachment ?? ''

@@ -108,6 +108,21 @@ export function fetchDisposalResult(disposalRequestId) {
   return request.get(`/doctor/disposal-requests/${disposalRequestId}/result`)
 }
 
+const ORDER_RESULT_FETCHERS = {
+  inspection: fetchInspectionResult,
+  check: fetchCheckResult,
+  disposal: fetchDisposalResult,
+}
+
+/** 医生工作站查看单条医技结果（检验/检查/处置） */
+export function fetchOrderResult(kind, requestId) {
+  const fetcher = ORDER_RESULT_FETCHERS[kind]
+  if (!fetcher) {
+    return Promise.reject(new Error('不支持的结果类型'))
+  }
+  return fetcher(requestId)
+}
+
 export function fetchRegisterOrders(registerId) {
   if (useMock()) return mockFetchRegisterOrders(registerId)
   return request.get(`/doctor/registers/${registerId}/orders`)
