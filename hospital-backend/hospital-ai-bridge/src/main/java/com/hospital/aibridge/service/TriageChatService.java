@@ -61,11 +61,12 @@ public class TriageChatService {
         }
 
         String fullText = buildFullText(session);
-        boolean askMore = !questionPolicy.shouldRecommend(session, fullText);
-        Optional<AiTriageResult> aiResult = springAiTriageClient.analyze(session, message, askMore);
+        boolean forceRecommendation = reachedMaxFollowUpRounds(session);
+        Optional<AiTriageResult> aiResult = springAiTriageClient.analyze(session, message, forceRecommendation);
         TriageChatResponse response = aiResult
-                .map(result -> buildFromAi(session, fullText, result, askMore))
-                .orElseGet(() -> buildFallback(session, message, askMore));
+                .map(result -> buildFromAi(session, fullText, result, forceRecommendation))
+                .orElseGet(() -> buildFallback(session, message,
+                        !forceRecommendation && !questionPolicy.shouldRecommend(session, fullText)));
 
         session.setStage(response.getStage());
         session.setSummary(response.getSummary());
@@ -89,7 +90,7 @@ public class TriageChatService {
                 .build();
     }
 
-    private TriageChatResponse buildFromAi(TriageSession session, String fullText, AiTriageResult aiResult, boolean askMore) {
+    private TriageChatResponse buildFromAi(TriageSession session, String fullText, AiTriageResult aiResult, boolean forceRecommendation) {
         boolean emergency = Boolean.TRUE.equals(aiResult.getEmergency());
         if (emergency) {
             return TriageChatResponse.builder()
@@ -105,7 +106,7 @@ public class TriageChatService {
                     .build();
         }
 
-        if (askMore || Boolean.TRUE.equals(aiResult.getNeedMoreInfo())) {
+        if (!forceRecommendation && Boolean.TRUE.equals(aiResult.getNeedMoreInfo())) {
             List<String> questions = firstQuestions(aiResult.getQuestions(), fullText);
             String reply = defaultText(aiResult.getReply(), String.join(" ", questions));
             return TriageChatResponse.builder()
@@ -123,13 +124,16 @@ public class TriageChatService {
                     .build();
         }
 
-        List<DepartmentRecommendation> departments = departmentRecommendService.normalizeAiDepartments(aiResult.getDepartments(), fullText);
+        boolean needRegister = forceRecommendation || !Boolean.FALSE.equals(aiResult.getNeedRegister());
+        List<DepartmentRecommendation> departments = needRegister
+                ? departmentRecommendService.normalizeAiDepartments(aiResult.getDepartments(), fullText)
+                : List.of();
         return TriageChatResponse.builder()
                 .sessionId(session.getSessionId())
                 .reply(defaultText(aiResult.getReply(), "根据你提供的信息，建议选择推荐科室进行挂号，由医生进一步评估。"))
-                .stage(Boolean.FALSE.equals(aiResult.getNeedRegister()) ? TriageStage.NO_REGISTER : TriageStage.RECOMMENDED)
+                .stage(needRegister ? TriageStage.RECOMMENDED : TriageStage.NO_REGISTER)
                 .needMoreInfo(false)
-                .needRegister(!Boolean.FALSE.equals(aiResult.getNeedRegister()))
+                .needRegister(needRegister)
                 .emergency(false)
                 .emergencyReason("")
                 .summary(defaultText(aiResult.getSummary(), fullText))
@@ -200,5 +204,9 @@ public class TriageChatService {
 
     private String defaultText(String value, String fallback) {
         return StringUtils.hasText(value) ? value : fallback;
+    }
+
+    private boolean reachedMaxFollowUpRounds(TriageSession session) {
+        return session.getRound() >= aiProperties.getMaxFollowUpRounds();
     }
 }

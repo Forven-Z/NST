@@ -22,8 +22,11 @@ public class SpringAiTriageClient {
             你必须用中文回答。
             你必须只输出 JSON，不要输出 Markdown，不要解释 JSON。
             每次追问最多 1-2 个问题，避免一次性询问过多内容。
+            你需要自行判断信息是否足够：不足则追问，足够则推荐科室。
+            如果已达到最大追问轮数，即使信息仍不完整，也必须给出最合理的就诊科室建议；无法判断时建议内科或线下分诊台。
             如出现急症风险，建议立即前往急诊或拨打 120。
             最多推荐 1-3 个科室。
+            推荐科室必须优先从系统可挂科室中选择；如果想到更细分科室，请在 name 中写细分科室，后端会映射到系统科室。
             不允许确诊疾病，不允许推荐药物、剂量或治疗方案，不允许承诺无需就医。
             JSON 字段固定为：
             {
@@ -43,29 +46,41 @@ public class SpringAiTriageClient {
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
     private final ChatClient chatClient;
+    private final DepartmentRecommendService departmentRecommendService;
 
     public SpringAiTriageClient(
             AiProperties aiProperties,
             ObjectMapper objectMapper,
-            ObjectProvider<ChatClient.Builder> chatClientBuilderProvider) {
+            ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
+            DepartmentRecommendService departmentRecommendService) {
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
+        this.departmentRecommendService = departmentRecommendService;
         ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
         this.chatClient = builder == null ? null : builder.build();
     }
 
-    public Optional<AiTriageResult> analyze(TriageSession session, String latestMessage, boolean askMore) {
+    public Optional<AiTriageResult> analyze(TriageSession session, String latestMessage, boolean forceRecommendation) {
         if (!aiProperties.isEnabled() || chatClient == null) {
             return Optional.empty();
         }
         String userPrompt = """
-                当前任务：%s。
+                当前任务：根据患者描述判断是否继续追问，或给出科室推荐。
+                系统可挂科室：%s
+                最大追问轮数：%d
+                当前用户输入轮数：%d
+                是否已达到最大追问轮数：%s
+                本轮要求：%s
                 已有摘要：%s
                 历史对话：
                 %s
                 患者最新输入：%s
                 """.formatted(
-                askMore ? "判断还缺少哪些关键信息，并生成 1-2 个追问问题" : "给出是否建议挂号和推荐科室",
+                String.join("、", departmentRecommendService.availableDepartmentNames()),
+                aiProperties.getMaxFollowUpRounds(),
+                session.getRound(),
+                forceRecommendation ? "是" : "否",
+                forceRecommendation ? "禁止继续追问，必须推荐科室或建议线下分诊" : "可以追问，也可以在信息足够时直接推荐科室",
                 StringUtils.hasText(session.getSummary()) ? session.getSummary() : "暂无",
                 history(session),
                 latestMessage
