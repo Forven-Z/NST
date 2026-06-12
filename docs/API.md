@@ -57,7 +57,7 @@
 | `lis.js` / `pacs.js` / `disposal.js` | `TechQueuePanel`、影像页 | ⚠️ | 队列/execute ✅；**保存结果 Method 应为 POST**（前端仍 PUT，见附录 G） |
 | `pharmacy.js` | 待发药 | ✅ | |
 | `admin.js` | 字典/员工/排班 | ✅ | 字典 GET ✅；科室/员工/排班 CRUD 路径 `/admin/scheduling/**` |
-| `scheduling.js` | `MyScheduleView`、`SchedulingView` | 🎭 Mock | §8.5 / §9.5 整套接口仅 Mock，后端 ⬜ P5 |
+| `scheduling.js` | `MyScheduleView`、`SchedulingView` | ✅ | §8.5 / §9.5 已联调；AI STUB 50301 |
 
 **图例**：✅ 关 Mock 可联调 · ⚠️ 路径或字段待改 · 🎭 仅 Mock · ⬜ 契约已定后端未实现
 
@@ -847,16 +847,15 @@ Mock 数据结构 **与本文件一致**。
 
 > **排班/字典查询**：窗口挂号页使用 **`GET /registrar/departments`**、**`/registrar/settle-categories`**、**`/registrar/regist-levels`**（⬜）、**`/registrar/doctors`**、**`/registrar/schedules`**（REGISTRAR 角色）；**禁止**调用 `/admin/**`（除临时联调号别只读，见 §8.1）。
 
-### 8.5 职员自助 · `/staff/**` 🎭 P5
+### 8.5 职员自助 · `/staff/**` ✅ P1
 
-> **仅 Mock**（`hospital-frontend/src/mock/scheduling-leave.js`）。关 `VITE_USE_MOCK` 后不可用，后端 ⬜ 未实现。  
-> 页面：各角色「我的排班」（`MyScheduleView.vue`）。
+> 页面：各角色「我的排班」（`MyScheduleView.vue`）。Gateway 路由至 `hospital-management`。
 
 | 状态 | Method | 路径 | 说明 |
 |------|--------|------|------|
-| 🎭 | GET | `/staff/my-schedules` | Query：`employeeId`, `workDateFrom?`；返回本人未来排班 |
-| 🎭 | POST | `/staff/schedules/{schedulingId}/leave-requests` | Body：`{ employeeId, reason }` |
-| 🎭 | POST | `/staff/leave-requests/{leaveRequestId}/cancel` | Body：`{ employeeId }` |
+| ✅ | GET | `/staff/my-schedules` | Query：`employeeId`, `workDateFrom?`；返回本人未来排班 |
+| ✅ | POST | `/staff/schedules/{schedulingId}/leave-requests` | Body：`{ employeeId, reason }` |
+| ✅ | POST | `/staff/leave-requests/{leaveRequestId}/cancel` | Body：`{ employeeId }` |
 
 ---
 
@@ -889,26 +888,26 @@ Mock 数据结构 **与本文件一致**。
 | ✅ POST | `/admin/scheduling` | 创建 |
 | ✅ PUT | `/admin/scheduling/{id}` | 更新（含替班：改 `employeeId`） |
 | ✅ POST | `/admin/scheduling/{id}/publish` | 发布 |
-| P5 | POST | `/admin/scheduling/ai-suggest` | AI 排班建议 |
-| STUB | P5 | POST | `/admin/scheduling/{id}/ai-replace` | 应用 AI 推荐（**定稿**有独立接口；Mock 用 PUT 更新代替） |
+| STUB | POST | `/admin/scheduling/ai-suggest` | 返回 code=50301，AI 未接入 |
+| STUB | POST | `/admin/scheduling/{id}/ai-replace` | 返回 code=50301，AI 替班未接入 |
 | P5 | POST | `/admin/scheduling/solve` | Timefold 求解 |
 
-> **前端**：`admin.js` 已改为 `/admin/scheduling/**`；Mock 与 `SchedulingView.vue` 功能完整；关 Mock 可联调科室/员工/排班 CRUD。
+> **前端**：`SchedulingView.vue` 与 Mock 布局统一；关 Mock 可联调排班 CRUD + 请假；AI 按钮保留，STUB 期提示 50301。
 
 **Query**：`workDate`, `deptId`, `employeeId`  
 **Request 示例**：`{ "deptId", "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  
 > `scheduling` 表不存 `dept_id`；出诊科室经 `employee.dept_id` 推导（DATABASE v1.14）。
 
-### 9.5 排班请假审批 · `/admin/leave-requests/**` 🎭 P5
+### 9.5 排班请假审批 · `/admin/leave-requests/**` ✅ P1
 
-> **仅 Mock**。与 §8.5 配对；页面：`SchedulingView.vue` 请假 Tab。  
-> **定稿**：替班通过 `PUT /admin/scheduling/{id}` 更新排班，**无**单独 `ai-replace` 时 Mock 亦走 PUT。
+> 与 §8.5 配对；页面：`SchedulingView.vue` 请假 Tab。  
+> **定稿**：替班通过 `PUT /admin/scheduling/{id}` 更新排班。
 
 | 状态 | Method | 路径 | 说明 |
 |------|--------|------|------|
-| 🎭 | GET | `/admin/leave-requests` | Query：`status?` |
-| 🎭 | POST | `/admin/leave-requests/{id}/approve` | Body：`{ adminName? }` |
-| 🎭 | POST | `/admin/leave-requests/{id}/reject` | Body：`{ remark, adminName? }` |
+| ✅ | GET | `/admin/leave-requests` | Query：`status?` |
+| ✅ | POST | `/admin/leave-requests/{id}/approve` | Body：`{ adminName? }` |
+| ✅ | POST | `/admin/leave-requests/{id}/reject` | Body：`{ remark, adminName? }` |
 
 ### 9.3 员工 ✅ P1
 

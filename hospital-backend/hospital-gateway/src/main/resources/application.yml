@@ -93,6 +93,13 @@ spring:
           filters:
             - StripPrefix=0
 
+        - id: hospital-management-staff
+          uri: lb://hospital-management
+          predicates:
+            - Path=/api/v1/staff/**
+          filters:
+            - StripPrefix=0
+
         # --- AI（P4+，可 STUB）---
         - id: hospital-ai-bridge
           uri: lb://hospital-ai-bridge

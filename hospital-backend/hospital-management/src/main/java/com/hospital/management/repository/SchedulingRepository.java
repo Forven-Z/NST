@@ -126,6 +126,37 @@ public class SchedulingRepository {
                 .update();
     }
 
+    public List<Map<String, Object>> listMySchedules(Long employeeId, LocalDate workDateFrom) {
+        return jdbcClient.sql("""
+                        SELECT s.id AS scheduling_id,
+                               e.dept_id,
+                               d.dept_name,
+                               s.employee_id,
+                               e.real_name AS employee_name,
+                               e.title AS employee_title,
+                               s.regist_level_id,
+                               rl.level_name AS regist_level_name,
+                               rl.regist_fee,
+                               s.work_date,
+                               s.noon_type,
+                               s.total_quota,
+                               s.used_quota,
+                               s.publish_status
+                        FROM scheduling s
+                        JOIN employee e ON s.employee_id = e.id
+                        JOIN department d ON e.dept_id = d.id
+                        JOIN regist_level rl ON s.regist_level_id = rl.id
+                        WHERE s.employee_id = :employeeId
+                          AND s.publish_status <> 2
+                          AND (CAST(:workDateFrom AS DATE) IS NULL OR s.work_date >= CAST(:workDateFrom AS DATE))
+                        ORDER BY s.work_date, s.noon_type
+                        """)
+                .param("employeeId", employeeId)
+                .param("workDateFrom", workDateFrom)
+                .query(this::mapScheduleRow)
+                .list();
+    }
+
     private Map<String, Object> mapScheduleRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         Map<String, Object> row = new HashMap<>();
         row.put("schedulingId", rs.getLong("scheduling_id"));

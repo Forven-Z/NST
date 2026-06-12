@@ -56,6 +56,7 @@
 | hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | `GET /disposal/queue`, `POST /disposal/requests/{id}/result` |
 | hospital-management · 字典只读 | API §9.1 | ✅ | | `GET /admin/departments` 等 |
 | hospital-management · 科室/员工/排班 CRUD | API §9.2–9.3 | ✅ | | `POST/PUT/DELETE /admin/**` + auth 内部开户 |
+| hospital-management · 排班请假 §8.5/§9.5 | API §8.5、§9.5 | ✅ | | `scheduling_leave_request` 表 + 验收脚本 |
 | hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
 | hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
 | hospital-pacs · 影像任务/CNN | API §6 · §8 | ⬜ | lzr+wsh | `imaging-studies`、MinIO upload、`hospital-ai` 回调 |
@@ -80,7 +81,7 @@
 | PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + `fetchPacsResultDetail`；对齐 LIS |
 | PC · PACS 影像任务 | §2.5 | 🟨 | zty | `/pacs/imaging` 关 Mock 显示开发中空态；后端 `imaging-studies` ⬜ |
 | PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai` 最小可运行；CNN 由 wsh 后续 |
-| PC · admin | API §9 | ✅ | | 科室/员工/排班核心页关 Mock 可联调；P5 请假/AI 仅 Mock |
+| PC · admin | API §9 | ✅ | | 排班页与 Mock 统一；请假联调；AI STUB 50301 |
 | 小程序 · 登录/挂号 | §一 | ✅ | | `hospital-patient-miniapp/` |
 | 小程序 · 支付 | §一 | ✅ | | 待缴列表 + 模拟支付 |
 | 小程序 · 报告/医嘱 | §一 | ✅ | | 报告 Tab + `pages/orders` 医嘱进度 |

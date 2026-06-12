@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  applyAiSchedulingReplace,
   createAdminSchedule,
   fetchAdminSchedules,
   fetchAiSchedulingSuggest,
@@ -18,7 +19,6 @@ import {
 } from '../../api/scheduling'
 import { useMock } from '../../utils/mock'
 
-const isMock = useMock()
 const loading = ref(false)
 const leaveLoading = ref(false)
 const aiLoading = ref(false)
@@ -49,6 +49,7 @@ const editForm = reactive({
   timeRange: '',
   totalQuota: 20,
   remainQuota: 15,
+  usedQuota: 0,
   registFee: 20,
   needsSubstitute: false,
 })
@@ -66,6 +67,8 @@ const createForm = reactive({
 
 const outpatientDepts = computed(() => allDepts.value.filter((d) => d.deptType === 1))
 
+const editRemainQuota = computed(() => Math.max(0, editForm.totalQuota - (editForm.usedQuota ?? 0)))
+
 const publishStatusMap = {
   0: { label: '草稿', type: 'info' },
   1: { label: '已发布', type: 'success' },
@@ -79,8 +82,7 @@ onMounted(async () => {
   ])
   allDepts.value = deptRes.data?.list ?? []
   registLevels.value = levelRes.data?.list ?? []
-  await loadSchedules()
-  if (isMock) await loadLeaveRequests()
+  await Promise.all([loadSchedules(), loadLeaveRequests()])
 })
 
 async function loadCandidatesForCreate() {
@@ -132,6 +134,9 @@ function openCreate() {
 }
 
 async function onCreateSchedule() {
+  if (createForm.scheduleKind === 2) {
+    return ElMessage.warning('科室值班排班尚未支持，请选择门诊出诊')
+  }
   if (!createForm.employeeId) return ElMessage.warning('请选择人员（来自员工管理列表）')
   if (!createForm.workDate) return ElMessage.warning('请选择出诊日期')
   creating.value = true
@@ -196,12 +201,13 @@ async function loadLeaveRequests() {
 
 async function onAiSuggest() {
   aiLoading.value = true
+  aiSuggestions.value = []
   try {
     const res = await fetchAiSchedulingSuggest({ deptId: deptFilter.value || undefined })
     aiSuggestions.value = res.data?.suggestions ?? []
     ElMessage.success(res.data?.message || 'AI 排班建议已生成')
   } catch (err) {
-    ElMessage.error(err.message || '获取 AI 排班建议失败')
+    ElMessage.warning(err.message || 'AI 排班建议尚未接入')
   } finally {
     aiLoading.value = false
   }
@@ -212,25 +218,37 @@ function getAiSuggestion(schedulingId) {
 }
 
 async function onApplyAiReplace(suggestion) {
-  if (!suggestion?.replaceable || !suggestion.proposedSchedule) {
-    return ElMessage.info('该条 AI 建议无需替换排班')
-  }
-  try {
-    await ElMessageBox.confirm(
-      `将应用 AI 建议：${suggestion.suggestion}`,
-      suggestion.leaveDriven ? '应用请假替班' : '应用 AI 替换排班',
-      { type: 'warning' },
-    )
-  } catch {
+  const schedulingId = suggestion?.schedulingId
+  if (!schedulingId) return
+
+  if (useMock() && suggestion?.replaceable && suggestion.proposedSchedule) {
+    try {
+      await ElMessageBox.confirm(
+        `将应用 AI 建议：${suggestion.suggestion}`,
+        suggestion.leaveDriven ? '应用请假替班' : '应用 AI 替换排班',
+        { type: 'warning' },
+      )
+    } catch {
+      return
+    }
+    replacingId.value = schedulingId
+    try {
+      await updateAdminSchedule(schedulingId, suggestion.proposedSchedule)
+      ElMessage.success('已应用 AI 推荐排班')
+      await Promise.all([loadSchedules(), loadLeaveRequests()])
+    } catch (err) {
+      ElMessage.error(err.message || '替换失败')
+    } finally {
+      replacingId.value = null
+    }
     return
   }
-  replacingId.value = suggestion.schedulingId
+
+  replacingId.value = schedulingId
   try {
-    await updateAdminSchedule(suggestion.schedulingId, suggestion.proposedSchedule)
-    ElMessage.success('已应用 AI 推荐排班')
-    await Promise.all([loadSchedules(), loadLeaveRequests()])
+    await applyAiSchedulingReplace(schedulingId, suggestion?.proposedSchedule)
   } catch (err) {
-    ElMessage.error(err.message || '替换失败')
+    ElMessage.warning(err.message || 'AI 替班尚未接入')
   } finally {
     replacingId.value = null
   }
@@ -245,6 +263,7 @@ function openEdit(row) {
     timeRange: row.timeRange,
     totalQuota: row.totalQuota,
     remainQuota: row.remainQuota,
+    usedQuota: row.usedQuota ?? Math.max(0, row.totalQuota - row.remainQuota),
     registFee: row.registFee,
     needsSubstitute: row.needsSubstitute,
   })
@@ -262,9 +281,6 @@ function onDoctorChange(empId) {
 
 async function onSaveEdit() {
   if (!editForm.schedulingId) return
-  if (isMock && editForm.remainQuota > editForm.totalQuota) {
-    return ElMessage.warning('剩余号源不能大于总号源')
-  }
   if (editForm.needsSubstitute) {
     const original = schedules.value.find((s) => s.schedulingId === editForm.schedulingId)
     if (original && editForm.employeeId === original.employeeId) {
@@ -273,9 +289,10 @@ async function onSaveEdit() {
   }
   saving.value = true
   try {
-    const payload = isMock
+    const payload = useMock()
       ? {
           ...editForm,
+          remainQuota: editRemainQuota.value,
           employeeTitle: editCandidates.value.find((d) => d.employeeId === editForm.employeeId)?.title,
           employeeName:
             editCandidates.value.find((d) => d.employeeId === editForm.employeeId)?.realName
@@ -288,8 +305,7 @@ async function onSaveEdit() {
     const res = await updateAdminSchedule(editForm.schedulingId, payload)
     ElMessage.success(res.data?.message || '排班已更新')
     editVisible.value = false
-    await loadSchedules()
-    if (isMock) await loadLeaveRequests()
+    await Promise.all([loadSchedules(), loadLeaveRequests()])
   } catch (err) {
     ElMessage.error(err.message || '保存失败')
   } finally {
@@ -302,7 +318,7 @@ async function onApproveLeave(row) {
   try {
     await approveLeaveRequest(row.leaveRequestId, { adminName: '系统管理员' })
     ElMessage.success('已批准请假，请安排替班')
-    await Promise.all([loadSchedules(), loadLeaveRequests(), onAiSuggest()])
+    await Promise.all([loadSchedules(), loadLeaveRequests()])
   } catch (err) {
     ElMessage.error(err.message || '操作失败')
   } finally {
@@ -347,13 +363,11 @@ function rowClassName({ row }) {
     <div class="page-head">
       <h2 class="page-title">排班维护</h2>
       <p class="page-desc">
-        {{ isMock
-          ? '新建排班时从「员工管理」按科室筛选人员；发布后医生可在「我的排班」请假，本页审批并替班。'
-          : '新建门诊出诊排班草稿，发布后患者与收费员端可见并可挂号。' }}
+        新建排班时从「员工管理」按科室筛选人员；发布后医生可在「我的排班」请假，本页审批并替班。
       </p>
     </div>
 
-    <el-card v-if="isMock" shadow="never" class="leave-card">
+    <el-card shadow="never" class="leave-card">
       <template #header>
         <div class="card-header">
           <span>
@@ -414,11 +428,10 @@ function rowClassName({ row }) {
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
                 <el-button
-                  v-if="getAiSuggestion(row.schedulingId)?.leaveDriven"
                   link
                   type="warning"
                   :loading="replacingId === row.schedulingId"
-                  @click="onApplyAiReplace(getAiSuggestion(row.schedulingId))"
+                  @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || { schedulingId: row.schedulingId })"
                 >
                   AI 替班
                 </el-button>
@@ -444,10 +457,10 @@ function rowClassName({ row }) {
         </el-select>
         <el-button type="primary" @click="openCreate">新建排班</el-button>
         <el-button :loading="loading" @click="loadSchedules">刷新排班</el-button>
-        <el-button v-if="isMock" type="primary" :loading="aiLoading" @click="onAiSuggest">
+        <el-button type="primary" :loading="aiLoading" @click="onAiSuggest">
           获取 AI 排班建议
         </el-button>
-        <el-tag v-if="isMock" type="warning" size="small">含请假替班</el-tag>
+        <el-tag type="warning" size="small">含请假替班</el-tag>
       </div>
 
       <el-table
@@ -484,7 +497,7 @@ function rowClassName({ row }) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="isMock" label="请假状态" min-width="108" align="center">
+        <el-table-column label="请假状态" min-width="108" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.pendingLeave" size="small" type="warning">待审</el-tag>
             <el-tag v-else-if="row.needsSubstitute" size="small" type="danger">待替班</el-tag>
@@ -505,19 +518,19 @@ function rowClassName({ row }) {
             </el-button>
             <el-button link type="primary" @click="openEdit(row)">手工编辑</el-button>
             <el-button
-              v-if="isMock && getAiSuggestion(row.schedulingId)?.replaceable"
+              v-if="row.needsSubstitute || getAiSuggestion(row.schedulingId)?.replaceable"
               link
               type="warning"
               :loading="replacingId === row.schedulingId"
-              @click="onApplyAiReplace(getAiSuggestion(row.schedulingId))"
+              @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || { schedulingId: row.schedulingId })"
             >
-              {{ getAiSuggestion(row.schedulingId)?.leaveDriven ? 'AI 替班' : 'AI 替换' }}
+              {{ row.needsSubstitute ? 'AI 替班' : 'AI 替换' }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-card v-if="isMock && aiSuggestions.length" shadow="never" class="ai-suggest-card">
+      <el-card v-if="aiSuggestions.length" shadow="never" class="ai-suggest-card">
         <template #header>
           <span>AI 排班建议详情</span>
         </template>
@@ -568,16 +581,16 @@ function rowClassName({ row }) {
           </el-select>
         </el-form-item>
         <el-form-item label="时段">
-          <el-input v-model="editForm.timeRange" placeholder="如 08:00-12:00" :readonly="!isMock" />
+          <el-input v-model="editForm.timeRange" placeholder="如 08:00-12:00" readonly />
         </el-form-item>
         <el-form-item label="总号源">
           <el-input-number v-model="editForm.totalQuota" :min="1" :max="99" />
         </el-form-item>
-        <el-form-item v-if="isMock" label="剩余号源">
-          <el-input-number v-model="editForm.remainQuota" :min="0" :max="99" />
+        <el-form-item label="剩余号源">
+          <span>{{ editRemainQuota }}</span>
         </el-form-item>
-        <el-form-item v-if="isMock" label="挂号费">
-          <el-input-number v-model="editForm.registFee" :min="0" :max="500" />
+        <el-form-item label="挂号费">
+          <span>¥{{ editForm.registFee }}</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -596,11 +609,10 @@ function rowClassName({ row }) {
       />
       <el-form label-width="96px">
         <el-form-item label="班次类型">
-          <el-radio-group v-if="isMock" v-model="createForm.scheduleKind" @change="loadCandidatesForCreate">
+          <el-radio-group v-model="createForm.scheduleKind" @change="loadCandidatesForCreate">
             <el-radio :value="1">门诊出诊</el-radio>
             <el-radio :value="2">科室值班</el-radio>
           </el-radio-group>
-          <span v-else class="muted">门诊出诊</span>
         </el-form-item>
         <el-form-item label="科室" required>
           <el-select

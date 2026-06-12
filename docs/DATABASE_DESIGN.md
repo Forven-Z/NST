@@ -5,7 +5,7 @@
 > **数据库**：PostgreSQL 15+（业务库 `hospital`）；向量扩展见 **§十**。  
 > **状态枚举**：§1.5；与 `BUSINESS_FLOW.md` §八、【态】及 `PROJECT_REQUIREMENTS.md` §2.4 一致。  
 > **微服务表写归属**：§1.4（与 [MICROSERVICES.md](./MICROSERVICES.md) §二 一致）  
-> **版本**：v1.14 | 2026-06
+> **版本**：v1.15 | 2026-06
 
 ---
 
@@ -21,7 +21,7 @@
 | 时间 | `TIMESTAMPTZ`（带时区） |
 | 金额 | `NUMERIC(10,2)`，单位：元 |
 | 逻辑删除 | `delmark`：`0` 有效，`1` 删除（与参考需求一致）。**例外**：`scheduling` 不用 `delmark`，作废见 `publish_status=2`（§1.5） |
-| 审计字段 | 单据/档案类表默认含 `create_time`、`update_time`；部分表含 `create_by`、`update_by`（员工 `employee.id`）。**例外**：`prescription_item` 不含 `create_time`（见 §7.2）；`prescription` 开立/发药时间见 §7.1 约定（无 `order_time` / `dispense_time`） |
+| 审计字段 | 单据/档案类表默认含 `create_time`、`update_time`；部分表含 `create_by`、`update_by`（员工 `employee.id`）。**例外**：`prescription_item` 不含 `create_time`（见 §7.2）；`scheduling_leave_request` 仅含 `create_time`（见 §3.9）；`prescription` 开立/发药时间见 §7.1 约定（无 `order_time` / `dispense_time`） |
 | 字段表格式 | 各表字段表含 **业务说明** 列，描述该字段在门诊流程中的含义与用途（对齐教学 PPT 写法） |
 | 空值列缩写 | 表中「空」列：`N` = NOT NULL，`Y` = 可空 |
 
@@ -39,6 +39,7 @@
 | 分组 | 表数量 | 表名 |
 |------|--------|------|
 | A. 基础字典 | 8 | `department`, `regist_level`, `settle_category`, `employee`, `scheduling`, `drug_info`, `disease`, `medical_technology` |
+| A′. 排班扩展 | 1 | `scheduling_leave_request`（职员请假；DDL 见 `schema.sql`、`patch-scheduling-leave.sql`） |
 | B. 患者与认证 | 3 | `patient`, `patient_wechat`, `sys_user` |
 | B′. 患者扩展 | 1 | `patient_family_link`（小程序家属；DDL 见 `schema.sql`） |
 | C. 挂号就诊 | 3 | `register`, `medical_record`, `medical_record_disease` |
@@ -48,7 +49,7 @@
 | G. 影像 AI | 2 | `imaging_study`, `ai_chat_session` |
 | H. 向量/RAG | — | 见 **§十**（由 Spring AI 管理，本文仅说明） |
 
-**合计：26 张核心业务关系表 + 1 张扩展表 `patient_family_link`**（不含向量表）。
+**合计：26 张核心业务关系表 + 2 张扩展表**（`patient_family_link`、`scheduling_leave_request`；不含向量表）。
 
 ### 1.4 微服务与表写归属矩阵
 
@@ -64,7 +65,7 @@
 | `bill`, `payment_record`, `payment_bill`, `refund_record` | hospital-his | 待缴与支付流水 |
 | `inspection_request` | hospital-lis | 全生命周期写；**开立字段**由 his 创建时写入 |
 | `check_request`, `imaging_study` | hospital-pacs | 检查单与影像任务；开立由 his Feign 触发 |
-| `department`, `employee`, `regist_level`, `settle_category`, `scheduling`, `drug_info`, `disease`, `medical_technology` | hospital-management | 字典与排班 |
+| `department`, `employee`, `regist_level`, `settle_category`, `scheduling`, `scheduling_leave_request`, `drug_info`, `disease`, `medical_technology` | hospital-management | 字典、排班与请假 |
 | `ai_chat_session` | hospital-ai-bridge | 对话会话（P4+） |
 
 ### 1.5 全局状态枚举（实现用 `SMALLINT` 或 PostgreSQL `ENUM`）
@@ -188,6 +189,18 @@
 | 1 | 退款成功 |
 | 2 | 退款失败 |
 
+#### `leave_request_status` — 排班请假状态（`scheduling_leave_request.status`）
+
+| 值 | 含义 | 业务说明 |
+|----|------|----------|
+| 0 | 待审 | 职员已提交，等待管理员审批 |
+| 1 | 已批准 | 管理员批准；排班 `employee_id` 仍为原申请人，待手工/AI 替班 |
+| 2 | 已驳回 | 管理员驳回，可填 `reject_remark` |
+| 3 | 已撤销 | 职员在待审期间自行撤销 |
+| 4 | 已替班 | 管理员将排班 `employee_id` 换为替班医生后写入；记录 `substitute_employee_id`、`substitute_time` |
+
+> 同一排班在 **待审(0)** 或 **已批准(1)** 状态下最多一条记录（部分唯一索引，见 §3.9）。**不修改** `scheduling` 表结构；替班仅 `UPDATE scheduling SET employee_id = ?`。
+
 ---
 
 ## 二、ER 关系概要
@@ -203,6 +216,7 @@ patient ──1:N── register ──1:1── medical_record
 
 employee ──FK── department
 scheduling ──FK── employee, regist_level（出诊科室经 employee.dept_id 推导，无跨科会诊排班）
+scheduling ──1:N── scheduling_leave_request ──FK── employee（申请人 / 替班人）
 register ──FK── department, employee(医生), regist_level, settle_category
 
 medical_technology ──FK── check_request / inspection_request / disposal_request
@@ -302,6 +316,8 @@ disease ──N:M── medical_record (medical_record_disease)
 
 **管理端**：可按日期范围查询含 **已取消(2)** 的历史排班；取消操作即 `publish_status := 2`。
 
+**请假关联**：职员对某排班申请请假写入 **`scheduling_leave_request`**（§3.9）；本表结构不变。批准待替班时 `employee_id` 仍为原医生；替班完成后更新 `employee_id` 并将请假置 **已替班(4)**。
+
 ---
 
 ### 3.6 `drug_info` — 药品信息表
@@ -351,6 +367,37 @@ disease ──N:M── medical_record (medical_record_disease)
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
+
+---
+
+### 3.9 `scheduling_leave_request` — 排班请假申请表
+
+> **业务定位**：门诊医生等职员对已发布排班申请请假；管理员审批后通过 **手工替班**（`PUT /admin/scheduling/{id}` 更换 `employee_id`）完成闭环。实现见 `hospital-management` · `LeaveRequestService`；设计见 `docs/superpowers/specs/2026-06-12-admin-scheduling-leave-design.md` §3。
+
+| 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
+|--------|----------|----|--------|-----|------|
+| id | BIGSERIAL | N | — | PK | 主键；请假单业务 ID。 |
+| scheduling_id | BIGINT | N | — | FK → scheduling(id) | 关联排班；一条请假对应一个排班时段。 |
+| employee_id | BIGINT | N | — | FK → employee(id) | 申请人；须与 JWT 中职员 `employeeId` 一致（职员自助接口）。 |
+| reason | VARCHAR(256) | N | — | — | 请假原因；职员提交时必填。 |
+| status | SMALLINT | N | 0 | IX | 请假状态，见 §1.5 `leave_request_status`：**0 待审**、**1 已批准**、**2 已驳回**、**3 已撤销**、**4 已替班**。 |
+| approve_admin_id | BIGINT | Y | NULL | — | 审批管理员 ID；可选，一期可不填。 |
+| approve_time | TIMESTAMPTZ | Y | NULL | — | 批准或驳回时间；`status` 变为 1 或 2 时写入。 |
+| reject_remark | VARCHAR(256) | Y | NULL | — | 驳回备注；`status=2` 时可选填。 |
+| substitute_employee_id | BIGINT | Y | NULL | FK → employee(id) | 替班医生；`status=4` 时写入，对应排班 `scheduling.employee_id` 新值。 |
+| substitute_time | TIMESTAMPTZ | Y | NULL | — | 替班完成时间；排班换人成功后写入。 |
+| create_time | TIMESTAMPTZ | N | NOW() | — | 申请提交时间；管理端列表默认按此倒序。 |
+
+**建议索引**：`IX (status, create_time DESC)`（`ix_leave_request_status`）— 管理端按状态筛选列表。
+
+**建议部分唯一约束**：同一排班在 **待审(0)** 或 **已批准(1)** 状态下仅一条活跃请假——PostgreSQL 示例：`UNIQUE (scheduling_id) WHERE status IN (0, 1)`（`ux_leave_request_active`）。
+
+**业务规则**：
+
+- 职员仅可对 **已发布**（`scheduling.publish_status=1`）、未过期且无活跃请假的排班提交申请。
+- 仅 **待审(0)** 可撤销（→ **3**）或审批（→ **1** / **2**）。
+- 替班：不新增排班记录，仅 `UPDATE scheduling SET employee_id = ?`；若存在 **已批准(1)** 请假且 `employee_id` 变更，则将请假置 **已替班(4)** 并写入 `substitute_employee_id`、`substitute_time`。
+- 不使用 `delmark`；终态记录（驳回/撤销/已替班）保留供审计与列表展示。
 
 ---
 
@@ -884,6 +931,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | regist_level | regist_level | 一致 |
 | settle_category | settle_category | 一致 |
 | scheduling | scheduling | 无 `dept_id`（出诊科室经 `employee.dept_id`）；无 `delmark`，作废用 `publish_status=2` |
+| — | **scheduling_leave_request** | 新增（排班请假闭环；不修改 `scheduling` 结构，替班改 `employee_id`） |
 | register | register | 增补 `channel`、支付关联；`dept_id` 为当次挂号科室快照 |
 | check_request | check_request | `status` 与老师【态】对齐 |
 | inspection_request | inspection_request | 同上 |
@@ -905,7 +953,7 @@ disease ──N:M── medical_record (medical_record_disease)
 
 | 阶段 | 建议优先落地的表 |
 |------|------------------|
-| P1 | patient, patient_wechat, department, regist_level, employee, sys_user, register, bill, payment_record, payment_bill, medical_record |
+| P1 | patient, patient_wechat, department, regist_level, employee, sys_user, scheduling, scheduling_leave_request, register, bill, payment_record, payment_bill, medical_record |
 | P2 | medical_technology, check_request, inspection_request, disposal_request, refund_record |
 | P3 | drug_info, prescription, prescription_item, ai_prescription_draft |
 | P4 | imaging_study, ai_chat_session + 向量扩展 |
@@ -931,7 +979,8 @@ disease ──N:M── medical_record (medical_record_disease)
 | v1.12 | 2026-06 | `prescription_item` 移除 **`create_time`**；开立时间以 `prescription.create_time` 为准 |
 | v1.13 | 2026-06 | 移除 **`bill_no`**、**`payment_no`**、**`refund_no`**；费用/支付/退款业务标识统一为各表 **`id`**（§八 约定） |
 | v1.14 | 2026-06 | **表结构定稿不再改动**；§1.1 业务标识、§2 ER 脚注、§8.5 展示字段、§11 对照与 v1.4～v1.13 对齐；**`docs/sql/schema.sql` 已重写对齐**；§4.3 补全 **`patient_family_link`** 字段说明 |
+| v1.15 | 2026-06 | 新增 **`scheduling_leave_request`**（§3.9、§1.5 `leave_request_status`）；§3.5 请假关联说明；§1.3 A′ 排班扩展、§1.4 写归属、§2 ER；**`docs/sql/schema.sql`** 与 **`patch-scheduling-leave.sql`** 已对齐 |
 
 ---
 
-*本文档 **v1.14** 为业务表设计权威说明（非建表脚本）。建表脚本见 **`docs/sql/schema.sql`**（已对齐 v1.14，含 `patient_family_link`）。*
+*本文档 **v1.15** 为业务表设计权威说明（非建表脚本）。建表脚本见 **`docs/sql/schema.sql`**（含 `scheduling_leave_request`、`patient_family_link`）；旧库升级见 **`docs/sql/patch-scheduling-leave.sql`**。*

@@ -43,6 +43,7 @@ Thumbs.db
 logs/
 work/
 *.log
+docs/superpowers/
 
 # 小程序本地联调配置（不提交）
 hospital-patient-miniapp/config.local.js
@@ -51,5 +52,4 @@ hospital-patient-miniapp/config.local.js
 **/coverage/
 **/.pytest_cache/
 .cursor/settings.json
-hospital-frontend/.env.development
 hospital-frontend/.env.development

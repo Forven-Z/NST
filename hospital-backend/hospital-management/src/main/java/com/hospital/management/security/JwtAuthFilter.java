@@ -30,13 +30,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/v1/admin/");
+        String path = request.getRequestURI();
+        return !path.startsWith("/api/v1/admin/") && !path.startsWith("/api/v1/staff/");
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if ("/api/v1/admin/health".equals(request.getRequestURI())) {
+        String path = request.getRequestURI();
+        if ("/api/v1/admin/health".equals(path)) {
             chain.doFilter(request, response);
             return;
         }
@@ -58,12 +60,30 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             UserType userType = UserType.valueOf(claims.get(JwtClaims.TYPE, String.class));
             List<String> roles = JwtTokenHelper.getRoles(claims);
-            if (userType != UserType.ADMIN && !roles.contains("ADMIN")) {
-                writeError(response, ErrorCode.FORBIDDEN, "需要管理员身份");
+            AuthContext context = AuthContext.builder()
+                    .userType(userType)
+                    .userId(claims.get(JwtClaims.USER_ID, Long.class))
+                    .employeeId(claims.get(JwtClaims.EMPLOYEE_ID, Long.class))
+                    .roles(roles)
+                    .build();
+
+            if (path.startsWith("/api/v1/admin/")) {
+                if (userType != UserType.ADMIN && !roles.contains("ADMIN")) {
+                    writeError(response, ErrorCode.FORBIDDEN, "需要管理员身份");
+                    return;
+                }
+            }
+            if (path.startsWith("/api/v1/staff/") && !context.isStaff()) {
+                writeError(response, ErrorCode.FORBIDDEN, "需要医护身份");
                 return;
             }
 
-            chain.doFilter(request, response);
+            AuthContextHolder.set(context);
+            try {
+                chain.doFilter(request, response);
+            } finally {
+                AuthContextHolder.clear();
+            }
         } catch (Exception ex) {
             writeError(response, ErrorCode.UNAUTHORIZED, "Token 无效");
         }
