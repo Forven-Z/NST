@@ -1,7 +1,7 @@
 @echo off
 rem R-pacs + hospital-ai 本地启动（PG 密码 postgres）
 rem 注意：路径含 \1 时 bat 会误解析，故用正斜杠
-set "ROOT=C:/Neuedu/1/NST-main"
+set "ROOT=C:/Neuedu/NST-work"
 set "LOG=%ROOT%/logs/r-pacs-ai"
 if not exist "%LOG%" mkdir "%LOG%"
 
