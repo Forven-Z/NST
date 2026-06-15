@@ -90,7 +90,10 @@ async function onAiDraft(type) {
   }
   loadingDraft.value = type
   try {
-    const draftRes = await creators[type]({ registerId: props.registerId })
+    const draftRes = await creators[type]({
+      registerId: props.registerId,
+      medicalRecord: { ...props.recordForm },
+    })
     const draft = draftRes.data
     if (!draft?.draftId) {
       ElMessage.info(draft?.message || '草稿生成失败')
