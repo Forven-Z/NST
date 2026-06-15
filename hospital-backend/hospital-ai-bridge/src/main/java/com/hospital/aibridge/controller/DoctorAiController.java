@@ -36,23 +36,33 @@ public class DoctorAiController {
     }
 
     @PostMapping("/diagnosis/suggest")
-    public Result<Map<String, Object>> diagnosisSuggest(@RequestBody DiagnosisSuggestRequest request) {
-        return Result.success(aiAssistService.diagnosisSuggest(request));
+    public Result<Map<String, Object>> diagnosisSuggest(
+            @RequestBody DiagnosisSuggestRequest request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        Map<String, Object> result = aiAssistService.diagnosisSuggest(request);
+        draftService.saveAiAuditSession("DIAGNOSIS", request.getRegisterId(), authorization, "DIAGNOSIS_SUGGEST", result);
+        return Result.success(result);
     }
 
     @PostMapping("/check-requests/ai-draft")
-    public Result<Map<String, Object>> createCheckDraft(@RequestBody Map<String, Object> request) {
-        return Result.success(draftService.createClinicalDraft(request, "CHECK"));
+    public Result<Map<String, Object>> createCheckDraft(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return Result.success(draftService.createClinicalDraft(request, "CHECK", authorization));
     }
 
     @PostMapping("/inspection-requests/ai-draft")
-    public Result<Map<String, Object>> createInspectionDraft(@RequestBody Map<String, Object> request) {
-        return Result.success(draftService.createClinicalDraft(request, "INSPECTION"));
+    public Result<Map<String, Object>> createInspectionDraft(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return Result.success(draftService.createClinicalDraft(request, "INSPECTION", authorization));
     }
 
     @PostMapping("/disposal-requests/ai-draft")
-    public Result<Map<String, Object>> createDisposalDraft(@RequestBody Map<String, Object> request) {
-        return Result.success(draftService.createClinicalDraft(request, "DISPOSAL"));
+    public Result<Map<String, Object>> createDisposalDraft(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return Result.success(draftService.createClinicalDraft(request, "DISPOSAL", authorization));
     }
 
     @PostMapping("/prescriptions/ai-draft")

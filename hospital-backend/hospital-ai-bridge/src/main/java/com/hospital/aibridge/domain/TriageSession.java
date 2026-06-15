@@ -1,5 +1,7 @@
 package com.hospital.aibridge.domain;
 
+import com.hospital.aibridge.dto.DepartmentRecommendation;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +11,7 @@ public class TriageSession {
     private final String sessionId;
     private final Long patientId;
     private final List<TriageMessage> messages = new ArrayList<>();
+    private List<DepartmentRecommendation> recommendedDepartments = new ArrayList<>();
     private String summary = "";
     private TriageStage stage = TriageStage.ASKING;
     private final Instant createTime;
@@ -31,6 +34,14 @@ public class TriageSession {
 
     public List<TriageMessage> getMessages() {
         return messages;
+    }
+
+    public List<DepartmentRecommendation> getRecommendedDepartments() {
+        return recommendedDepartments;
+    }
+
+    public void setRecommendedDepartments(List<DepartmentRecommendation> recommendedDepartments) {
+        this.recommendedDepartments = recommendedDepartments == null ? new ArrayList<>() : recommendedDepartments;
     }
 
     public int getRound() {

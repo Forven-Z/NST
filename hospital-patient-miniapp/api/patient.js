@@ -95,6 +95,12 @@ function triageChat(data) {
   return post('/ai/triage/chat', data)
 }
 
+function bindTriageRegister(sessionId, registerId) {
+  if (!sessionId || !registerId) return Promise.resolve({ success: true, data: { bound: false } })
+  if (useMock()) return Promise.resolve({ success: true, data: { sessionNo: sessionId, registerId, bound: true } })
+  return post(`/ai/triage/sessions/${encodeURIComponent(sessionId)}/bind-register`, { registerId })
+}
+
 module.exports = {
   fetchProfile,
   updateProfile,
@@ -115,4 +121,5 @@ module.exports = {
   fetchReports,
   fetchReportDetail,
   triageChat,
+  bindTriageRegister,
 }

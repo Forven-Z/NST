@@ -8,6 +8,7 @@ import com.hospital.aibridge.dto.DoctorAiDraftUpdateRequest;
 import com.hospital.aibridge.repository.AiChatSessionRepository;
 import com.hospital.aibridge.repository.AiCatalogRepository;
 import com.hospital.aibridge.repository.AiPrescriptionDraftRepository;
+import com.hospital.aibridge.repository.AiRegisterRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,6 +26,7 @@ public class DoctorAiDraftService {
     private final HisDoctorOrderClient hisDoctorOrderClient;
     private final AiPrescriptionDraftRepository prescriptionDraftRepository;
     private final AiChatSessionRepository chatSessionRepository;
+    private final AiRegisterRepository registerRepository;
     private final AuthTokenService authTokenService;
 
     public DoctorAiDraftService(
@@ -34,6 +36,7 @@ public class DoctorAiDraftService {
             HisDoctorOrderClient hisDoctorOrderClient,
             AiPrescriptionDraftRepository prescriptionDraftRepository,
             AiChatSessionRepository chatSessionRepository,
+            AiRegisterRepository registerRepository,
             AuthTokenService authTokenService) {
         this.aiAssistService = aiAssistService;
         this.draftStore = draftStore;
@@ -41,6 +44,7 @@ public class DoctorAiDraftService {
         this.hisDoctorOrderClient = hisDoctorOrderClient;
         this.prescriptionDraftRepository = prescriptionDraftRepository;
         this.chatSessionRepository = chatSessionRepository;
+        this.registerRepository = registerRepository;
         this.authTokenService = authTokenService;
     }
 
@@ -59,6 +63,10 @@ public class DoctorAiDraftService {
     }
 
     public Map<String, Object> createClinicalDraft(Map<String, Object> requestBody, String draftType) {
+        return createClinicalDraft(requestBody, draftType, null);
+    }
+
+    public Map<String, Object> createClinicalDraft(Map<String, Object> requestBody, String draftType, String authorization) {
         Long registerId = registerId(requestBody);
         DoctorAiDraftRequest request = new DoctorAiDraftRequest();
         request.setRegisterId(registerId);
@@ -66,7 +74,9 @@ public class DoctorAiDraftService {
         request.setMedicalRecord(recordRequest(registerId, requestBody));
         request.setCandidates(candidates(requestBody, draftType));
         Map<String, Object> generated = aiAssistService.generateDraft(request);
-        return persistGeneratedDraft(registerId, draftType, generated);
+        Map<String, Object> response = persistGeneratedDraft(registerId, draftType, generated);
+        saveAiAuditSession("ASSISTANT", registerId, authorization, draftType + "_DRAFT", response);
+        return response;
     }
 
     public Map<String, Object> createPrescriptionDraft(Long registerId) {
@@ -91,7 +101,7 @@ public class DoctorAiDraftService {
                 response = toResponse(draft);
             }
         }
-        saveAiSession("ASSISTANT", registerId, authorization, "PRESCRIPTION_DRAFT", response);
+        saveAiAuditSession("ASSISTANT", registerId, authorization, "PRESCRIPTION_DRAFT", response);
         return response;
     }
 
@@ -114,7 +124,7 @@ public class DoctorAiDraftService {
                 response = toResponse(draft);
             }
         }
-        saveAiSession("ASSISTANT", registerId, authorization, "PRESCRIPTION_DRAFT", response);
+        saveAiAuditSession("ASSISTANT", registerId, authorization, "PRESCRIPTION_DRAFT", response);
         return response;
     }
 
@@ -161,7 +171,7 @@ public class DoctorAiDraftService {
 
         Map<String, Object> response = toResponse(draft);
         response.put("hisSubmitResult", hisSubmitResult);
-        saveAiSession("ASSISTANT", draft.getRegisterId(), authorization, draft.getDraftType() + "_CONFIRM", response);
+        saveAiAuditSession("ASSISTANT", draft.getRegisterId(), authorization, draft.getDraftType() + "_CONFIRM", response);
         response.put("message", "AI 草稿已确认，请由 HIS/医生端据此创建正式医嘱或处方。");
         return response;
     }
@@ -344,11 +354,12 @@ public class DoctorAiDraftService {
         return rows.isEmpty() ? defaultCandidates("PRESCRIPTION") : rows;
     }
 
-    private void saveAiSession(String scene, Long registerId, String authorization,
-                               String action, Map<String, Object> payload) {
+    public void saveAiAuditSession(String scene, Long registerId, String authorization,
+                                   String action, Map<String, Object> payload) {
         try {
             Long doctorId = authTokenService.employeeId(authorization).orElse(null);
-            Long patientId = authTokenService.patientId(authorization).orElse(null);
+            Long patientId = authTokenService.patientId(authorization)
+                    .orElseGet(() -> registerRepository.findPatientIdByRegisterId(registerId).orElse(null));
             chatSessionRepository.insertSession(scene, registerId, patientId, doctorId, List.of(
                     Map.of("role", "system", "content", action),
                     Map.of("role", "assistant", "content", payload)

@@ -4,13 +4,16 @@ import com.hospital.common.Result;
 import com.hospital.aibridge.dto.AssistantStreamRequest;
 import com.hospital.aibridge.dto.DiagnosisSuggestRequest;
 import com.hospital.aibridge.dto.DoctorAiDraftRequest;
+import com.hospital.aibridge.dto.TriageBindRegisterRequest;
 import com.hospital.aibridge.dto.TriageChatRequest;
 import com.hospital.aibridge.dto.TriageChatResponse;
+import com.hospital.aibridge.repository.AiChatSessionRepository;
 import com.hospital.aibridge.service.AiStubService;
 import com.hospital.aibridge.service.DoctorAiAssistService;
 import com.hospital.aibridge.service.TriageChatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +29,7 @@ public class AiController {
     private final AiStubService aiStubService;
     private final TriageChatService triageChatService;
     private final DoctorAiAssistService doctorAiAssistService;
+    private final AiChatSessionRepository aiChatSessionRepository;
 
     @GetMapping("/health")
     public Result<Map<String, Object>> health() {
@@ -39,6 +43,19 @@ public class AiController {
     @PostMapping("/triage/chat")
     public Result<TriageChatResponse> triageChat(@RequestBody TriageChatRequest request) {
         return Result.success(triageChatService.chat(request));
+    }
+
+    @PostMapping("/triage/sessions/{sessionNo}/bind-register")
+    public Result<Map<String, Object>> bindTriageRegister(
+            @PathVariable String sessionNo,
+            @RequestBody TriageBindRegisterRequest request) {
+        int updated = aiChatSessionRepository.bindRegister(sessionNo, request.getRegisterId());
+        return Result.success(Map.of(
+                "sessionNo", sessionNo,
+                "registerId", request.getRegisterId(),
+                "bound", updated > 0,
+                "updated", updated
+        ));
     }
 
     @PostMapping("/assistant/stream")
