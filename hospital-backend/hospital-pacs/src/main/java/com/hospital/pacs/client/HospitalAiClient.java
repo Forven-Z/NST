@@ -27,7 +27,8 @@ public class HospitalAiClient {
             long checkRequestId,
             String sourceBucket,
             String sourceObjectKeyPrefix,
-            String resultPrefix
+            String resultPrefix,
+            String taskType
     ) {
         Map<String, Object> source = new HashMap<>();
         source.put("bucket", sourceBucket);
@@ -38,6 +39,7 @@ public class HospitalAiClient {
         body.put("checkRequestId", checkRequestId);
         body.put("source", source);
         body.put("resultPrefix", resultPrefix);
+        body.put("taskType", taskType);
         body.put("callbackUrl", hospitalAiProperties.getCallbackUrl());
 
         HttpHeaders headers = new HttpHeaders();

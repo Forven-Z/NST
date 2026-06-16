@@ -6,7 +6,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
-from app.jobs import STATUS_FAILED, STATUS_SUCCEEDED, get_infer, job_store, submit_job
+from app.inference.task_types import HEAD_CT_ARTIFACT, LUNG_CT_ARTIFACT
+from app.jobs import (
+    STATUS_FAILED,
+    STATUS_SUCCEEDED,
+    _lung_weight_ready,
+    get_infer,
+    job_store,
+    submit_job,
+)
 
 app = FastAPI(title="hospital-ai CNN", version="1.0.0")
 
@@ -22,13 +30,18 @@ class CreateJobRequest(BaseModel):
     source: SourceRef
     resultPrefix: str
     callbackUrl: str | None = None
+    taskType: str = "HEAD_CT_ARTIFACT"
 
 
 @app.on_event("startup")
 def warmup_model():
     try:
-        get_infer()
-        print("✅ hospital-ai 模型预热完成")
+        get_infer(HEAD_CT_ARTIFACT)
+        if _lung_weight_ready():
+            get_infer(LUNG_CT_ARTIFACT)
+            print("✅ hospital-ai 头部 + 肺部模型预热完成")
+        else:
+            print("✅ hospital-ai 头部模型预热完成（肺部权重未部署，LUNG 任务将 STUB）")
     except Exception as exc:
         print(f"❌ hospital-ai 模型加载失败: {exc}")
         raise
@@ -36,13 +49,19 @@ def warmup_model():
 
 @app.get("/v1/health")
 def health() -> dict[str, Any]:
-    infer = get_infer()
-    return {
+    infer = get_infer(HEAD_CT_ARTIFACT)
+    lung_ready = _lung_weight_ready()
+    payload: dict[str, Any] = {
         "status": "UP",
         "service": "hospital-ai",
         "modelLoaded": infer is not None,
+        "lungModelLoaded": lung_ready,
         "device": str(infer.device),
     }
+    if lung_ready:
+        lung_infer = get_infer(LUNG_CT_ARTIFACT)
+        payload["lungDevice"] = str(lung_infer.device)
+    return payload
 
 
 @app.post("/v1/inference/jobs")
@@ -55,6 +74,7 @@ def create_job(body: CreateJobRequest) -> dict[str, Any]:
         source_object_key_prefix=body.source.objectKeyPrefix,
         result_prefix=body.resultPrefix,
         callback_url=callback_url,
+        task_type=body.taskType,
     )
     return {
         "jobId": job.job_id,

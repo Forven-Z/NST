@@ -93,6 +93,17 @@ public class ImagingStudyRepository {
                 .update();
     }
 
+    public void updateModality(Long studyId, String modality) {
+        jdbcClient.sql("""
+                        UPDATE imaging_study
+                        SET modality = :modality, update_time = NOW()
+                        WHERE id = :id
+                        """)
+                .param("id", studyId)
+                .param("modality", modality)
+                .update();
+    }
+
     public void markProcessing(Long studyId) {
         jdbcClient.sql("""
                         UPDATE imaging_study

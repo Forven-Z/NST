@@ -26,7 +26,7 @@
 | `schema.sql` 已执行（**v1.14**） | 🟨 | | 本地若仍用旧表须 DROP SCHEMA 重建 |
 | `seed-dict.sql` 已执行 | ✅ | | 排班含当日数据 |
 | Nacos 2.2.3 standalone | ✅ | | 8848 |
-| MinIO（P3 前可跳过） | ⬜ | | |
+| MinIO（P3 前可跳过） | ✅ | wsh | `C:\dev\minio`，社区版 `start-minio-community.bat` |
 | Gateway 路由配置 | ✅ | | 已合入 `application.yml` |
 | Gateway JWT 过滤器 | ✅ | | `JwtAuthGlobalFilter` |
 
@@ -59,14 +59,14 @@
 | hospital-management · 排班请假 §8.5/§9.5 | API §8.5、§9.5 | ✅ | | `scheduling_leave_request` 表 + 验收脚本 |
 | hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
 | hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
-| hospital-pacs · 影像任务/CNN | API §6 · §8 | ⬜ | lzr+wsh | `imaging-studies`、MinIO upload、`hospital-ai` 回调 |
+| hospital-pacs · 影像任务/CNN | API §6 · §8 | 🟨 | lzr+wsh | taskType 已通；62001 头部 / 62002 胸部（肺部权重已部署，待联调） |
 | hospital-ai-bridge · STUB | API §7 | ✅ | | `/ai/health`, triage/assistant 占位 |
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
 | hospital-disposal | MICRO §2.5a | ✅ | | :9105 |
 | hospital-pacs | MICRO §2.5 | ✅ | | :9104 |
 | hospital-management | MICRO §2.6 | ✅ | | :9107 字典只读 + 科室/员工/排班 CRUD |
 | hospital-ai-bridge | MICRO §2.7 | ✅ | | :9106 STUB |
-| hospital-ai (Python) | API §8 | ⬜ | | P4 |
+| hospital-ai (Python) | API §8 | 🟨 | wsh | 头部 `best.pth` + 肺部 `lung_artifact_best.pth` 已部署；见 `LUNG_INTEGRATION_TEAM_CHANGELOG.md` |
 
 ---
 
@@ -114,7 +114,7 @@
 
 | 日期 | 说明 |
 |------|------|
-| 2026-06-10 | 实现 `GET /doctor/registers/{registerId}/orders`（医嘱汇总，ADR-005 只读聚合） |
+| 2026-06-03 | wsh：taskType 第二步、MinIO 社区版、LIDC 数据计划；hospital-ai 肺部权重热插拔 |
 | 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
 | 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
 | 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |
