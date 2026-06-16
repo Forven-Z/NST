@@ -17,6 +17,13 @@ const checkRequestId = computed(() => Number(route.query.checkRequestId) || null
 const patientName = computed(() => route.query.patientName || '-')
 const itemName = computed(() => route.query.itemName || '-')
 
+const pageTitle = computed(() => {
+  const name = itemName.value || ''
+  if (/胸|肺/.test(name)) return '肺部 CT 伪影检测'
+  if (/肿瘤|病灶|肿物/.test(name)) return '肿瘤分割分析'
+  return '头部 CT 金属伪影检测'
+})
+
 const mode = ref('nifti')
 const niftiFile = ref(null)
 const dicomFiles = ref([])
@@ -197,7 +204,7 @@ async function onAgentAiAnalysis() {
     startInferenceProgress()
     const res = await generatePacsAiReport(checkRequestId.value)
     stopProgressTimer()
-    setProgress(90, '推理完成，正在拉取报告…')
+    setProgress(90, '推理完成，正在加载预览…')
     showResults.value = true
     detail.value = res.data
     studyStatus.value = '分析完成（掩码与预览已写入 MinIO）'
@@ -228,7 +235,7 @@ onBeforeUnmount(() => {
   <div class="ct-workbench">
     <header class="header">
       <div>
-        <h1>CT 金属伪影检测</h1>
+        <h1>{{ pageTitle }}</h1>
         <p class="subtitle">
           智慧云脑 · 影像 AI 工作台（Gateway → pacs → hospital-ai）
           <template v-if="checkRequestId">
@@ -292,11 +299,6 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="showResults && detail?.aiReportText" class="block result">
-          <h2>AI 报告</h2>
-          <pre class="report-text">{{ detail.aiReportText }}</pre>
-        </section>
-
         <p v-if="error" class="error">{{ error }}</p>
       </aside>
 
@@ -312,10 +314,10 @@ onBeforeUnmount(() => {
           />
         </div>
         <p v-else-if="showResults && !ctObjectUrl && error" class="panel-tip error">
-          报告已生成，但预览加载失败：{{ error }}
+          分析已完成，但预览加载失败：{{ error }}
         </p>
         <p v-else-if="showResults && ctObjectUrl && !mountViewer" class="panel-tip">
-          报告已就绪，正在准备阅片组件…
+          掩码已就绪，正在准备阅片组件…
         </p>
         <p v-else class="panel-tip">上传并完成 AI 检测后显示三视图</p>
       </section>
@@ -357,7 +359,6 @@ onBeforeUnmount(() => {
 .primary { background: linear-gradient(135deg, #2a7bd6, #1e5fad); color: #fff; }
 .secondary { background: #243040; color: #d0dce8; }
 .primary:disabled, .secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-.report-text { white-space: pre-wrap; font-size: 13px; line-height: 1.6; margin: 0; }
 .error { color: #ff9a9a; font-size: 13px; }
 .viewer-panel {
   padding: 16px 20px;

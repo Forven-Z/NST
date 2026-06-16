@@ -11,6 +11,13 @@ import SimpleITK as sitk
 
 from app.config import ROOT_DIR, settings
 from app.inference.CTArtifactInfer import CTArtifactInfer
+from app.inference.task_types import (
+    DEFAULT_TASK,
+    HEAD_CT_ARTIFACT,
+    LUNG_CT_ARTIFACT,
+    TUMOR_SEG,
+    normalize_task_type,
+)
 from app.inference.volume_loader import (
     load_dicom_series,
     mask_slice_indices,
@@ -26,6 +33,11 @@ STATUS_RUNNING = "RUNNING"
 STATUS_SUCCEEDED = "SUCCEEDED"
 STATUS_FAILED = "FAILED"
 
+STUB_MESSAGES = {
+    LUNG_CT_ARTIFACT: "肺部 CT 金属伪影模型尚未部署，请先完成数据采集与训练（见 docs/LUNG_CT_DATA_PLAN.md）",
+    TUMOR_SEG: "肿瘤分割模型尚未部署，请先完成病灶标注与训练",
+}
+
 
 @dataclass
 class InferenceJob:
@@ -36,6 +48,7 @@ class InferenceJob:
     source_object_key_prefix: str
     result_prefix: str
     callback_url: str
+    task_type: str = DEFAULT_TASK
     status: str = STATUS_PENDING
     error_message: str | None = None
     result: dict[str, Any] | None = None
@@ -65,15 +78,27 @@ class JobStore:
 
 
 job_store = JobStore()
-_infer: CTArtifactInfer | None = None
+_infer_head: CTArtifactInfer | None = None
+_infer_lung: CTArtifactInfer | None = None
 _minio: MinioStorage | None = None
 
 
-def get_infer() -> CTArtifactInfer:
-    global _infer
-    if _infer is None:
-        _infer = CTArtifactInfer(model_weight_path=settings.model_weight_path)
-    return _infer
+def _lung_weight_ready() -> bool:
+    return Path(settings.lung_model_weight_path).is_file()
+
+
+def get_infer(task_type: str = HEAD_CT_ARTIFACT) -> CTArtifactInfer:
+    global _infer_head, _infer_lung
+    task_type = normalize_task_type(task_type)
+    if task_type == LUNG_CT_ARTIFACT:
+        if _infer_lung is None:
+            if not _lung_weight_ready():
+                raise RuntimeError(STUB_MESSAGES[LUNG_CT_ARTIFACT])
+            _infer_lung = CTArtifactInfer(model_weight_path=settings.lung_model_weight_path)
+        return _infer_lung
+    if _infer_head is None:
+        _infer_head = CTArtifactInfer(model_weight_path=settings.model_weight_path)
+    return _infer_head
 
 
 def get_minio() -> MinioStorage:
@@ -83,19 +108,15 @@ def get_minio() -> MinioStorage:
     return _minio
 
 
-def build_ai_report_text(report_json: dict) -> str:
-    count = int(report_json.get("maskVoxelCount") or 0)
-    slices = report_json.get("maskSliceIndices") or []
-    slice_count = report_json.get("sliceCount") or "-"
-    if count <= 0:
-        return "AI 影像分析完成：未检测到明显金属伪影区域。"
-    labels = [str(int(z) + 1) for z in slices[:12]]
-    suffix = f" 等共 {len(slices)} 层" if len(slices) > 12 else ""
-    return (
-        f"AI 影像分析完成：检测到金属伪影相关区域，伪影像素数 {count}。"
-        f"序列共 {slice_count} 层。主要累及轴位第 {', '.join(labels)}{suffix}。"
-        f"建议结合临床病史与原始影像综合判读。"
-    )
+def _assert_task_supported(task_type: str) -> None:
+    if task_type == TUMOR_SEG:
+        raise RuntimeError(STUB_MESSAGES[TUMOR_SEG])
+    if task_type == LUNG_CT_ARTIFACT:
+        if not _lung_weight_ready():
+            raise RuntimeError(STUB_MESSAGES[LUNG_CT_ARTIFACT])
+        return
+    if task_type != HEAD_CT_ARTIFACT:
+        raise RuntimeError(f"不支持的 taskType: {task_type}")
 
 
 def _load_volume_from_dir(source_dir: Path) -> sitk.Image:
@@ -113,8 +134,12 @@ def run_inference_job(job: InferenceJob):
     source_dir = tmp_root / "source"
     output_dir = tmp_root / "output"
     try:
+        task_type = normalize_task_type(job.task_type)
+        job.task_type = task_type
+        _assert_task_supported(task_type)
+
         minio = get_minio()
-        infer = get_infer()
+        infer = get_infer(task_type)
         minio.download_prefix(job.source_object_key_prefix, source_dir)
         sitk_ct = _load_volume_from_dir(source_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -129,21 +154,21 @@ def run_inference_job(job: InferenceJob):
         minio.upload_file(mask_key, mask_local, content_type="application/gzip")
         minio.upload_file(preview_key, preview_local, content_type="application/gzip")
         spacing = sitk_ct.GetSpacing()
+        modality = "CT_LUNG" if task_type == LUNG_CT_ARTIFACT else "CT_HEAD"
         report_json = {
+            "taskType": task_type,
             "maskVoxelCount": mask_voxel_count(mask_sitk),
             "maskSliceIndices": mask_slice_indices(mask_sitk),
             "sliceCount": int(sitk_ct.GetSize()[2]) if sitk_ct.GetDimension() >= 3 else 1,
             "spacing": [float(spacing[0]), float(spacing[1]), float(spacing[2])],
-            "modality": "CT",
+            "modality": modality,
         }
-        ai_report_text = build_ai_report_text(report_json)
         result = {
             "maskBucket": settings.minio_bucket,
             "maskObjectKey": mask_key,
             "previewBucket": settings.minio_bucket,
             "previewObjectKey": preview_key,
             "reportJson": report_json,
-            "aiReportText": ai_report_text,
         }
         job.status = STATUS_SUCCEEDED
         job.result = result
@@ -184,6 +209,8 @@ def run_inference_job(job: InferenceJob):
 
 
 def submit_job(**kwargs) -> InferenceJob:
+    if "task_type" in kwargs:
+        kwargs["task_type"] = normalize_task_type(kwargs.get("task_type"))
     job = job_store.create(**kwargs)
     threading.Thread(target=run_inference_job, args=(job,), daemon=True).start()
     return job

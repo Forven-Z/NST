@@ -1,6 +1,6 @@
 @echo off
-rem R-pacs + hospital-ai 本地启动（PG 密码 postgres）
-rem 注意：路径含 \1 时 bat 会误解析，故用正斜杠
+rem Start R-pacs Java services + hospital-ai (PG password: postgres)
+rem Use forward slashes in ROOT to avoid "\1" escape issues in batch files
 set "ROOT=C:/Neuedu/NST-work"
 set "LOG=%ROOT%/logs/r-pacs-ai"
 if not exist "%LOG%" mkdir "%LOG%"
@@ -37,7 +37,6 @@ start "" /b "%ROOT%/hospital-ai/.venv/Scripts/python.exe" -m uvicorn app.main:ap
 
 echo ROOT=%ROOT%
 echo Java + hospital-ai starting. Logs: %LOG%
-echo 若 CNN 很慢，请先运行: powershell -File "%ROOT%/scripts/setup-hospital-ai.ps1"
-echo 健康检查 device 应为 cuda: http://127.0.0.1:8000/v1/health
+echo Health: http://127.0.0.1:8000/v1/health
 echo Frontend: cd /d "%ROOT%/hospital-frontend" ^&^& npm run dev
 echo Open http://127.0.0.1:5173  login check01 / 123456

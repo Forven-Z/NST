@@ -1,7 +1,7 @@
 # CT 金属伪影 CNN — 集成说明与变更清单
 
 > **负责人**：wsh（CNN / hospital-ai）  
-> **版本**：v1.0 | 2026-06-11  
+> **版本**：v1.1 | 2026-06-15  
 > **依据**：`PROJECT_REQUIREMENTS.md` §0.1.5、`API.md` §六/§十一、`MICROSERVICES.md` §2.6
 
 ---
@@ -33,7 +33,7 @@ hospital-ai :8000（Python，仅 pacs 内网调用，不经 Gateway）
 | `Utils/volume_loader.py` | `hospital-ai/app/inference/volume_loader.py` |
 | `Model/AttentionUNet2D.py`、`UNet2D.py` | `hospital-ai/model/` |
 | `Conf/Config.py` | `hospital-ai/model/Config.py` |
-| `Model/weights/best.pth` | `hospital-ai/model/weights/best.pth`（不进 Git） |
+| `Model/weights/best.pth` | `hospital-ai/model/weights/best.pth`（运行目录；小组共享见 §十一） |
 | `frontend/src/components/MprViewer.vue` | `hospital-frontend/src/components/imaging/MprViewer.vue` |
 | `frontend/src/App.vue` 交互逻辑 | `hospital-frontend/src/views/pacs/ImagingAiView.vue`（API 改为 pacs） |
 
@@ -102,8 +102,8 @@ hospital-ai :8000（Python，仅 pacs 内网调用，不经 Gateway）
 
 ```text
 1. PostgreSQL（hospital 库 + schema.sql + seed-dict.sql）
-2. Nacos :8848
-3. MinIO :9001
+2. Nacos :8848  →  C:\dev\start-nacos.bat
+3. MinIO :9001  →  C:\dev\start-minio-community.bat  （或 scripts\start-minio-community.bat）
 4. Java：auth → management → his → pacs → gateway
 5. hospital-ai（**必须先装 GPU 版 PyTorch**，勿只 `pip install -r requirements.txt`）：
    ```powershell
@@ -171,6 +171,106 @@ hospital-ai 内网（pacs 调用）：
 |----|------|
 | 代码默认 | `Config.py`：`cuda` 可用则用 GPU，否则 `cpu` |
 | Git 仓库 | **不包含** `.venv`；`requirements.txt` **不含** torch，避免误装 CPU 版 |
-| 正确安装 | `scripts/setup-hospital-ai.ps1` → 安装 `cu124` 版 PyTorch |
-| 自检 | `GET /v1/health` → `device` 应为 `cuda`；若为 `cpu` 推理极慢 |
-| 权重 | `hospital-ai/model/weights/best.pth` 本机放置，不进 Git |
+| 正确安装 | RTX 50 系用 `scripts/install-gpu-torch.ps1`（cu128）；或 `setup-hospital-ai.ps1` |
+| 自检 | `GET /v1/health` → `device` / `lungDevice` 应为 `cuda`；若为 `cpu` 推理极慢 |
+| 运行目录权重 | `hospital-ai/model/weights/*.pth` 在 `.gitignore` 中（每人本机安装后的副本） |
+| 小组共享权重 | `shared/model-weights/*.pth` 随 Git 提交（§十一；**肺部联调验收通过后由 wsh push**） |
+
+---
+
+## 九、业务点击流程（依据仓库代码，非臆造）
+
+下列步骤可在本仓库中逐项对照，**没有把未实现的界面写进去**。
+
+| 步骤 | 角色 | 代码 / 文档依据 |
+|------|------|------------------|
+| 1. 开立检查 | 门诊医生 | `POST /doctor/check-requests`（`API.md` §5.3）；字典项 `CHK-CT-HEAD` / `CHK-CT-LUNG`（`seed-dict.sql`） |
+| 2. 患者缴费 | 挂号收费 | 检查单 `status=20`（已缴费）后进入放射科队列（`BUSINESS_FLOW.md` / `DATABASE_DESIGN.md`） |
+| 3. 检查队列 | 放射科技师 | `GET /pacs/queue`；`TechQueuePanel.vue` 列表展示 `itemName` |
+| 4. 进入 AI 工作台 | 技师 | `TechQueuePanel.vue` → `goImagingAi(row)` 跳转 `/pacs/imaging-ai?checkRequestId=&itemName=` |
+| 5. 上传 + 推理 | 技师 | `ImagingAiView.vue` → `uploadPacsImaging` / `generatePacsAiReport(checkRequestId)` |
+| 6. 选头部 / 肺部模型 | **系统自动** | `ImagingService.generateAiReport(id)` 用 **checkRequestId 查库** 读 `itemName`，`inferModality()` → `resolveTaskType()`（**AI 页无二次下拉**） |
+
+**头部 vs 肺部分发规则**（`ImagingService.java`）：
+
+- `itemName` / `purpose` / `bodyPart` 含「胸、肺、CHEST、LUNG」→ `CT_LUNG` → `LUNG_CT_ARTIFACT` → `lung_artifact_best.pth`
+- 含「头、颅、脑、HEAD」或默认 CT → `CT_HEAD` → `HEAD_CT_ARTIFACT` → `best.pth`
+
+演示数据：`docs/sql/seed-demo-check.sql` 中 **#62001 头部 CT**、**#62002 胸部 CT**（同一患者两条申请，用于联调）。
+
+---
+
+## 十、肺部 CT 扩展（与头部共用界面）
+
+| 项 | 头部 | 肺部 |
+|----|------|------|
+| taskType | `HEAD_CT_ARTIFACT` | `LUNG_CT_ARTIFACT` |
+| 权重 | `best.pth` | `lung_artifact_best.pth` |
+| 训练工程 | `6.3/BrainCT` | `6.3/BrainCT-Lung`（Dice ≈ 0.87） |
+| 前端 | 同一 `ImagingAiView.vue` + `MprViewer.vue` | 同上；标题按 `itemName` 显示「肺部 CT 伪影检测」 |
+| 无权重时 | hospital-ai **无法启动**（缺 `best.pth`） | 仅胸部任务 **STUB 失败**，头部不受影响 |
+
+**肺部验收**（在 §六 基础上增加）：
+
+1. 执行 `seed-demo-check.sql` 后，队列可见 **#62002 胸部 CT**
+2. 从 **62002 所在行** 进入影像 AI 工作台（勿用 62001）
+3. 可上传 **NIfTI**（`ct_mask_gui/out/volumes/*.nii`）或 DICOM 文件夹
+4. `GET /v1/health` → `lungModelLoaded: true`
+5. 62001 头部 CT 回归不变
+
+实现细节另见：`docs/LUNG_INTEGRATION_TEAM_CHANGELOG.md`（仅 wsh 侧增量说明）。
+
+---
+
+## 十一、组员如何使用 CNN 权重（脑部 + 肺部）
+
+### 11.1 目录约定
+
+| 路径 | 是否进 Git | 说明 |
+|------|-----------|------|
+| `shared/model-weights/best.pth` | ✅ | 头部权重（小组共享） |
+| `shared/model-weights/lung_artifact_best.pth` | ✅ | 肺部权重（小组共享） |
+| `hospital-ai/model/weights/*.pth` | ❌ | 运行副本，由安装脚本生成 |
+
+> **提交时机**：`shared/model-weights/` 内两个 `.pth` 在 **肺部 #62002 联调验收通过后**，由 wsh `git add` + `push`（单文件约 33MB）。此前组员可先向 wsh 本机拷贝或等 push 后 `git pull`。
+
+### 11.2 拉代码后（每人执行一次）
+
+```powershell
+cd NST-work
+
+# 1. Python 环境与 GPU torch（若尚未安装）
+powershell -ExecutionPolicy Bypass -File scripts\setup-hospital-ai.ps1
+# RTX 50 系若 health 非 cuda，改跑 scripts\install-gpu-torch.ps1
+
+# 2. 安装 CNN 权重到运行目录
+powershell -ExecutionPolicy Bypass -File scripts\install-model-weights.ps1
+
+# 3. 启动服务
+scripts\start-r-pacs-ai.bat
+```
+
+### 11.3 验证
+
+```text
+GET http://127.0.0.1:8000/v1/health
+```
+
+期望：
+
+```json
+{
+  "modelLoaded": true,
+  "lungModelLoaded": true,
+  "device": "cuda:0",
+  "lungDevice": "cuda:0"
+}
+```
+
+缺 `best.pth` → 服务启动失败。缺 `lung_artifact_best.pth` → 仅 62002 胸部 CT 报 STUB，62001 仍可用。
+
+### 11.4 权重更新流程（组长 wsh）
+
+1. 训练产出覆盖 `shared/model-weights/` 中对应 `.pth`
+2. `git commit` + `push`
+3. 组员 `git pull` 后重新运行 `scripts/install-model-weights.ps1` 并重启 hospital-ai
