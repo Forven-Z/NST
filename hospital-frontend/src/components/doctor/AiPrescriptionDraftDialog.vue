@@ -11,6 +11,7 @@ import { fetchDrugs } from '../../api/doctor'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   registerId: { type: Number, default: null },
+  recordForm: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['update:modelValue', 'confirmed'])
@@ -30,7 +31,10 @@ watch(
     loading.value = true
     try {
       const [draftRes, drugRes] = await Promise.all([
-        createPrescriptionAiDraft({ registerId: props.registerId }),
+        createPrescriptionAiDraft({
+          registerId: props.registerId,
+          medicalRecord: { ...props.recordForm },
+        }),
         fetchDrugs({ pageSize: 50 }),
       ])
       drugs.value = drugRes.data?.list ?? []
