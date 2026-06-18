@@ -25,6 +25,8 @@ cd NST
 
 ## 快速入口
 
+- **每次开机一键启动**：[docs/RUNBOOK.md §零](./docs/RUNBOOK.md) → `.\scripts\start-project.ps1`
+- **环境脚本**：`scripts/env-cloud.ps1` · `scripts/env-local.ps1` · `scripts/stop-project.ps1`
 - **团队协作**：[docs/TEAM_COLLABORATION.md](./docs/TEAM_COLLABORATION.md)
 - **启动 + 联调验收**：[docs/RUNBOOK.md](./docs/RUNBOOK.md)（含 §十二 验收清单）
 - **文档索引（分层阅读）**：[docs/README.md](./docs/README.md)
@@ -41,4 +43,5 @@ cd NST
 
 **P3 核心已完成**（门诊 + 检验 + 检查 + 发药 + 退号退费退药）；详见 [docs/PROGRESS.md](./docs/PROGRESS.md)。
 
-**数据模型 v1.14 已定稿**：表结构、API、后端代码、前端 Mock 已对齐；联调前请按 [docs/sql/README.md](./docs/sql/README.md) 重建本地库。
+**数据模型 v1.14 已定稿**：表结构、API、后端代码、前端 Mock 已对齐。  
+**联调数据库**：日常默认 **本机 PostgreSQL**（`.\scripts\start-project.ps1`）；答辩/展示改 `.\scripts\start-project.ps1 -EnvProfile cloud`。详见 [RUNBOOK §零](./docs/RUNBOOK.md)。

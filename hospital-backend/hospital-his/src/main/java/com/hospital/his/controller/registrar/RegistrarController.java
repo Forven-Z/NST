@@ -69,6 +69,17 @@ public class RegistrarController {
         return Result.success(registrarQueryService.listSchedules(deptId, employeeId, registLevelId, workDate));
     }
 
+    @GetMapping("/patients/bills")
+    public Result<Map<String, Object>> listPatientBillsByQuery(
+            @RequestParam(required = false) String medicalRecordNo,
+            @RequestParam(required = false) String idCard,
+            @RequestParam(required = false) String realName,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(required = false) Integer status) {
+        return Result.success(registrarQueryService.listBillsByQuery(
+                medicalRecordNo, idCard, realName, patientId, status));
+    }
+
     @GetMapping("/patients/{medicalRecordNo}/bills")
     public Result<Map<String, Object>> listPatientBills(
             @PathVariable String medicalRecordNo,

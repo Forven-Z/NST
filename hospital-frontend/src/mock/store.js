@@ -291,6 +291,8 @@ export function addRegisterFromWindow(body, schedule, fee) {
     patientName: body.patientName,
     gender: body.gender ?? 1,
     age: body.age,
+    birthDate: body.birthDate,
+    idCard: body.idCard,
     phone: body.phone,
     deptId: body.deptId,
     deptName: dept?.deptName,
@@ -321,7 +323,7 @@ export function addRegisterFromWindow(body, schedule, fee) {
 
 export function getBillsByMedicalRecord(medicalRecordNo, status) {
   return state.bills.filter((b) => {
-    if (b.medicalRecordNo !== medicalRecordNo) return false
+    if (b.medicalRecordNo !== medicalRecordNo.trim()) return false
     if (status !== undefined && status !== null && status !== '') {
       return b.status === Number(status)
     }
@@ -330,8 +332,57 @@ export function getBillsByMedicalRecord(medicalRecordNo, status) {
 }
 
 export function getPatientIdByMr(medicalRecordNo) {
-  const reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo)
+  const reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo.trim())
   return reg?.patientId ?? null
+}
+
+function findRegistersByExactName(name) {
+  const n = name.trim()
+  return state.registers.filter((r) => r.patientName === n)
+}
+
+function findRegisterByExactIdCard(idCard) {
+  const s = idCard.trim().toUpperCase()
+  return state.registers.find((r) => r.idCard && r.idCard.toUpperCase() === s)
+}
+
+export function resolvePatientBillsQuery({ medicalRecordNo, idCard, realName, patientId, status }) {
+  let reg = null
+  if (medicalRecordNo?.trim()) {
+    reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo.trim())
+    if (!reg) return { error: '病历号不存在' }
+  } else if (idCard?.trim()) {
+    reg = findRegisterByExactIdCard(idCard)
+    if (!reg) return { error: '身份证号不存在' }
+  } else if (realName?.trim()) {
+    const matches = findRegistersByExactName(realName)
+    if (!matches.length) return { error: '未找到该姓名患者' }
+    if (matches.length > 1) {
+      return {
+        multiple: true,
+        candidates: matches.map((r) => ({
+          patientId: r.patientId,
+          medicalRecordNo: r.medicalRecordNo,
+          realName: r.patientName,
+          gender: r.gender,
+          idCard: r.idCard,
+        })),
+      }
+    }
+    reg = matches[0]
+  } else if (patientId != null) {
+    reg = state.registers.find((r) => r.patientId === Number(patientId))
+    if (!reg) return { error: '患者不存在' }
+  } else {
+    return { error: '请提供病历号、身份证号或姓名' }
+  }
+  const list = getBillsByMedicalRecord(reg.medicalRecordNo, status)
+  return {
+    multiple: false,
+    medicalRecordNo: reg.medicalRecordNo,
+    patientId: reg.patientId,
+    list,
+  }
 }
 
 export function chargeBills(billIds) {

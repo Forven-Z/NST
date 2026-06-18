@@ -7,6 +7,7 @@ import com.hospital.his.client.AuthTokenFeignClient;
 import com.hospital.his.client.dto.PatientTokenFeignRequest;
 import com.hospital.his.client.dto.PatientTokenFeignResponse;
 import com.hospital.his.repository.PatientRepository;
+import com.hospital.his.util.IdCardUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -58,7 +59,7 @@ public class PatientIdentityMergeService {
         }
         if (!StringUtils.hasText(idCard)) {
             patientRepository.updateProfile(currentPatientId, realName, gender, birthDate,
-                    phone, null, address, settleCategoryId);
+                    IdCardUtils.resolveAge(null, birthDate), phone, null, address, settleCategoryId);
             return MergeResult.unchanged(currentPatientId);
         }
 
@@ -66,7 +67,7 @@ public class PatientIdentityMergeService {
         Optional<Long> existingOpt = patientRepository.findPatientIdByIdCard(normalizedIdCard);
         if (existingOpt.isEmpty() || existingOpt.get().equals(currentPatientId)) {
             patientRepository.updateProfile(currentPatientId, realName, gender, birthDate,
-                    phone, normalizedIdCard, address, settleCategoryId);
+                    IdCardUtils.resolveAge(null, birthDate), phone, normalizedIdCard, address, settleCategoryId);
             return MergeResult.unchanged(currentPatientId);
         }
 
@@ -82,7 +83,7 @@ public class PatientIdentityMergeService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST, "未找到微信绑定，无法合并档案"));
 
         patientRepository.updateProfile(targetPatientId, realName, gender, birthDate,
-                phone, normalizedIdCard, address, settleCategoryId);
+                IdCardUtils.resolveAge(null, birthDate), phone, normalizedIdCard, address, settleCategoryId);
         patientRepository.rebindWechatPatient(openid, targetPatientId);
         patientRepository.softDeletePatient(currentPatientId);
 

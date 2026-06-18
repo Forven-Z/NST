@@ -1,13 +1,23 @@
 # R-min local startup for miniapp / PC integration
 # Usage: .\scripts\start-r-min.ps1
+#        .\scripts\start-r-min.ps1 -EnvProfile cloud
 #        .\scripts\start-r-min.ps1 -SkipBuild
 
 param(
     [switch]$SkipBuild,
     [switch]$Restart,
+    [ValidateSet('local', 'cloud')]
+    [string]$EnvProfile = 'local',
     [string]$NacosHome = 'D:\dev\nacos',
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot)
 )
+
+$envScript = Join-Path $PSScriptRoot "env-$EnvProfile.ps1"
+if (-not (Test-Path $envScript)) {
+    Write-Host "FAIL  env script not found: $envScript" -ForegroundColor Red
+    exit 1
+}
+. $envScript
 
 $ErrorActionPreference = 'Stop'
 $backend = Join-Path $RepoRoot 'hospital-backend'
@@ -71,8 +81,9 @@ function Wait-GatewayLoginReady($seconds) {
 }
 
 Write-Host '========================================' -ForegroundColor Cyan
-Write-Host ' R-min: auth + his + gateway + ai-bridge' -ForegroundColor Cyan
+Write-Host " R-min: auth + his + gateway + ai-bridge ($EnvProfile)" -ForegroundColor Cyan
 Write-Host ' Gateway http://127.0.0.1:9000/api/v1' -ForegroundColor Cyan
+Write-Host " DB_HOST=$env:DB_HOST" -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
 if ($Restart) {
@@ -82,11 +93,16 @@ if ($Restart) {
     }
 }
 
-if (-not (Test-Port 5432)) {
-    Write-Host 'FAIL  PostgreSQL 5432 not listening' -ForegroundColor Red
-    exit 1
+if ($EnvProfile -eq 'local') {
+    if (-not (Test-Port 5432)) {
+        Write-Host 'FAIL  local PostgreSQL 5432 not listening' -ForegroundColor Red
+        Write-Host '      start Windows service postgresql-x64-16 or use -EnvProfile cloud' -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host 'OK  local PostgreSQL 5432' -ForegroundColor Green
+} else {
+    Write-Host "OK  cloud PostgreSQL via DB_HOST=$env:DB_HOST (skip local 5432 check)" -ForegroundColor Green
 }
-Write-Host 'OK  PostgreSQL 5432' -ForegroundColor Green
 
 if (-not (Test-Port 8848)) {
     $startup = Join-Path $NacosHome 'bin\startup.cmd'

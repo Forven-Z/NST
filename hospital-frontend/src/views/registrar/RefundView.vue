@@ -9,8 +9,6 @@ const medicalRecordNo = ref('')
 const bills = ref([])
 const patientId = ref(null)
 
-const demoMrList = ['MR202606040001', 'MR202606040002', 'MR202606040003']
-
 const statusMap = {
   0: { label: '待支付', type: 'info' },
   1: { label: '已支付', type: 'success' },
@@ -41,11 +39,6 @@ async function onSearch() {
   } finally {
     loading.value = false
   }
-}
-
-function fillDemo(mr) {
-  medicalRecordNo.value = mr
-  onSearch()
 }
 
 async function onRefund(row) {
@@ -90,13 +83,6 @@ async function onRefund(row) {
           </div>
         </div>
       </template>
-
-      <div class="demo-mr">
-        <span class="demo-label">演示病历号：</span>
-        <el-button v-for="mr in demoMrList" :key="mr" size="small" link type="primary" @click="fillDemo(mr)">
-          {{ mr }}
-        </el-button>
-      </div>
 
       <p v-if="patientId" class="hint">患者 ID：{{ patientId }}</p>
 
@@ -173,12 +159,6 @@ async function onRefund(row) {
 .filters {
   display: flex;
   gap: 8px;
-}
-
-.demo-mr {
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: #64748b;
 }
 
 .hint {

@@ -40,8 +40,14 @@ export function fetchRegistrarSchedules(params) {
 }
 
 export function fetchPatientBills(medicalRecordNo, params) {
-  if (useMock()) return mockPatientBills(medicalRecordNo, params)
+  if (useMock()) return mockPatientBillsQuery({ medicalRecordNo, ...params })
   return request.get(`/registrar/patients/${medicalRecordNo}/bills`, { params })
+}
+
+/** 收费查账：病历号 / 身份证 / 姓名 / patientId，均为精确匹配（姓名重名返回 candidates） */
+export function fetchPatientBillsByQuery(params) {
+  if (useMock()) return mockPatientBillsQuery(params)
+  return request.get('/registrar/patients/bills', { params })
 }
 
 export function refundBill(data) {

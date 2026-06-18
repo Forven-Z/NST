@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia'
 import { staffLogin } from '../api/auth'
+import { refreshStaffToken } from '../api/refreshToken'
 
 const STORAGE_KEY = 'hospital_staff_auth'
+
+let refreshInFlight = null
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -64,6 +67,31 @@ export const useAuthStore = defineStore('auth', {
       }
       this.persist()
       return data
+    },
+
+    applyTokenPair(data) {
+      this.accessToken = data.accessToken || ''
+      if (data.refreshToken) {
+        this.refreshToken = data.refreshToken
+      }
+      this.persist()
+    },
+
+    /** 用 refreshToken 换取新 accessToken（并发调用会合并为同一 Promise） */
+    refreshAccessToken() {
+      if (!this.refreshToken) {
+        return Promise.reject(new Error('无 refreshToken'))
+      }
+      if (refreshInFlight) return refreshInFlight
+      refreshInFlight = refreshStaffToken(this.refreshToken)
+        .then((res) => {
+          this.applyTokenPair(res.data)
+          return this.accessToken
+        })
+        .finally(() => {
+          refreshInFlight = null
+        })
+      return refreshInFlight
     },
 
     logout() {

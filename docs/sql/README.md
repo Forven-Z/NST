@@ -64,6 +64,28 @@ psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 
 若曾失败过，数据可能未写入（事务已 `ROLLBACK`），修复编码后**再执行一次** `seed-dict.sql` 即可。
 
+### 导入后验收 SQL
+
+> 登录账号在 **`sys_user`**，角色在 **`employee.role_type`**。项目中**没有** `staff_account` 表；后端 `StaffAuthRepository` 联查 `sys_user` + `employee`。
+
+**本机**：
+
+```cmd
+psql -U postgres -d hospital -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+psql -U postgres -d hospital -c "SELECT id, username, user_type FROM sys_user ORDER BY id;"
+psql -U postgres -d hospital -c "SELECT u.username, e.real_name, e.role_type FROM sys_user u JOIN employee e ON e.id = u.employee_id ORDER BY u.id;"
+```
+
+**ECS Docker**（在 `/opt/hospital` 下）：
+
+```bash
+docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT id, username, user_type FROM sys_user ORDER BY id;"
+docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT u.username, e.real_name, e.role_type FROM sys_user u JOIN employee e ON e.id = u.employee_id ORDER BY u.id;"
+```
+
+期望：表数量约 **26～28**；`sys_user` 含 `doctor01`、`lab01`、`check01`、`admin` 等。
+
 **v1.14 相对旧库的主要 DDL 变更**（须 **DROP SCHEMA 重建** 或自行写 migration，勿直接覆盖旧表）：
 
 - 移除 `bill_no` / `payment_no` / `refund_no` / `prescription_no`
@@ -84,6 +106,7 @@ psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 |------|------|------|
 | `schema.sql` | 全量 DDL（26 表 + `patient_family_link` + 索引） | P0.5 必跑 |
 | `seed-dict.sql` | 科室、号别、员工、排班、测试登录 | P1 联调 |
+| `seed-demo-check.sql` | 影像演示：检查申请 #62001（赵大爷 · 头部 CT） | P3/P4 可选 |
 | `patch-family-link.sql` | 旧库补家属表（新环境勿单独跑） | 增量 |
 | `patch-patient-phone-unique.sql` | 旧库：`phone` 部分唯一索引 `ux_patient_phone` | 增量 |
 | `vector.sql` | RAG 向量表（待 Spring AI 版本确定） | P4 |
@@ -121,3 +144,4 @@ psql -U postgres -d hospital -f docs/sql/seed-dict.sql
 | v1.2 | 2026-05 | `seed-dict.sql` 增加 `\encoding UTF8`；§一 Windows GBK/UTF8 排错 |
 | v1.3 | 2026-06 | **对齐 DATABASE_DESIGN v1.14**：重写 `schema.sql` / `seed-dict.sql`；家属表并入 schema |
 | v1.4 | 2026-06 | 文档全库对齐 v1.14（与 `API.md` v1.4 同步） |
+| v1.5 | 2026-06 | §一 补充导入后验收 SQL（`sys_user` / `employee`）；清单增加 `seed-demo-check.sql` |
