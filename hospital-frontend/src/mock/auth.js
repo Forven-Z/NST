@@ -1,4 +1,5 @@
 import { mockResult } from '../utils/mock'
+import { getAuthAccounts } from './staff-registry'
 
 const ACCOUNTS = {
   doctor01: {
@@ -83,5 +84,23 @@ export function mockStaffLogin({ username, password }) {
     refreshToken: `mock-refresh-${username}`,
     expiresIn: 7200,
     ...rest,
+  })
+}
+
+export function mockStaffRefresh(refreshToken) {
+  if (!refreshToken || !String(refreshToken).startsWith('mock-refresh-')) {
+    return Promise.reject(new Error('【Mock】无效的 refreshToken'))
+  }
+  const username = String(refreshToken).slice('mock-refresh-'.length)
+  const accounts = getAuthAccounts()
+  const profile = accounts[username] || ACCOUNTS[username]
+  if (!profile) {
+    return Promise.reject(new Error('【Mock】refreshToken 已失效，请重新登录'))
+  }
+  return mockResult({
+    accessToken: `mock-token-${username}`,
+    refreshToken: `mock-refresh-${username}`,
+    expiresIn: 7200,
+    tokenType: 'Bearer',
   })
 }

@@ -13,9 +13,8 @@ import {
 import {
   addRegisterFromWindow,
   chargeBills,
-  getBillsByMedicalRecord,
-  getPatientIdByMr,
   refundBillById,
+  resolvePatientBillsQuery,
 } from './store'
 
 export function mockDepartments() {
@@ -84,12 +83,13 @@ export function mockWindowCharge(body) {
 }
 
 export function mockPatientBills(medicalRecordNo, params) {
-  const status = params?.status
-  const list = getBillsByMedicalRecord(medicalRecordNo.trim(), status)
-  return mockResult({
-    list,
-    patientId: getPatientIdByMr(medicalRecordNo.trim()),
-  })
+  return mockPatientBillsQuery({ medicalRecordNo, ...params })
+}
+
+export function mockPatientBillsQuery(params) {
+  const result = resolvePatientBillsQuery(params || {})
+  if (result.error) return Promise.reject(new Error(result.error))
+  return mockResult(result)
 }
 
 export function mockRefundBill(body) {

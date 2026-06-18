@@ -7,6 +7,7 @@ import com.hospital.his.repository.PatientFamilyRepository;
 import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.security.AuthContextHolder;
 import com.hospital.his.util.BizNoGenerator;
+import com.hospital.his.util.IdCardUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,16 +50,18 @@ public class PatientFamilyService {
         Integer gender = request.getGender() != null ? request.getGender() : 1;
         LocalDate birthDate = request.getBirthDate();
 
+        Integer age = IdCardUtils.resolveAge(null, birthDate);
+
         Long memberId;
         if (noIdCard) {
             String mrn = BizNoGenerator.medicalRecordNo();
             memberId = patientRepository.insertFamilyPatient(mrn, request.getRealName(), gender,
-                    birthDate, null, null, address);
+                    birthDate, age, null, null, address);
         } else {
             memberId = patientRepository.findPatientIdByIdCard(idCard).orElseGet(() -> {
                 String mrn = BizNoGenerator.medicalRecordNo();
                 return patientRepository.insertFamilyPatient(mrn, request.getRealName(), gender,
-                        birthDate, idCard, phone, address);
+                        birthDate, age, idCard, phone, address);
             });
         }
 
@@ -67,7 +70,7 @@ public class PatientFamilyService {
         }
         patientRepository.assertPhoneAvailable(phone, memberId);
         patientRepository.updateProfile(memberId, request.getRealName(), gender,
-                birthDate, phone, idCard, address, null);
+                birthDate, age, phone, idCard, address, null);
 
         int relation = normalizeRelationType(request.getRelationType(), noIdCard);
         String guardianName = noIdCard ? blankToNull(request.getGuardianName()) : null;

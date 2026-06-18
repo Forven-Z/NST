@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.Period;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,12 +69,69 @@ public class RegistrarQueryService {
         requireRegistrar();
         Long patientId = patientRepository.findPatientIdByMedicalRecordNo(medicalRecordNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "病历号不存在"));
+        return buildBillResult(patientId, status);
+    }
+
+    /**
+     * 收费窗口查账：病历号、身份证号均为精确匹配；姓名为精确匹配，重名返回候选列表。
+     * 多条件同时填写时优先级：病历号 &gt; 身份证号 &gt; 姓名 &gt; patientId。
+     */
+    public Map<String, Object> listBillsByQuery(String medicalRecordNo, String idCard, String realName,
+                                                Long patientId, Integer status) {
+        requireRegistrar();
+        if (StringUtils.hasText(medicalRecordNo)) {
+            return listBillsByMedicalRecordNo(medicalRecordNo.trim(), status);
+        }
+        if (StringUtils.hasText(idCard)) {
+            Long resolvedId = patientRepository.findPatientIdByIdCard(idCard)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "身份证号不存在"));
+            return buildBillResult(resolvedId, status);
+        }
+        if (StringUtils.hasText(realName)) {
+            List<Map<String, Object>> candidates = patientRepository.listPatientSummariesByRealName(realName, 20);
+            if (candidates.isEmpty()) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "未找到该姓名患者");
+            }
+            if (candidates.size() > 1) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("multiple", true);
+                result.put("candidates", candidates.stream().map(this::maskCandidate).toList());
+                return result;
+            }
+            Long resolvedId = ((Number) candidates.get(0).get("patientId")).longValue();
+            return buildBillResult(resolvedId, status);
+        }
+        if (patientId != null) {
+            if (patientRepository.findMedicalRecordNo(patientId) == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "患者不存在");
+            }
+            return buildBillResult(patientId, status);
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "请提供病历号、身份证号或姓名");
+    }
+
+    private Map<String, Object> buildBillResult(Long patientId, Integer status) {
+        String medicalRecordNo = patientRepository.findMedicalRecordNo(patientId);
         List<Map<String, Object>> list = billRepository.findByPatientIdForDisplay(patientId, status);
-        return Map.of(
-                "medicalRecordNo", medicalRecordNo,
-                "patientId", patientId,
-                "list", list
-        );
+        Map<String, Object> result = new HashMap<>();
+        result.put("multiple", false);
+        result.put("medicalRecordNo", medicalRecordNo);
+        result.put("patientId", patientId);
+        result.put("list", list);
+        return result;
+    }
+
+    private Map<String, Object> maskCandidate(Map<String, Object> row) {
+        Map<String, Object> masked = new HashMap<>(row);
+        Object idCard = row.get("idCard");
+        if (idCard instanceof String s && s.length() >= 8) {
+            masked.put("idCard", s.substring(0, 4) + "**********" + s.substring(s.length() - 4));
+        }
+        Object birthDate = row.get("birthDate");
+        if (birthDate instanceof LocalDate bd) {
+            masked.put("age", Period.between(bd, LocalDate.now()).getYears());
+        }
+        return masked;
     }
 
     private Map<String, Object> enrichDoctorRow(Map<String, Object> row) {

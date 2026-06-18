@@ -1,8 +1,8 @@
-/** 患者小程序配置（默认 Mock；联调见 config.local.js） */
+/** 患者小程序配置（联调默认关 Mock；演示可建 config.local.js 设 USE_MOCK: true） */
 const defaults = {
   API_BASE: 'http://127.0.0.1:9000/api/v1',
-  /** true = 本地 mock；false = 经 Gateway 联调后端 */
-  USE_MOCK: true,
+  /** false = 经 Gateway 联调；true = 本地 mock */
+  USE_MOCK: false,
 }
 
 let local = {}

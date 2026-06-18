@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   fetchDoctorsByDept,
@@ -8,6 +9,7 @@ import {
   fetchSettleCategories,
   windowRegister,
 } from '../../api/registrar'
+import { applyIdCardToForm, calcAgeFromBirthDate, isValidIdCard, parseIdCard } from '../../utils/id-card'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -17,16 +19,21 @@ const schedules = ref([])
 const settleCategories = ref([])
 const selectedSchedulingId = ref(null)
 const lastReceipt = ref(null)
+const receiptVisible = ref(false)
 const registLevelFilter = ref(null)
+const router = useRouter()
+const scheduleTableWrap = ref(null)
+const scheduleTableHeight = ref(280)
 
 const regularDoctors = computed(() => doctors.value.filter((d) => d.role === 'regular' || d.clinicRole === 'REGULAR'))
 const expertDoctors = computed(() => doctors.value.filter((d) => d.role === 'expert' || d.clinicRole === 'EXPERT'))
 
 const form = reactive({
   patientName: '',
+  idCard: '',
   gender: 1,
   age: '',
-  idCard: '',
+  birthDate: '',
   phone: '',
   address: '',
   needRecordBook: false,
@@ -53,7 +60,20 @@ const canSubmit = computed(
     && selectedSchedule.value?.remainQuota > 0,
 )
 
+function syncScheduleTableHeight() {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = scheduleTableWrap.value
+      if (el?.clientHeight) {
+        scheduleTableHeight.value = Math.max(el.clientHeight, 200)
+      }
+    })
+  })
+}
+
 onMounted(async () => {
+  syncScheduleTableHeight()
+  window.addEventListener('resize', syncScheduleTableHeight)
   loading.value = true
   try {
     const [deptRes, settleRes] = await Promise.all([
@@ -70,7 +90,12 @@ onMounted(async () => {
     ElMessage.error(err.message || '加载字典失败')
   } finally {
     loading.value = false
+    syncScheduleTableHeight()
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', syncScheduleTableHeight)
 })
 
 async function loadDeptContext(deptId) {
@@ -86,6 +111,7 @@ async function loadDeptContext(deptId) {
   ])
   doctors.value = docRes.data?.list ?? []
   schedules.value = schedRes.data?.list ?? []
+  syncScheduleTableHeight()
 }
 
 async function reloadSchedules() {
@@ -96,7 +122,10 @@ async function reloadSchedules() {
     registLevelId: registLevelFilter.value || undefined,
   })
   schedules.value = res.data?.list ?? []
+  syncScheduleTableHeight()
 }
+
+watch(selectedSchedule, () => syncScheduleTableHeight())
 
 watch(
   () => form.deptId,
@@ -134,6 +163,26 @@ watch(
   },
 )
 
+watch(
+  () => form.idCard,
+  (val) => {
+    const normalized = String(val || '').trim().toUpperCase()
+    if (normalized.length === 18 && isValidIdCard(normalized)) {
+      applyIdCardToForm(normalized, form)
+    }
+  },
+)
+
+function onIdCardBlur() {
+  const normalized = String(form.idCard || '').trim().toUpperCase()
+  if (normalized !== form.idCard) {
+    form.idCard = normalized
+  }
+  if (isValidIdCard(normalized)) {
+    applyIdCardToForm(normalized, form)
+  }
+}
+
 function selectDoctor(employeeId) {
   form.employeeId = form.employeeId === employeeId ? null : employeeId
 }
@@ -148,9 +197,10 @@ function onScheduleRowClick(row) {
 
 function resetForm() {
   form.patientName = ''
+  form.idCard = ''
   form.gender = 1
   form.age = ''
-  form.idCard = ''
+  form.birthDate = ''
   form.phone = ''
   form.address = ''
   form.needRecordBook = false
@@ -159,6 +209,58 @@ function resetForm() {
   registLevelFilter.value = null
   selectedSchedulingId.value = null
   lastReceipt.value = null
+  receiptVisible.value = false
+}
+
+function closeReceipt() {
+  receiptVisible.value = false
+}
+
+function onReceiptClosed() {
+  lastReceipt.value = null
+}
+
+function goToCharge() {
+  const no = lastReceipt.value?.medicalRecordNo
+  if (!no) return
+  receiptVisible.value = false
+  router.push({
+    name: 'registrar-charge',
+    query: { medicalRecordNo: no },
+  })
+}
+
+function resolveBirthDateForSubmit() {
+  if (form.birthDate) return form.birthDate
+  const card = form.idCard?.trim()
+  if (card && isValidIdCard(card)) {
+    return parseIdCard(card)?.birthDate
+  }
+  if (form.age !== '' && form.age != null && !Number.isNaN(Number(form.age))) {
+    const age = Number(form.age)
+    if (age >= 0 && age <= 150) {
+      const d = new Date()
+      d.setFullYear(d.getFullYear() - age)
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+  }
+  return undefined
+}
+
+function resolveAgeForSubmit() {
+  if (form.age !== '' && form.age != null && !Number.isNaN(Number(form.age))) {
+    const age = Number(form.age)
+    if (age >= 0 && age <= 150) return age
+  }
+  const birth = resolveBirthDateForSubmit()
+  if (birth) {
+    const fromBirth = calcAgeFromBirthDate(birth)
+    if (fromBirth != null) return fromBirth
+  }
+  return undefined
 }
 
 async function onSubmit() {
@@ -172,8 +274,9 @@ async function onSubmit() {
     const res = await windowRegister({
       patientName: form.patientName.trim(),
       gender: form.gender,
-      age: form.age ? Number(form.age) : undefined,
-      idCard: form.idCard || undefined,
+      age: resolveAgeForSubmit(),
+      birthDate: resolveBirthDateForSubmit(),
+      idCard: form.idCard ? form.idCard.trim().toUpperCase() : undefined,
       phone: form.phone || undefined,
       address: form.address || undefined,
       needRecordBook: form.needRecordBook,
@@ -183,7 +286,12 @@ async function onSubmit() {
       registLevelId: selectedSchedule.value.registLevelId,
       schedulingId: selectedSchedule.value.schedulingId,
     })
-    lastReceipt.value = res.data
+    lastReceipt.value = {
+      ...res.data,
+      patientName: res.data?.patientName ?? form.patientName.trim(),
+      billId: res.data?.billId ?? res.data?.billIds?.[0],
+    }
+    receiptVisible.value = true
     ElMessage.success('挂号成功')
   } catch (err) {
     ElMessage.error(err.message || '挂号失败')
@@ -214,8 +322,8 @@ function rowClassName({ row }) {
 
     <el-row :gutter="16" class="main-row">
       <!-- 患者信息 -->
-      <el-col :xs="24" :lg="9">
-        <el-card shadow="never" class="panel-card">
+      <el-col :xs="24" :lg="9" class="main-col">
+        <el-card shadow="never" class="panel-card panel-card--left">
           <template #header>
             <div class="panel-header">
               <span class="panel-title">① 患者基本信息</span>
@@ -226,6 +334,15 @@ function rowClassName({ row }) {
             <el-form-item label="姓名" required>
               <el-input v-model="form.patientName" placeholder="请输入患者姓名" clearable />
             </el-form-item>
+            <el-form-item label="身份证">
+              <el-input
+                v-model="form.idCard"
+                placeholder="18位身份证号"
+                maxlength="18"
+                clearable
+                @blur="onIdCardBlur"
+              />
+            </el-form-item>
             <el-form-item label="性别">
               <el-radio-group v-model="form.gender">
                 <el-radio :value="1">男</el-radio>
@@ -234,9 +351,6 @@ function rowClassName({ row }) {
             </el-form-item>
             <el-form-item label="年龄">
               <el-input v-model="form.age" placeholder="岁" style="width: 120px" />
-            </el-form-item>
-            <el-form-item label="身份证">
-              <el-input v-model="form.idCard" placeholder="18位身份证号" maxlength="18" clearable />
             </el-form-item>
             <el-form-item label="手机号">
               <el-input v-model="form.phone" placeholder="11位手机号" maxlength="11" clearable />
@@ -262,14 +376,16 @@ function rowClassName({ row }) {
       </el-col>
 
       <!-- 选号 -->
-      <el-col :xs="24" :lg="15">
-        <el-card shadow="never" class="panel-card">
+      <el-col :xs="24" :lg="15" class="main-col">
+        <el-card shadow="never" class="panel-card panel-card--right">
           <template #header>
             <div class="panel-header">
               <span class="panel-title">② 选择科室 · 医生 · 排班</span>
             </div>
           </template>
 
+          <div class="right-panel-body">
+            <div class="right-panel-top">
           <div class="section">
             <div class="section-label">门诊科室</div>
             <div class="dept-grid">
@@ -334,8 +450,9 @@ function rowClassName({ row }) {
               </div>
             </div>
           </div>
+            </div>
 
-          <div class="section">
+          <div class="section section--schedule">
             <div class="section-label-row">
               <span class="section-label">排班号源</span>
               <el-radio-group v-model="registLevelFilter" size="small">
@@ -344,11 +461,13 @@ function rowClassName({ row }) {
                 <el-radio-button :value="2">专家号</el-radio-button>
               </el-radio-group>
             </div>
+            <div ref="scheduleTableWrap" class="schedule-table-wrap">
             <el-table
               :data="schedules"
               stripe
               highlight-current-row
-              max-height="320"
+              :height="scheduleTableHeight"
+              class="schedule-table"
               empty-text="请选择科室查看排班"
               :row-class-name="rowClassName"
               @row-click="onScheduleRowClick"
@@ -378,6 +497,7 @@ function rowClassName({ row }) {
                 </template>
               </el-table-column>
             </el-table>
+            </div>
           </div>
 
           <div v-if="selectedSchedule" class="summary-bar">
@@ -401,6 +521,7 @@ function rowClassName({ row }) {
               <span class="v fee-lg">¥{{ totalSelectedAmount }}</span>
             </div>
           </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -412,46 +533,68 @@ function rowClassName({ row }) {
       </el-button>
     </div>
 
-    <el-card v-if="lastReceipt" shadow="never" class="receipt-card">
-      <template #header>
-        <span class="receipt-title">挂号凭条</span>
-      </template>
-      <el-descriptions :column="2" border size="small">
-        <el-descriptions-item label="病历号">{{ lastReceipt.medicalRecordNo }}</el-descriptions-item>
-        <el-descriptions-item label="患者">{{ lastReceipt.patientName }}</el-descriptions-item>
-        <el-descriptions-item label="科室">{{ lastReceipt.deptName }}</el-descriptions-item>
-        <el-descriptions-item label="医生">{{ lastReceipt.doctorName }}</el-descriptions-item>
-        <el-descriptions-item label="就诊时间">
-          {{ lastReceipt.workDate }} {{ lastReceipt.noonLabel }}
-        </el-descriptions-item>
-        <el-descriptions-item label="号别">{{ lastReceipt.registLevelName }}</el-descriptions-item>
-        <el-descriptions-item label="挂号费">
-          <span class="fee-lg">¥{{ lastReceipt.amount }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="账单ID">{{ lastReceipt.billId }}</el-descriptions-item>
-      </el-descriptions>
-      <el-alert
-        type="success"
-        :closable="false"
-        show-icon
-        class="receipt-tip"
-        :title="lastReceipt.message"
-      />
-    </el-card>
+    <el-dialog
+      v-model="receiptVisible"
+      width="780px"
+      align-center
+      destroy-on-close
+      class="receipt-dialog"
+      @closed="onReceiptClosed"
+    >
+      <div v-if="lastReceipt" class="receipt-panel">
+        <div class="receipt-bar">
+          <div class="receipt-bar-head">
+            <span class="receipt-title">挂号凭条</span>
+            <el-tag type="success" size="small" effect="plain">挂号成功</el-tag>
+          </div>
+          <el-descriptions :column="4" border size="small" class="receipt-desc">
+            <el-descriptions-item label="病历号">{{ lastReceipt.medicalRecordNo }}</el-descriptions-item>
+            <el-descriptions-item label="患者">{{ lastReceipt.patientName }}</el-descriptions-item>
+            <el-descriptions-item label="科室">{{ lastReceipt.deptName }}</el-descriptions-item>
+            <el-descriptions-item label="医生">{{ lastReceipt.doctorName }}</el-descriptions-item>
+            <el-descriptions-item label="就诊时间">
+              {{ lastReceipt.workDate }} {{ lastReceipt.noonLabel }}
+            </el-descriptions-item>
+            <el-descriptions-item label="号别">{{ lastReceipt.registLevelName }}</el-descriptions-item>
+            <el-descriptions-item label="挂号费">
+              <span class="fee-lg">¥{{ lastReceipt.amount }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="账单 ID">{{ lastReceipt.billId }}</el-descriptions-item>
+          </el-descriptions>
+          <div class="receipt-bar-foot">
+            <span class="receipt-msg">{{ lastReceipt.message }}</span>
+            <div class="receipt-bar-actions">
+              <el-button size="small" @click="closeReceipt">关闭</el-button>
+              <el-button type="primary" size="small" @click="goToCharge">去缴费</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .register-page {
-  max-width: 1280px;
-  margin: 0 auto;
+  /* 抵消 StaffShell .main-pane 的 20px padding，在内容区内贴边满屏 */
+  margin: -20px;
+  padding: 16px 20px 20px;
+  width: auto;
+  height: calc(100vh - 56px);
+  max-height: calc(100vh - 56px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .page-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+  gap: 16px;
 }
 
 .page-title {
@@ -462,19 +605,92 @@ function rowClassName({ row }) {
 }
 
 .page-desc {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   font-size: 13px;
   color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(960px, 70vw);
 }
 
 .main-row {
-  margin-bottom: 16px;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+:deep(.main-row.el-row) {
+  height: 100%;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+
+:deep(.main-col.el-col) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .panel-card {
   border-radius: 10px;
   border: 1px solid #e2e8f0;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+:deep(.panel-card > .el-card__header) {
+  flex-shrink: 0;
+  padding: 14px 18px;
+}
+
+:deep(.panel-card > .el-card__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-card--left :deep(.el-card__body) {
+  overflow-y: auto;
+}
+
+.right-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.right-panel-top {
+  flex-shrink: 0;
+  max-height: 38%;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.section--schedule {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.schedule-table-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
+.schedule-table {
+  height: 100% !important;
 }
 
 .panel-header {
@@ -641,6 +857,7 @@ function rowClassName({ row }) {
   background: #f8fafc;
   border-radius: 8px;
   border: 1px dashed #cbd5e1;
+  flex-shrink: 0;
 }
 
 .summary-item .k {
@@ -665,22 +882,109 @@ function rowClassName({ row }) {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-bottom: 16px;
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: auto;
 }
 
-.receipt-card {
+@media (max-width: 991px) {
+  .register-page {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+
+  :deep(.main-row.el-row) {
+    flex-wrap: wrap;
+    height: auto;
+  }
+
+  :deep(.main-col.el-col) {
+    height: auto;
+  }
+
+  .page-desc {
+    white-space: normal;
+    max-width: none;
+  }
+}
+
+.receipt-panel {
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fafafa;
+  padding: 12px 16px;
+}
+
+:deep(.receipt-dialog) {
+  --el-dialog-padding-primary: 16px 20px 20px;
   border-radius: 10px;
-  border: 1px solid #86efac;
-  background: #f0fdf4;
+}
+
+:deep(.receipt-dialog .el-dialog__header) {
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+:deep(.receipt-dialog .el-dialog__title) {
+  display: none;
+}
+
+:deep(.receipt-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+}
+
+:deep(.receipt-dialog .el-dialog__body) {
+  padding: 16px 20px 20px;
+}
+
+.receipt-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
 .receipt-title {
   font-weight: 600;
-  color: #166534;
+  font-size: 14px;
+  color: #334155;
 }
 
-.receipt-tip {
-  margin-top: 12px;
+.receipt-desc {
+  width: 100%;
+}
+
+.receipt-bar-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.receipt-msg {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.receipt-bar-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 :deep(.row-selected) {

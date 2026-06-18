@@ -9,6 +9,9 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -82,23 +85,29 @@ public class PatientRepository {
     }
 
     public void updateProfile(Long patientId, String realName, Integer gender, java.time.LocalDate birthDate,
-                              String phone, String idCard, String address, Long settleCategoryId) {
+                              Integer age, String phone, String idCard, String address, Long settleCategoryId) {
         jdbcClient.sql("""
-                        UPDATE patient
-                        SET real_name = COALESCE(:realName, real_name),
-                            gender = COALESCE(:gender, gender),
-                            birth_date = COALESCE(:birthDate, birth_date),
-                            phone = COALESCE(:phone, phone),
-                            id_card = COALESCE(:idCard, id_card),
-                            address = COALESCE(:address, address),
-                            settle_category_id = COALESCE(:settleCategoryId, settle_category_id),
+                        UPDATE patient AS p
+                        SET real_name = COALESCE(:realName, p.real_name),
+                            gender = COALESCE(:gender, p.gender),
+                            birth_date = COALESCE(:birthDate, p.birth_date),
+                            age = COALESCE(
+                                :age,
+                                CASE WHEN COALESCE(:birthDate, p.birth_date) IS NOT NULL
+                                     THEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, COALESCE(:birthDate, p.birth_date)))::INTEGER
+                                     ELSE p.age END),
+                            phone = COALESCE(:phone, p.phone),
+                            id_card = COALESCE(:idCard, p.id_card),
+                            address = COALESCE(:address, p.address),
+                            settle_category_id = COALESCE(:settleCategoryId, p.settle_category_id),
                             update_time = NOW()
-                        WHERE id = :id AND delmark = 0
+                        WHERE p.id = :id AND p.delmark = 0
                         """)
                 .param("id", patientId)
                 .param("realName", realName)
                 .param("gender", gender)
                 .param("birthDate", birthDate)
+                .param("age", age)
                 .param("phone", phone)
                 .param("idCard", idCard)
                 .param("address", address)
@@ -115,10 +124,13 @@ public class PatientRepository {
     }
 
     public Optional<Long> findPatientIdByMedicalRecordNo(String medicalRecordNo) {
+        if (medicalRecordNo == null || medicalRecordNo.isBlank()) {
+            return Optional.empty();
+        }
         return jdbcClient.sql("""
                         SELECT id FROM patient WHERE medical_record_no = :mrn AND delmark = 0
                         """)
-                .param("mrn", medicalRecordNo)
+                .param("mrn", medicalRecordNo.trim())
                 .query(Long.class)
                 .optional();
     }
@@ -130,9 +142,37 @@ public class PatientRepository {
         return jdbcClient.sql("""
                         SELECT id FROM patient WHERE id_card = :idCard AND delmark = 0
                         """)
-                .param("idCard", idCard.trim())
+                .param("idCard", idCard.trim().toUpperCase())
                 .query(Long.class)
                 .optional();
+    }
+
+    /** 姓名精确匹配（非模糊） */
+    public List<Map<String, Object>> listPatientSummariesByRealName(String realName, int limit) {
+        if (realName == null || realName.isBlank()) {
+            return List.of();
+        }
+        int safeLimit = Math.min(Math.max(limit, 1), 50);
+        return jdbcClient.sql("""
+                        SELECT id, medical_record_no, real_name, gender, birth_date, id_card
+                        FROM patient
+                        WHERE real_name = :realName AND delmark = 0
+                        ORDER BY id DESC
+                        LIMIT :limit
+                        """)
+                .param("realName", realName.trim())
+                .param("limit", safeLimit)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("patientId", rs.getLong("id"));
+                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
+                    row.put("realName", rs.getString("real_name"));
+                    row.put("gender", rs.getObject("gender", Integer.class));
+                    row.put("birthDate", rs.getObject("birth_date", java.time.LocalDate.class));
+                    row.put("idCard", rs.getString("id_card"));
+                    return row;
+                })
+                .list();
     }
 
     public Optional<Long> findPatientIdByPhone(String phone) {
@@ -213,16 +253,21 @@ public class PatientRepository {
     }
 
     public long insertFamilyPatient(String medicalRecordNo, String realName, Integer gender,
-                                    java.time.LocalDate birthDate, String idCard, String phone, String address) {
+                                    java.time.LocalDate birthDate, Integer age, String idCard, String phone,
+                                    String address) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcClient.sql("""
-                        INSERT INTO patient (medical_record_no, real_name, gender, birth_date, id_card, phone, address, need_medical_book)
-                        VALUES (:medicalRecordNo, :realName, :gender, :birthDate, :idCard, :phone, :address, FALSE)
+                        INSERT INTO patient (medical_record_no, real_name, gender, birth_date, age, id_card, phone, address, need_medical_book)
+                        VALUES (:medicalRecordNo, :realName, :gender, :birthDate,
+                                COALESCE(:age, CASE WHEN :birthDate IS NOT NULL
+                                    THEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, :birthDate))::INTEGER END),
+                                :idCard, :phone, :address, FALSE)
                         """)
                 .param("medicalRecordNo", medicalRecordNo)
                 .param("realName", realName)
                 .param("gender", gender != null ? gender : 0)
                 .param("birthDate", birthDate)
+                .param("age", age)
                 .param("idCard", idCard)
                 .param("phone", phone)
                 .param("address", address)
