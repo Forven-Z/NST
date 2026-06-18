@@ -19,6 +19,11 @@ spring:
         options:
           model: ${DASHSCOPE_MODEL:qwen-plus}
           temperature: 0.2
+      # DashScope 提供 OpenAI 兼容的 Embedding API，供医生端 RAG 查询和知识入库使用。
+      embedding:
+        options:
+          model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
+          dimensions: ${DASHSCOPE_EMBEDDING_DIMENSIONS:1024}
   cloud:
     nacos:
       discovery:
@@ -38,3 +43,10 @@ hospital:
     max-rounds: ${HOSPITAL_AI_MAX_ROUNDS:5}
     max-follow-up-rounds: ${HOSPITAL_AI_MAX_FOLLOW_UP_ROUNDS:3}
     safety-notice: 本结果仅用于就诊分诊参考，不能替代医生诊断。如症状严重或持续加重，请及时就医；如出现胸痛、呼吸困难、意识障碍、大出血等情况，请立即前往急诊或拨打 120。
+    rag:
+      enabled: ${HOSPITAL_AI_RAG_ENABLED:true}
+      # 开发/第一版自动建表；生产环境可关闭并改用数据库迁移脚本管理。
+      initialize-schema: ${HOSPITAL_AI_RAG_INITIALIZE_SCHEMA:true}
+      dimensions: ${DASHSCOPE_EMBEDDING_DIMENSIONS:1024}
+      top-k: ${HOSPITAL_AI_RAG_TOP_K:6}
+      similarity-threshold: ${HOSPITAL_AI_RAG_SIMILARITY_THRESHOLD:0.55}

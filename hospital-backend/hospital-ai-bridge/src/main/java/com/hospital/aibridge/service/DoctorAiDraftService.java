@@ -181,6 +181,9 @@ public class DoctorAiDraftService {
         draft.setRegisterId(registerId);
         draft.setDraftType(draftType);
         draft.setAiReason(String.valueOf(generated.getOrDefault("aiReason", "AI 已生成草稿，请医生核对后确认。")));
+        draft.setRagEnabled(Boolean.TRUE.equals(generated.get("ragEnabled")));
+        draft.setEvidence(mapList(generated.get("evidence")));
+        draft.setWarnings(stringList(generated.get("warnings")));
         draft.setOriginalItems(items(generated));
         draft.setEditedItems(items(generated));
         draft.setStatus(0);
@@ -207,6 +210,24 @@ public class DoctorAiDraftService {
         return List.of();
     }
 
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> mapList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) new LinkedHashMap<>((Map<String, Object>) item))
+                .toList();
+    }
+
+    private List<String> stringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream().map(String::valueOf).toList();
+    }
+
     private Map<String, Object> toResponse(DoctorAiDraft draft) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("draftId", draft.getId());
@@ -214,6 +235,9 @@ public class DoctorAiDraftService {
         response.put("draftType", draft.getDraftType());
         response.put("registerId", draft.getRegisterId());
         response.put("aiReason", draft.getAiReason());
+        response.put("ragEnabled", draft.isRagEnabled());
+        response.put("evidence", draft.getEvidence() == null ? List.of() : draft.getEvidence());
+        response.put("warnings", draft.getWarnings() == null ? List.of() : draft.getWarnings());
         response.put("items", activeItems(draft));
         response.put("originalItems", draft.getOriginalItems());
         response.put("finalContent", draft.getFinalContent());
