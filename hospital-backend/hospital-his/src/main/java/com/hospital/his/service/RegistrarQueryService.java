@@ -111,12 +111,18 @@ public class RegistrarQueryService {
     }
 
     private Map<String, Object> buildBillResult(Long patientId, Integer status) {
-        String medicalRecordNo = patientRepository.findMedicalRecordNo(patientId);
+        var profile = patientRepository.findProfileById(patientId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "患者不存在"));
         List<Map<String, Object>> list = billRepository.findByPatientIdForDisplay(patientId, status);
         Map<String, Object> result = new HashMap<>();
         result.put("multiple", false);
-        result.put("medicalRecordNo", medicalRecordNo);
+        result.put("medicalRecordNo", profile.getMedicalRecordNo());
         result.put("patientId", patientId);
+        result.put("realName", profile.getRealName());
+        result.put("gender", profile.getGender());
+        if (profile.getBirthDate() != null) {
+            result.put("age", Period.between(profile.getBirthDate(), LocalDate.now()).getYears());
+        }
         result.put("list", list);
         return result;
     }

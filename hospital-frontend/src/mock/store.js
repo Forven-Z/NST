@@ -365,6 +365,7 @@ export function resolvePatientBillsQuery({ medicalRecordNo, idCard, realName, pa
           medicalRecordNo: r.medicalRecordNo,
           realName: r.patientName,
           gender: r.gender,
+          age: r.age,
           idCard: r.idCard,
         })),
       }
@@ -381,6 +382,9 @@ export function resolvePatientBillsQuery({ medicalRecordNo, idCard, realName, pa
     multiple: false,
     medicalRecordNo: reg.medicalRecordNo,
     patientId: reg.patientId,
+    realName: reg.patientName,
+    gender: reg.gender,
+    age: reg.age,
     list,
   }
 }
