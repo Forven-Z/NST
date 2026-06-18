@@ -1,17 +1,129 @@
 # 智慧云脑诊疗平台 — 启动、联调与验收手册
 
-> **版本**：v2.1 | 2026-06  
+> **版本**：v2.7 | 2026-06-15  
 > **用途**：日常 **开什么、怎么开**；**R-min～R-full 联调验收**（原 INTEGRATION_CHECKLIST 已并入本文 §十二）。  
 > **环境安装**（首次装软件）：见 [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md)  
 > **实现进度**：见 [PROGRESS.md](./PROGRESS.md)  
 > **任务与动机**：见 [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)
+
+---
+
+## 零、每次开机启动（速查）
+
+> **一键启动（推荐）**：`.\scripts\start-project.ps1`  
+> **一键停止**：`.\scripts\stop-project.ps1`  
+> 数据环境由 `-EnvProfile local`（**默认**，本机 PostgreSQL / MinIO）或 `-EnvProfile cloud`（阿里云 ECS）决定；**Java / Nacos / 前端始终在本机**。
+
+### A. 一键启动（日常 · 默认本机库）
+
+**前提**：本机 PostgreSQL 5432 已启（Windows 服务 `postgresql-x64-16`）；影像联调另需本机 MinIO :9001（见 §4.3）。
+
+在仓库根目录 **PowerShell** 执行 **一条命令**：
+
+```powershell
+cd <你的仓库路径>\NST
+.\scripts\start-project.ps1              # 默认 -EnvProfile local
+# 云端库：.\scripts\start-project.ps1 -EnvProfile cloud
+```
+
+脚本会自动：加载 `env-local.ps1` → 启 Nacos（若未运行）→ `mvn package` → 启动 **全部 Java 微服务**（auth/his/lis/pacs/disposal/management/ai-bridge/gateway）→ 新开窗口运行 **PC 前端** `npm run dev`。
+
+| 访问 | 地址 |
+|------|------|
+| PC 前端 | http://localhost:5173 |
+| API（Gateway） | http://127.0.0.1:9000/api/v1 |
+| 测试登录 | `doctor01` / `123456` |
+
+常用参数：
+
+```powershell
+.\scripts\start-project.ps1 -EnvProfile cloud    # 阿里云 ECS 库
+.\scripts\start-project.ps1 -SkipBuild           # 跳过 Maven 编译（已打包过）
+.\scripts\start-project.ps1 -SkipFrontend        # 只启后端
+.\scripts\start-project.ps1 -Restart             # 先 stop-project 再启动
+```
+
+停止：`.\scripts\stop-project.ps1`（不关 Nacos；需关 Nacos 见 §八）
+
+### B. 精简启动（仅 R-min · 小程序 / 最小联调）
+
+```powershell
+.\scripts\start-r-min.ps1 -EnvProfile cloud
+# 前端需另开窗口：cd hospital-frontend && npm run dev
+```
+
+### C. 仅切换环境变量（不自动启服务）
+
+```powershell
+. .\scripts\env-cloud.ps1   # 云端展示
+. .\scripts\env-local.ps1   # 本地开发
+```
+
+IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run Configuration。
+
+### D. 环境脚本说明
+
+#### 启动 / 环境
+
+| 文件 | 作用 | 不会启动 |
+|------|------|----------|
+| [scripts/start-project.ps1](../scripts/start-project.ps1) | **一键启动**：`env-{profile}.ps1` → Nacos（8848，若未运行）→ **8 个 Java 微服务**（9101～9107、9000）→ PC 前端（5173） | PostgreSQL、MinIO、**Python hospital-ai（8000）**、小程序 |
+| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9107）+ 前端（5173） | **不关** Nacos（8848）、Python（8000）、PG/MinIO |
+| [scripts/env-cloud.ps1](../scripts/env-cloud.ps1) | `DB_HOST` / `MINIO_*` → ECS；`DB_PASSWORD` 为**云 PG 密码**（≠ 本机 `123456`） | 不启任何进程 |
+| [scripts/env-local.ps1](../scripts/env-local.ps1) | `DB_HOST` / `MINIO_*` → `127.0.0.1` | 不启任何进程 |
+| [scripts/start-r-min.ps1](../scripts/start-r-min.ps1) | **R-min 精简**：auth + his + ai-bridge + gateway（无 lis/pacs/前端） | 同上 |
+
+**`start-project.ps1` 默认 `-EnvProfile local`**（本机 PostgreSQL）。云端答辩时用：
+
+```powershell
+.\scripts\start-project.ps1 -EnvProfile cloud
+```
+
+**基础设施谁负责**
+
+| 组件 | cloud 模式 | local 模式 |
+|------|------------|------------|
+| PostgreSQL | ECS 上 `docker-compose`（§4.5） | 本机 Windows 服务 `postgresql-x64-16` |
+| MinIO | ECS 上 `docker-compose` | 本机手动启 MinIO（§4.3） |
+| Nacos | `start-project` / `start-r-min` 本机启 | 同上 |
+
+#### Python 影像 AI（P4 · 单独启）
+
+| 文件 | 作用 |
+|------|------|
+| [scripts/setup-hospital-ai.ps1](../scripts/setup-hospital-ai.ps1) | 首次：创建 `hospital-ai/.venv` 并安装 GPU PyTorch |
+| [scripts/start-hospital-ai.ps1](../scripts/start-hospital-ai.ps1) | **仅启 Python CNN** `:8000`（uvicorn，日志 `logs/hospital-ai/`） |
+| [scripts/stop-hospital-ai.ps1](../scripts/stop-hospital-ai.ps1) | **仅停** `:8000`（不影响 Java / 前端） |
+| [scripts/start-r-pacs-ai.bat](../scripts/start-r-pacs-ai.bat) | 旧版：硬编码路径，启 Java + Python；**推荐** `start-project` + `start-hospital-ai` |
+
+**CNN 演示推荐顺序**：
+
+```powershell
+.\scripts\start-project.ps1              # Java 全栈（含 pacs :9104、ai-bridge :9106）
+.\scripts\start-hospital-ai.ps1        # 另启 Python :8000
+# 停止 CNN：.\scripts\stop-hospital-ai.ps1
+```
+
+环境变量 `HOSPITAL_AI_BASE_URL=http://127.0.0.1:8000` 已在 `env-*.ps1` 中配置；**pacs** 通过该地址异步调 CNN。
+
+#### 验收 / 运维辅助
+
+| 文件 | 作用 |
+|------|------|
+| `scripts/r-*-acceptance.ps1` | 各模块自动化验收（经 Gateway 9000） |
+| [scripts/seed-demo-check.ps1](../scripts/seed-demo-check.ps1) | 向云/本机 PG 灌影像演示数据（`check_request` #62001） |
+| [scripts/miniapp-smoke.ps1](../scripts/miniapp-smoke.ps1) | 患者小程序 API 冒烟（6 项） |
+| [scripts/stop-r-min.ps1](../scripts/stop-r-min.ps1) | 停止 `start-r-min` 拉起的进程 |
+
+**运维改云 IP**：只改 `scripts/env-cloud.ps1` 里的 `$script:HospitalCloudHost`。
+
 ---
 
 ## 一、先搞清楚：三层东西
 
 | 层 | 跑什么 | 何时需要 |
 | --- | --- | --- |
-| **基础设施** | PostgreSQL、Nacos、MinIO（+ 可选 Redis） | 几乎每次联调 Java 都要 |
+| **基础设施** | PostgreSQL、Nacos、MinIO（+ 可选 Redis） | 几乎每次联调 Java 都要；**云端展示**时 PG/MinIO 在 ECS，本机只启 Nacos |
 | **Java 微服务** | gateway、auth、his、lis、pacs… | 按阶段 **R-min / R-lis / R-pacs** 递增启动 |
 | **客户端** | PC 前端 `npm run dev`、微信开发者工具 | 做页面时需要 |
 
@@ -51,15 +163,25 @@ mvn -q -DskipTests package
 
 ## 三、每次开发：推荐启动顺序
 
-> 团队默认目录 **`D:\dev\`**；以下命令在 **CMD** 中执行（PowerShell 亦可，注意语法差异）。
+> **日常请直接看 §零**。本节为分步说明。团队默认目录 **`D:\dev\`**。
 
 ### 步骤 0：快速自检（30 秒）
 
-```cmd
+**本地模式**（`-EnvProfile local`）：
+
+```powershell
 psql -U postgres -d hospital -c "SELECT 1"
 curl -s http://127.0.0.1:8848/nacos/v1/console/health/readiness
-curl -s http://127.0.0.1:9001/minio/health/live
 ```
+
+**云端模式**（`-EnvProfile cloud`）：
+
+```powershell
+psql -h 123.57.206.134 -U postgres -d hospital -c "SELECT 1"
+curl -s http://127.0.0.1:8848/nacos/v1/console/health/readiness
+```
+
+影像联调再加：`curl -s http://123.57.206.134:9001/minio/health/live`（云 MinIO）或本机 `127.0.0.1:9001`（本地 MinIO）。
 
 任一项失败 → 先启动对应基础设施（§四）。
 
@@ -133,6 +255,56 @@ minio.exe server D:\dev\minio-data --license D:\dev\minio\minio.license --addres
 
 P1～P3 可不启。需要时确保 `redis-cli ping` → `PONG`。
 
+### 4.5 阿里云 ECS（云端 PostgreSQL + MinIO）
+
+> **云端展示**时使用；组员本机 **不必** 安装 PostgreSQL / MinIO。  
+> **运维**（ECS Workbench）日常确认：
+
+```bash
+cd /opt/hospital
+docker-compose ps
+```
+
+两者应为 **Up (healthy)**。ECS 重启后若容器未起来：
+
+```bash
+cd /opt/hospital
+docker-compose up -d postgres minio
+```
+
+| 组件 | 地址 | 账号 |
+|------|------|------|
+| PostgreSQL | `123.57.206.134:5432` / 库 `hospital` | `postgres` / 见 `env-cloud.ps1` 中 `DB_PASSWORD` |
+| MinIO API | `http://123.57.206.134:9001` | `minioadmin` / `minioadmin123` |
+| MinIO 控制台 | `http://123.57.206.134:9002` | 同上 |
+| 影像桶名 | `imaging`（见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)） | — |
+
+本机 Java 通过 `scripts/env-cloud.ps1` 连接上述地址；**Nacos 仍用本机** `127.0.0.1:8848`。
+
+> **云 PG 密码 ≠ 本机 PG 密码**：本机 `env-local.ps1` 仍为 `123456`；云端在 `env-cloud.ps1` 单独配置（勿与业务登录 `doctor01/123456` 混淆）。
+
+**首次 / 重建云库**（ECS Workbench，密码见 `/opt/hospital/.env` 中 `POSTGRES_PASSWORD`）：
+
+```bash
+cd /opt/hospital
+mkdir -p sql
+# 本机 scp：schema.sql、seed-dict.sql → /opt/hospital/sql/
+docker exec -i hospital-postgres psql -U postgres -d hospital < sql/schema.sql
+docker exec -i hospital-postgres psql -U postgres -d hospital < sql/seed-dict.sql
+# 可选 PACS 演示：还需上传 seed-demo-check.sql 后再执行
+# docker exec -i hospital-postgres psql -U postgres -d hospital < sql/seed-demo-check.sql
+```
+
+**导入后验收**（登录数据在 `sys_user` + `employee`，**无** `staff_account` 表）：
+
+```bash
+docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT id, username, user_type FROM sys_user ORDER BY id;"
+docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT u.username, e.real_name, e.role_type FROM sys_user u JOIN employee e ON e.id = u.employee_id ORDER BY u.id;"
+```
+
+若出现 `readme_to_recover` 等异常库，说明公网 5432 曾被扫：停 PG → 删数据卷 → 改强密码 → 按上重建（详见运维记录或团队口头说明）。
+
 ---
 
 ## 五、Java 微服务：跑什么、什么端口
@@ -177,24 +349,18 @@ Gateway 放最后，避免前端连上时后端路由未就绪。
 
 1. **Open** 仓库根目录 `NST`，识别 Maven 多模块  
 2. **Project SDK**：JDK **17**  
-3. 每个可运行模块：主类 `*Application`，**Environment variables**（可配 Run Configuration 模板）：
+3. **Environment variables**：复制 [scripts/env-cloud.ps1](../scripts/env-cloud.ps1) 或 [env-local.ps1](../scripts/env-local.ps1) 中的变量到 Run Configuration 模板（**勿用 `PG_HOST`**，代码读取 **`DB_HOST`**）：
 
 ```text
+DB_HOST=127.0.0.1          # 云端展示改为 123.57.206.134
+DB_PORT=5432
+DB_NAME=hospital
+DB_USER=postgres
+DB_PASSWORD=...            # local：123456；cloud：见 env-cloud.ps1
 NACOS_SERVER_ADDR=127.0.0.1:8848
-PG_HOST=127.0.0.1
-PG_PORT=5432
-PG_DATABASE=hospital
-PG_USER=postgres
-PG_PASSWORD=123456
 ```
 
-需要 MinIO 的服务（pacs 等）再加：
-
-```text
-MINIO_ENDPOINT=http://127.0.0.1:9001
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin123
-```
+pacs 等还需：`MINIO_ENDPOINT`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY`、`MINIO_BUCKET=imaging`。
 
 4. 按 §5.2 组合逐个 **Run**；Nacos 控制台「服务列表」应出现对应服务名。
 
@@ -313,9 +479,10 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 
 ### 12.1 环境准备（每次联调前）
 
-- [ ] PostgreSQL 运行，`hospital` 库已执行 **`schema.sql`（v1.14）** + `seed-dict.sql`（旧库须 DROP SCHEMA 重建，见 [sql/README.md §四](./sql/README.md)）
-- [ ] Nacos standalone 运行（8848）
-- [ ] 各服务 `NACOS_SERVER_ADDR=127.0.0.1:8848`、JDBC 指向 `hospital`
+- [ ] **环境 profile**：云端展示 `. .\scripts\env-cloud.ps1` 或 `start-r-min.ps1 -EnvProfile cloud`；本地 `. .\scripts\env-local.ps1`
+- [ ] PostgreSQL：`hospital` 库已执行 **`schema.sql`（v1.14）** + `seed-dict.sql`（云库运维已导入；本地见 [sql/README.md §四](./sql/README.md)）
+- [ ] Nacos standalone 运行（8848，**本机**）
+- [ ] 各服务 `NACOS_SERVER_ADDR=127.0.0.1:8848`、`DB_HOST` 与 profile 一致
 - [ ] Gateway **9000** 未被 MinIO 占用（MinIO 用 **9001**）
 
 ### 12.2 R-min — P1 门诊最小链
@@ -392,3 +559,9 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | v1.0 | 2026-05 | 首版：基础设施 + 分阶段 Java 组合 + 客户端 |
 | v2.0 | 2026-05 | 合并原 INTEGRATION_CHECKLIST；§5.5 改链 PROGRESS |
 | v2.1 | 2026-06 | §12.1 标注 schema **v1.14** 重建说明 |
+| v2.2 | 2026-06-15 | §零 每次开机速查；`env-cloud.ps1` / `env-local.ps1`；§4.5 阿里云 ECS；修正 `DB_HOST` |
+| v2.3 | 2026-06-15 | `start-project.ps1` / `stop-project.ps1` 一键启停全栈 + 前端 |
+| v2.4 | 2026-06-15 | §4.5 云库重建与验收 SQL（`sys_user`）；云 PG 密码与 `env-cloud.ps1` 对齐 |
+| v2.5 | 2026-06-15 | §零 D 补充脚本边界（不含 Python/PG/MinIO）；`start-project` 默认 `cloud` |
+| v2.6 | 2026-06-15 | 新增 `start-hospital-ai.ps1` / `stop-hospital-ai.ps1`（单独启停 CNN :8000） |
+| v2.7 | 2026-06-15 | `start-project` 默认 `-EnvProfile local`（本机库；云端显式 `-EnvProfile cloud`） |

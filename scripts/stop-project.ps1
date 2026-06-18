@@ -1,8 +1,9 @@
-# Stop R-min backend (gateway / auth / his)
-# Usage: .\scripts\stop-r-min.ps1
+# 一键停止 start-project.ps1 启动的后端与前端
+# 版本：v1.0 | 2026-06-15
+# Usage: .\scripts\stop-project.ps1
 
 param(
-    [int[]]$Ports = @(9000, 9101, 9102, 9106)
+    [int[]]$Ports = @(9000, 9101, 9102, 9103, 9104, 9105, 9106, 9107, 5173)
 )
 
 $ErrorActionPreference = 'Continue'
@@ -13,7 +14,7 @@ function Stop-PortListeners($port) {
         $pids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
             Select-Object -ExpandProperty OwningProcess -Unique
     } catch {
-        # fallback
+        # fallback below
     }
     if (-not $pids) {
         $pids = netstat -ano | Select-String ":$port\s" | Select-String 'LISTENING' | ForEach-Object {
@@ -29,7 +30,8 @@ function Stop-PortListeners($port) {
 }
 
 Write-Host '========================================' -ForegroundColor Cyan
-Write-Host ' Stop R-min (9000 / 9101 / 9102 / 9106)' -ForegroundColor Cyan
+Write-Host ' Stop project (Java + frontend)' -ForegroundColor Cyan
+Write-Host ' Nacos not stopped — use D:\dev\nacos\bin\shutdown.cmd if needed' -ForegroundColor DarkGray
 Write-Host '========================================' -ForegroundColor Cyan
 
 foreach ($port in $Ports) {
@@ -46,7 +48,6 @@ foreach ($port in $Ports) {
 
 if ($stillUp.Count -gt 0) {
     Write-Host "WARN  ports still listening: $($stillUp -join ', ')" -ForegroundColor Yellow
-    Write-Host '      kill java.exe in Task Manager or retry as admin' -ForegroundColor Yellow
 } else {
-    Write-Host 'OK  R-min stopped' -ForegroundColor Green
+    Write-Host 'OK  project stopped' -ForegroundColor Green
 }

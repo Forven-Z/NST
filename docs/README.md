@@ -47,7 +47,7 @@
 | 角色 | 顺序 |
 |------|------|
 | **全员首次** | 本页 → **TEAM_COLLABORATION** → **RUNBOOK** → DEV_ENV_SETUP（新同学装环境） |
-| **日常开发** | TEAM_COLLABORATION → RUNBOOK（含 §十二 验收）→ PROGRESS |
+| **日常开发** | TEAM_COLLABORATION → **RUNBOOK §零**（开机启动）→ PROGRESS |
 | **后端** | TEAM_COLLABORATION → MICROSERVICES → IMPLEMENTATION_PLAN → DATABASE §1.4 → API §〇 → sql/ |
 | **前端** | TEAM_COLLABORATION → **API.md**（§〇 路径 · 附录 A）→ RUNBOOK §十二 |
 | **答辩** | MICROSERVICES §八 → PROJECT_REQUIREMENTS → BUSINESS_FLOW §八 |
