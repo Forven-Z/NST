@@ -147,8 +147,9 @@ Page({
 
   goRegisterByDept(item) {
     if (!item || !item.deptId) return
+    var sessionQuery = this.data.sessionId ? `&triageSessionId=${encodeURIComponent(this.data.sessionId)}` : ''
     wx.navigateTo({
-      url: `/pages/register/register?deptId=${item.deptId}&deptName=${encodeURIComponent(item.deptName || '')}`,
+      url: `/pages/register/register?deptId=${item.deptId}&deptName=${encodeURIComponent(item.deptName || '')}${sessionQuery}`,
     })
   },
 })

@@ -11,6 +11,9 @@ public class DoctorAiDraft {
     private Long registerId;
     private String draftType;
     private String aiReason;
+    private boolean ragEnabled;
+    private List<Map<String, Object>> evidence;
+    private List<String> warnings;
     private List<Map<String, Object>> originalItems;
     private List<Map<String, Object>> editedItems;
     private Map<String, Object> finalContent;
@@ -57,6 +60,30 @@ public class DoctorAiDraft {
 
     public void setAiReason(String aiReason) {
         this.aiReason = aiReason;
+    }
+
+    public boolean isRagEnabled() {
+        return ragEnabled;
+    }
+
+    public void setRagEnabled(boolean ragEnabled) {
+        this.ragEnabled = ragEnabled;
+    }
+
+    public List<Map<String, Object>> getEvidence() {
+        return evidence;
+    }
+
+    public void setEvidence(List<Map<String, Object>> evidence) {
+        this.evidence = evidence;
+    }
+
+    public List<String> getWarnings() {
+        return warnings;
+    }
+
+    public void setWarnings(List<String> warnings) {
+        this.warnings = warnings;
     }
 
     public List<Map<String, Object>> getOriginalItems() {

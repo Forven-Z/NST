@@ -2,6 +2,7 @@ package com.hospital.aibridge.service;
 
 import com.hospital.aibridge.dto.AiTriageResult;
 import com.hospital.aibridge.dto.DepartmentRecommendation;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -14,9 +15,11 @@ import java.util.Map;
 @Service
 public class DepartmentRecommendService {
 
-    private final Map<String, DepartmentRecommendation> availableDepartments = new LinkedHashMap<>();
+    private final JdbcClient jdbcClient;
+    private final Map<String, DepartmentRecommendation> fallbackDepartments = new LinkedHashMap<>();
 
-    public DepartmentRecommendService() {
+    public DepartmentRecommendService(JdbcClient jdbcClient) {
+        this.jdbcClient = jdbcClient;
         registerDepartment(1L, "INTERNAL", "内科", "可作为常见症状首诊科室。");
         registerDepartment(7L, "SURGERY", "外科", "可处理外伤、肿块、外科相关不适。");
         registerDepartment(8L, "PEDIATRICS", "儿科", "适合儿童常见不适首诊。");
@@ -60,7 +63,7 @@ public class DepartmentRecommendService {
     }
 
     public List<String> availableDepartmentNames() {
-        return new ArrayList<>(availableDepartments.keySet());
+        return new ArrayList<>(availableDepartments().keySet());
     }
 
     private DepartmentRecommendation toAvailableDepartment(AiTriageResult.AiDepartment aiDepartment) {
@@ -81,7 +84,7 @@ public class DepartmentRecommendService {
     }
 
     private void registerDepartment(Long deptId, String deptCode, String deptName, String reason) {
-        availableDepartments.put(deptName, new DepartmentRecommendation(deptId, deptCode, deptName, null, 0.70,
+        fallbackDepartments.put(deptName, new DepartmentRecommendation(deptId, deptCode, deptName, null, 0.70,
                 "当前系统已配置" + deptName + "，" + reason,
                 "可点击去挂号，选择该科室号源。"));
     }
@@ -90,15 +93,16 @@ public class DepartmentRecommendService {
         if (!StringUtils.hasText(name)) {
             return null;
         }
-        DepartmentRecommendation exact = availableDepartments.get(name);
+        Map<String, DepartmentRecommendation> departments = availableDepartments();
+        DepartmentRecommendation exact = departments.get(name);
         if (exact != null) {
             return exact;
         }
         String aliasDept = inferDepartmentByAlias(name);
         if (aliasDept != null) {
-            return availableDepartments.get(aliasDept);
+            return departments.get(aliasDept);
         }
-        for (Map.Entry<String, DepartmentRecommendation> entry : availableDepartments.entrySet()) {
+        for (Map.Entry<String, DepartmentRecommendation> entry : departments.entrySet()) {
             if (name.contains(entry.getKey()) || entry.getKey().contains(name)) {
                 return entry.getValue();
             }
@@ -123,7 +127,7 @@ public class DepartmentRecommendService {
     }
 
     private DepartmentRecommendation copyDepartment(String deptName, String matchedDeptName, double confidence, String reason) {
-        DepartmentRecommendation department = availableDepartments.get(deptName);
+        DepartmentRecommendation department = availableDepartments().getOrDefault(deptName, fallbackDepartments.get("内科"));
         return new DepartmentRecommendation(
                 department.getDeptId(),
                 department.getDeptCode(),
@@ -133,6 +137,32 @@ public class DepartmentRecommendService {
                 reason,
                 "可点击去挂号，选择该科室号源。"
         );
+    }
+
+    private Map<String, DepartmentRecommendation> availableDepartments() {
+        try {
+            Map<String, DepartmentRecommendation> result = new LinkedHashMap<>();
+            jdbcClient.sql("""
+                            SELECT id, dept_code, dept_name
+                            FROM department
+                            WHERE delmark = 0 AND dept_type = 1
+                            ORDER BY sort_no, id
+                            """)
+                    .query((rs, rowNum) -> new DepartmentRecommendation(
+                            rs.getLong("id"),
+                            rs.getString("dept_code"),
+                            rs.getString("dept_name"),
+                            null,
+                            0.70,
+                            "当前系统已配置" + rs.getString("dept_name") + "，可作为门诊首诊科室。",
+                            "可点击去挂号，选择该科室号源。"
+                    ))
+                    .list()
+                    .forEach(department -> result.put(department.getDeptName(), department));
+            return result.isEmpty() ? fallbackDepartments : result;
+        } catch (Exception ex) {
+            return fallbackDepartments;
+        }
     }
 
     private double clamp(Double confidence, double fallback) {

@@ -3,6 +3,7 @@ package com.hospital.aibridge.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.aibridge.config.AiProperties;
+import com.hospital.aibridge.domain.RagEvidence;
 import com.hospital.aibridge.dto.DiagnosisSuggestRequest;
 import com.hospital.aibridge.dto.DoctorAiDraftRequest;
 import org.springframework.ai.chat.client.ChatClient;
@@ -23,20 +24,28 @@ public class DoctorAiAssistService {
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
     private final ChatClient chatClient;
+    private final MedicalKnowledgeRetriever knowledgeRetriever;
+    private final DraftSafetyValidator safetyValidator;
 
     public DoctorAiAssistService(
             AiProperties aiProperties,
             ObjectMapper objectMapper,
+            MedicalKnowledgeRetriever knowledgeRetriever,
+            DraftSafetyValidator safetyValidator,
             ObjectProvider<ChatClient.Builder> chatClientBuilderProvider) {
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
+        this.knowledgeRetriever = knowledgeRetriever;
+        this.safetyValidator = safetyValidator;
         ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
         this.chatClient = builder == null ? null : builder.build();
     }
 
     public Map<String, Object> diagnosisSuggest(DiagnosisSuggestRequest request) {
         Map<String, Object> fallback = fallbackDiagnosis(request);
+        MedicalKnowledgeRetriever.RetrievalResult retrieval = knowledgeRetriever.retrieveDiagnosis(request);
         if (!enabled()) {
+            attachRetrieval(fallback, retrieval);
             return fallback;
         }
         String prompt = """
@@ -54,15 +63,21 @@ public class DoctorAiAssistService {
 
                 病历内容：
                 %s
-                """.formatted(recordText(request));
-        return callJson(prompt).orElse(fallback);
+
+                检索到的参考知识：
+                %s
+                只能将参考知识作为辅助依据；若知识不足或与患者情况不符，应明确提示医生进一步判断。
+                """.formatted(recordText(request), evidenceText(retrieval.evidence()));
+        Map<String, Object> result = callJson(prompt).orElse(fallback);
+        attachRetrieval(result, retrieval);
+        result.put("safetyNotice", SAFETY_NOTICE);
+        return result;
     }
 
     public Map<String, Object> generateDraft(DoctorAiDraftRequest request) {
         Map<String, Object> fallback = fallbackDraft(request);
-        if (!enabled()) {
-            return fallback;
-        }
+        MedicalKnowledgeRetriever.RetrievalResult retrieval = knowledgeRetriever.retrieveDraft(
+                request.getDraftType(), request.getMedicalRecord());
         String prompt = """
                 你是智慧云脑诊疗平台的医生端 AI 辅助开单助手。
                 请为医生生成 %s 草稿。只能从候选项目中选择，必须保留 medicalTechnologyId 或 drugId。
@@ -94,8 +109,20 @@ public class DoctorAiAssistService {
 
                 候选项目：
                 %s
-                """.formatted(request.getDraftType(), recordText(request.getMedicalRecord()), writeJson(request.getCandidates()));
-        return callJson(prompt).orElse(fallback);
+
+                检索到的参考知识：
+                %s
+                参考知识用于判断医学必要性，但最终只能返回候选项目中真实存在的 ID。
+                """.formatted(request.getDraftType(), recordText(request.getMedicalRecord()),
+                writeJson(request.getCandidates()), evidenceText(retrieval.evidence()));
+        Map<String, Object> result = enabled() ? callJson(prompt).orElse(fallback) : fallback;
+        DraftSafetyValidator.ValidationResult validation = safetyValidator.validate(
+                request.getDraftType(), resultItems(result), request.getCandidates());
+        result.put("items", validation.items());
+        result.put("warnings", validation.warnings());
+        result.put("safetyNotice", SAFETY_NOTICE);
+        attachRetrieval(result, retrieval);
+        return result;
     }
 
     private boolean enabled() {
@@ -203,6 +230,47 @@ public class DoctorAiAssistService {
         } catch (Exception ex) {
             return "[]";
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> resultItems(Map<String, Object> result) {
+        Object value = result.get("items");
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) new LinkedHashMap<>((Map<String, Object>) item))
+                .toList();
+    }
+
+    private void attachRetrieval(Map<String, Object> result,
+                                 MedicalKnowledgeRetriever.RetrievalResult retrieval) {
+        result.put("ragEnabled", retrieval.ragEnabled());
+        result.put("evidence", retrieval.evidence().stream().map(this::evidenceMap).toList());
+    }
+
+    private Map<String, Object> evidenceMap(RagEvidence evidence) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("chunkId", evidence.chunkId());
+        item.put("documentId", evidence.documentId());
+        item.put("sourceName", evidence.sourceName());
+        item.put("sourceVersion", evidence.sourceVersion());
+        item.put("title", evidence.title());
+        item.put("excerpt", evidence.content());
+        item.put("score", Math.round(evidence.score() * 1000D) / 1000D);
+        return item;
+    }
+
+    private String evidenceText(List<RagEvidence> evidence) {
+        if (evidence == null || evidence.isEmpty()) {
+            return "未检索到适用知识；不得臆造指南依据。";
+        }
+        return evidence.stream()
+                .map(item -> "[%s / %s / 相似度 %.3f] %s".formatted(
+                        item.title(), item.sourceVersion(), item.score(), item.content()))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("未检索到适用知识；不得臆造指南依据。");
     }
 
     private String cleanJson(String content) {

@@ -3,6 +3,7 @@ const {
   fetchSchedules,
   createRegister,
   fetchProfile,
+  bindTriageRegister,
 } = require('../../api/patient')
 const { nextDays } = require('../../utils/date')
 const { getAccessToken } = require('../../utils/auth')
@@ -31,6 +32,9 @@ Page({
     if (options.deptId) {
       this._presetDeptId = Number(options.deptId)
       this._presetStep = 2
+    }
+    if (options.triageSessionId) {
+      this._triageSessionId = decodeURIComponent(options.triageSessionId)
     }
   },
 
@@ -143,6 +147,7 @@ Page({
         settleCategoryId: 1,
       }
       const res = await createRegister(body)
+      await this.bindTriageSession(res.data?.registerId)
       wx.showModal({
         title: '挂号成功',
         content: res.data?.message || '请前往待缴费用支付',
@@ -153,6 +158,15 @@ Page({
       wx.showToast({ title: err.message || '挂号失败', icon: 'none' })
     } finally {
       this.setData({ submitting: false })
+    }
+  },
+
+  async bindTriageSession(registerId) {
+    if (!this._triageSessionId || !registerId) return
+    try {
+      await bindTriageRegister(this._triageSessionId, registerId)
+    } catch (err) {
+      wx.showToast({ title: '导诊记录绑定失败，不影响挂号', icon: 'none' })
     }
   },
 })
