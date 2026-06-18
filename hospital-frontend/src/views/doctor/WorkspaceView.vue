@@ -539,6 +539,7 @@ function formatGender(gender) {
     <AiPrescriptionDraftDialog
       v-model="rxDraftDialogVisible"
       :register-id="currentRegisterId"
+      :record-form="recordForm"
       @confirmed="onOrdersChanged"
     />
   </div>

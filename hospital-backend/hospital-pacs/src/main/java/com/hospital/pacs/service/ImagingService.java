@@ -50,6 +50,7 @@ public class ImagingService {
         if (existing.isPresent()) {
             studyId = ((Number) existing.get().get("id")).longValue();
             imagingStudyRepository.resetToPending(studyId, minioStorageService.bucket(), sourcePrefix);
+            imagingStudyRepository.updateModality(studyId, modality);
         } else {
             studyId = imagingStudyRepository.insertPending(
                     checkRequestId,
@@ -78,6 +79,12 @@ public class ImagingService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST, "请先上传影像"));
 
         long studyId = ((Number) study.get("id")).longValue();
+        String modality = resolveStudyModality(check, study);
+        if (!modality.equals(String.valueOf(study.get("modality")))) {
+            imagingStudyRepository.updateModality(studyId, modality);
+            study.put("modality", modality);
+        }
+        String taskType = resolveTaskType(modality);
         String status = String.valueOf(study.get("status"));
 
         if ("COMPLETED".equals(status)) {
@@ -102,7 +109,8 @@ public class ImagingService {
                         checkRequestId,
                         String.valueOf(study.get("sourceBucket")),
                         String.valueOf(study.get("sourceObjectKey")),
-                        minioStorageService.studyResultPrefix(checkRequestId)
+                        minioStorageService.studyResultPrefix(checkRequestId),
+                        taskType
                 );
             } catch (Exception ex) {
                 imagingStudyRepository.markFailed(studyId, ex.getMessage());
@@ -177,7 +185,9 @@ public class ImagingService {
             return;
         }
 
-        String error = payload.get("error") == null ? "CNN 推理失败" : String.valueOf(payload.get("error"));
+        String error = payload.get("errorMessage") == null
+                ? (payload.get("error") == null ? "CNN 推理失败" : String.valueOf(payload.get("error")))
+                : String.valueOf(payload.get("errorMessage"));
         imagingStudyRepository.markFailed(studyId, error);
         imagingCallbackRegistry.fail(checkRequestId, error);
     }
@@ -215,7 +225,6 @@ public class ImagingService {
             if (reportJson instanceof Map<?, ?> reportMap) {
                 reportMap.forEach((k, v) -> merged.put(String.valueOf(k), v));
             }
-            merged.put("aiReportText", result.get("aiReportText"));
             merged.put("previewObjectKey", result.get("previewObjectKey"));
             merged.put("maskObjectKey", result.get("maskObjectKey"));
             String reportJsonText = objectMapper.writeValueAsString(merged);
@@ -251,6 +260,8 @@ public class ImagingService {
             String studyStatus = String.valueOf(study.get("status"));
             result.put("studyId", study.get("id"));
             result.put("studyStatus", studyStatus);
+            result.put("modality", study.get("modality"));
+            result.put("taskType", resolveTaskType(String.valueOf(study.get("modality"))));
             if ("COMPLETED".equals(studyStatus)) {
                 aiReportStatus = "READY";
                 aiReportText = String.valueOf(parseReportJson(study).getOrDefault("aiReportText", ""));
@@ -304,17 +315,66 @@ public class ImagingService {
         return text;
     }
 
+    private String resolveStudyModality(Map<String, Object> check, Map<String, Object> study) {
+        String stored = study.get("modality") == null ? "" : String.valueOf(study.get("modality"));
+        if ("CT_HEAD".equals(stored) || "CT_LUNG".equals(stored) || "TUMOR_SEG".equals(stored)) {
+            return stored;
+        }
+        return inferModality(check);
+    }
+
     private String inferModality(Map<String, Object> check) {
-        String itemName = check.get("itemName") == null ? "" : String.valueOf(check.get("itemName")).toUpperCase();
-        if (itemName.contains("CT")) {
-            return "CT";
+        String blob = joinCheckText(check);
+        if (containsAny(blob, "胸", "肺", "CHEST", "LUNG")) {
+            return "CT_LUNG";
         }
-        if (itemName.contains("MR") || itemName.contains("MRI")) {
-            return "MR";
+        if (containsAny(blob, "肿瘤", "病灶", "肿物", "TUMOR")) {
+            return "TUMOR_SEG";
         }
-        if (itemName.contains("XR") || itemName.contains("X光") || itemName.contains("DR")) {
-            return "XR";
+        if (containsAny(blob, "头", "颅", "脑", "HEAD")) {
+            return "CT_HEAD";
         }
-        return "CT";
+        if (blob.contains("CT")) {
+            return "CT_HEAD";
+        }
+        return "CT_HEAD";
+    }
+
+    private String resolveTaskType(String modality) {
+        if (modality == null) {
+            return "HEAD_CT_ARTIFACT";
+        }
+        return switch (modality) {
+            case "CT_LUNG" -> "LUNG_CT_ARTIFACT";
+            case "TUMOR_SEG" -> "TUMOR_SEG";
+            default -> "HEAD_CT_ARTIFACT";
+        };
+    }
+
+    private String joinCheckText(Map<String, Object> check) {
+        StringBuilder sb = new StringBuilder();
+        appendField(sb, check.get("itemName"));
+        appendField(sb, check.get("bodyPart"));
+        appendField(sb, check.get("purpose"));
+        return sb.toString().toUpperCase();
+    }
+
+    private void appendField(StringBuilder sb, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isEmpty()) {
+            sb.append(text);
+        }
+    }
+
+    private boolean containsAny(String text, String... keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

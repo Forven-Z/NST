@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: hospital-ai-bridge
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:hospital}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      initialization-fail-timeout: -1
   ai:
     openai:
       api-key: ${DASH_SCOPE_API_KEY:${DASHSCOPE_API_KEY:disabled}}
@@ -21,6 +28,11 @@ spring:
         enabled: ${NACOS_DISCOVERY_ENABLED:true}
 
 hospital:
+  auth:
+    jwt:
+      secret: ${JWT_SECRET:hospital-dev-secret-key-change-in-production-min-32-chars!!}
+  his:
+    base-url: ${HOSPITAL_HIS_BASE_URL:http://127.0.0.1:9102}
   ai:
     enabled: ${HOSPITAL_AI_ENABLED:true}
     max-rounds: ${HOSPITAL_AI_MAX_ROUNDS:5}

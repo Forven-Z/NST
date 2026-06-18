@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 
     model_weight_path: str = str(ROOT_DIR / "model" / "weights" / "best.pth")
+    lung_model_weight_path: str = str(ROOT_DIR / "model" / "weights" / "lung_artifact_best.pth")
     minio_endpoint: str = "127.0.0.1:9001"
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin123"

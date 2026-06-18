@@ -23,7 +23,7 @@ replay_pid*
 **/dist-ssr/
 *.local
 
-# CNN 权重（本机复制，不进 Git）
+# CNN 权重：运行目录不进 Git；小组共享目录 shared/model-weights 随仓库提交
 hospital-ai/model/weights/*.pth
 
 # Python

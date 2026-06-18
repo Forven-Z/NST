@@ -1,6 +1,8 @@
 # Install hospital-ai venv with GPU PyTorch (CUDA 12.4)
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
+# Tip: stop hospital-ai (port 8000) before reinstall to avoid WinError 5 file lock
 $ErrorActionPreference = "Stop"
+$env:PYTHONUTF8 = "1"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $AiDir = Join-Path $Root "hospital-ai"
 $VenvPy = Join-Path $AiDir ".venv\Scripts\python.exe"
