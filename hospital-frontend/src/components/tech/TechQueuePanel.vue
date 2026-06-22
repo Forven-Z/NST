@@ -27,6 +27,8 @@ const useReportSections = computed(
     && typeof props.generateAiReport === 'function',
 )
 
+const isPacsCheck = computed(() => props.techType === 'CHECK')
+
 const loading = ref(false)
 const executingId = ref(null)
 const savingId = ref(null)
@@ -70,6 +72,20 @@ async function loadList() {
     ElMessage.error(err.message || '加载队列失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function onExecuteAndGoImaging(row) {
+  const id = rowId(row)
+  executingId.value = id
+  try {
+    await props.executeRequest(id)
+    ElMessage.success('已开始执行，正在进入影像 AI 工作台')
+    goImagingAi(row)
+  } catch (err) {
+    ElMessage.error(err.message || '执行失败')
+  } finally {
+    executingId.value = null
   }
 }
 
@@ -154,14 +170,16 @@ async function onGenerateAiReport() {
   }
 }
 
-function goImagingAi(row) {
+function goImagingAi(row, { view = false } = {}) {
+  const query = {
+    checkRequestId: rowId(row),
+    patientName: row.patientName,
+    itemName: row.itemName,
+  }
+  if (view) query.view = '1'
   router.push({
     path: INTEGRATION_ROUTES.imagingAiWorkbench,
-    query: {
-      checkRequestId: rowId(row),
-      patientName: row.patientName,
-      itemName: row.itemName,
-    },
+    query,
   })
 }
 
@@ -255,10 +273,19 @@ async function onSaveResult() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="techType === 'CHECK' ? 260 : 200" fixed="right">
+        <el-table-column label="操作" :width="isPacsCheck ? 160 : 200" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status === 20"
+              v-if="row.status === 20 && isPacsCheck"
+              type="primary"
+              link
+              :loading="executingId === rowId(row)"
+              @click="onExecuteAndGoImaging(row)"
+            >
+              开始执行
+            </el-button>
+            <el-button
+              v-else-if="row.status === 20"
               type="primary"
               link
               :loading="executingId === rowId(row)"
@@ -267,7 +294,7 @@ async function onSaveResult() {
               开始执行
             </el-button>
             <el-button
-              v-if="techType === 'CHECK' && (row.status === 20 || row.status === 30)"
+              v-if="isPacsCheck && row.status === 30"
               type="warning"
               link
               @click="goImagingAi(row)"
@@ -275,12 +302,20 @@ async function onSaveResult() {
               影像 AI 工作台
             </el-button>
             <el-button
-              v-if="row.status === 20 || row.status === 30"
+              v-if="(!isPacsCheck && row.status === 20) || row.status === 30"
               type="success"
               link
               @click="openResultDialog(row)"
             >
               录入结果
+            </el-button>
+            <el-button
+              v-if="isPacsCheck && row.status === 40"
+              type="primary"
+              link
+              @click="goImagingAi(row, { view: true })"
+            >
+              查看影像
             </el-button>
           </template>
         </el-table-column>

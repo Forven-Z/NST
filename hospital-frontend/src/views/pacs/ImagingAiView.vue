@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MprViewer from '../../components/imaging/MprViewer.vue'
@@ -7,6 +7,7 @@ import {
   fetchPacsImagingPreview,
   fetchPacsPreviewBlob,
   generatePacsAiReport,
+  savePacsResult,
   uploadPacsImaging,
 } from '../../api/pacs'
 
@@ -16,10 +17,12 @@ const router = useRouter()
 const checkRequestId = computed(() => Number(route.query.checkRequestId) || null)
 const patientName = computed(() => route.query.patientName || '-')
 const itemName = computed(() => route.query.itemName || '-')
+const viewMode = computed(() => route.query.view === '1' || route.query.view === 'true')
+const showResultEntry = computed(() => !viewMode.value && !!checkRequestId.value)
 
 const pageTitle = computed(() => {
   const name = itemName.value || ''
-  if (/胸|肺/.test(name)) return '肺部 CT 伪影检测'
+  if (/胸|肺/.test(name)) return '胸部 CT 伪影检测'
   if (/肿瘤|病灶|肿物/.test(name)) return '肿瘤分割分析'
   return '头部 CT 金属伪影检测'
 })
@@ -44,6 +47,12 @@ const ctObjectUrl = ref('')
 const maskObjectUrl = ref('')
 const maskSlices = ref([])
 const mountViewer = ref(false)
+
+const resultDialogVisible = ref(false)
+const resultText = ref('')
+const resultAttachment = ref('')
+const savingResult = ref(false)
+const generatingSuggestion = ref(false)
 
 function revokeUrls() {
   if (ctObjectUrl.value) URL.revokeObjectURL(ctObjectUrl.value)
@@ -160,6 +169,38 @@ async function onDicomChange(e) {
   else studyStatus.value = '请选择影像文件'
 }
 
+async function loadStoredPreview() {
+  if (!checkRequestId.value) return
+  error.value = ''
+  resetResults()
+  previewLoading.value = true
+  studyStatus.value = '正在从 MinIO 加载历史影像…'
+  try {
+    const previewRes = await fetchPacsImagingPreview(checkRequestId.value)
+    maskSlices.value = previewRes.data?.maskSlices || []
+    const [ctUrl, maskUrl] = await Promise.all([
+      fetchPacsPreviewBlob(checkRequestId.value, 'ct'),
+      fetchPacsPreviewBlob(checkRequestId.value, 'mask'),
+    ])
+    ctObjectUrl.value = ctUrl
+    maskObjectUrl.value = maskUrl
+    showResults.value = true
+    studyStatus.value = '已加载 MinIO 中的影像与掩码'
+    await nextTick()
+    mountViewer.value = true
+  } catch (err) {
+    showResults.value = false
+    studyStatus.value = '暂无可查看的 AI 影像'
+    const msg = err.message || '加载失败'
+    error.value = /尚未|未完成|不存在|404|COMPLETED/i.test(msg)
+      ? '尚未 AI 检测，请先上传并完成检测'
+      : msg
+    ElMessage.warning(error.value)
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 async function loadPreviewVolumes() {
   if (!checkRequestId.value) return
   revokeUrls()
@@ -225,6 +266,67 @@ function goBack() {
   router.push('/pacs/queue')
 }
 
+function openResultDialog() {
+  resultText.value = ''
+  resultAttachment.value = ''
+  resultDialogVisible.value = true
+}
+
+async function onGenerateAiSuggestion() {
+  if (!checkRequestId.value) return
+  generatingSuggestion.value = true
+  try {
+    const res = await generatePacsAiReport(checkRequestId.value)
+    const text = res.data?.aiReportText || res.data?.resultText || ''
+    if (text) {
+      resultText.value = text
+      ElMessage.success('AI 建议已填入结果文本，请核对后保存')
+    } else {
+      ElMessage.info('暂无 AI 建议')
+    }
+  } catch (err) {
+    ElMessage.error(err.message || 'AI 建议生成失败')
+  } finally {
+    generatingSuggestion.value = false
+  }
+}
+
+async function onSaveResult() {
+  if (!checkRequestId.value) return
+  if (!resultText.value.trim()) {
+    ElMessage.warning('请填写结果文本')
+    return
+  }
+  savingResult.value = true
+  try {
+    await savePacsResult(checkRequestId.value, {
+      resultText: resultText.value.trim(),
+      resultAttachment: resultAttachment.value.trim() || undefined,
+    })
+    ElMessage.success('结果已保存，医生可在工作站查看')
+    resultDialogVisible.value = false
+  } catch (err) {
+    ElMessage.error(err.message || '保存失败')
+  } finally {
+    savingResult.value = false
+  }
+}
+
+onMounted(() => {
+  if (viewMode.value && checkRequestId.value) {
+    loadStoredPreview()
+  }
+})
+
+watch(
+  () => [route.query.checkRequestId, route.query.view],
+  () => {
+    if (viewMode.value && checkRequestId.value) {
+      loadStoredPreview()
+    }
+  },
+)
+
 onBeforeUnmount(() => {
   stopProgressTimer()
   revokeUrls()
@@ -241,9 +343,15 @@ onBeforeUnmount(() => {
           <template v-if="checkRequestId">
             · 检查 #{{ checkRequestId }} {{ patientName }} · {{ itemName }}
           </template>
+          <template v-if="viewMode"> · 查看模式</template>
         </p>
       </div>
-      <el-button link type="primary" @click="goBack">返回检查队列</el-button>
+      <div class="header-actions">
+        <el-button v-if="showResultEntry" type="success" @click="openResultDialog">
+          录入结果
+        </el-button>
+        <el-button link type="primary" @click="goBack">返回检查队列</el-button>
+      </div>
     </header>
 
     <div v-if="!checkRequestId" class="empty-hint">请从「检查队列」进入本页。</div>
@@ -319,9 +427,44 @@ onBeforeUnmount(() => {
         <p v-else-if="showResults && ctObjectUrl && !mountViewer" class="panel-tip">
           掩码已就绪，正在准备阅片组件…
         </p>
-        <p v-else class="panel-tip">上传并完成 AI 检测后显示三视图</p>
+        <p v-else class="panel-tip">
+          {{ viewMode ? '正在尝试加载已保存的影像…' : '上传并完成 AI 检测后显示三视图' }}
+        </p>
       </section>
     </main>
+
+    <el-dialog
+      v-model="resultDialogVisible"
+      :title="`录入结果 · ${itemName}`"
+      width="560px"
+      destroy-on-close
+    >
+      <el-form label-position="top">
+        <el-form-item label="结果文本（resultText）" required>
+          <el-input
+            v-model="resultText"
+            type="textarea"
+            :rows="8"
+            placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
+          />
+        </el-form-item>
+        <el-form-item label="结果附件（resultAttachment，可选）">
+          <el-input
+            v-model="resultAttachment"
+            placeholder="如 minio://bucket/key/report.pdf"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button :loading="generatingSuggestion" @click="onGenerateAiSuggestion">
+          生成 AI 建议填入
+        </el-button>
+        <el-button @click="resultDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingResult" @click="onSaveResult">
+          保存并发布
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -338,6 +481,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #243040; background: linear-gradient(135deg, #121a22, #0d1218); flex-shrink: 0; }
+.header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .header h1 { margin: 0; font-size: 20px; }
 .subtitle { margin: 4px 0 0; font-size: 12px; color: #8aa0b4; }
 .layout {
