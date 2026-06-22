@@ -74,6 +74,12 @@ public class RegistrarRegisterService {
         int noonType = toInt(scheduling.get("noonType"));
         boolean needRecordBook = Boolean.TRUE.equals(request.getNeedRecordBook());
 
+        if (registerRepository.existsActiveRegister(
+                patientId, request.getEmployeeId(), visitDate, noonType)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "该患者今日已在该医生该午别挂号，请勿重复提交");
+        }
+
         long registerId = registerRepository.insertRegister(
                 patientId,
                 request.getSchedulingId(),

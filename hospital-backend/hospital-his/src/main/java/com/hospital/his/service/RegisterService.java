@@ -48,6 +48,12 @@ public class RegisterService {
         LocalDate visitDate = (LocalDate) scheduling.get("workDate");
         int noonType = toInt(scheduling.get("noonType"));
 
+        if (registerRepository.existsActiveRegister(
+                patientId, request.getEmployeeId(), visitDate, noonType)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "该就诊人今日已在该医生该午别挂号，请勿重复提交");
+        }
+
         long registerId = registerRepository.insertRegister(
                 patientId,
                 request.getSchedulingId(),

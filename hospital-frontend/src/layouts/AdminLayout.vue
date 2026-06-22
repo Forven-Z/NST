@@ -6,6 +6,7 @@ const menuItems = [
   { path: '/admin/employees', label: '员工管理' },
   { path: '/admin/dict', label: '基础字典' },
   { path: '/admin/scheduling', label: '排班维护' },
+  { path: '/admin/finance', label: '财务汇总' },
 ]
 </script>
 

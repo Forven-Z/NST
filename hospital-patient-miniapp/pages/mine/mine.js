@@ -7,6 +7,7 @@ const MENUS = [
   { id: 'registers', name: '挂号记录', url: '/pages/registers/registers' },
   { id: 'pending', name: '待缴费用', url: '/pages/bills/bills?tab=pending' },
   { id: 'paid', name: '缴费记录', url: '/pages/bills/bills?tab=paid' },
+  { id: 'refunds', name: '退款记录', url: '/pages/refunds/refunds' },
   { id: 'reports', name: '报告查询', url: '/pages/reports/reports' },
   { id: 'record', name: '电子病历', url: '/pages/medical-record/medical-record' },
   { id: 'profile', name: '个人档案', url: '/pages/profile/profile' },

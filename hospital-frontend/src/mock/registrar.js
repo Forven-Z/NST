@@ -12,9 +12,14 @@ import {
 } from './dict'
 import {
   addRegisterFromWindow,
+  cancelRegisterByRegistrar,
   chargeBills,
+  getShiftSummary,
   refundBillById,
   resolvePatientBillsQuery,
+  resolvePatientPaymentsQuery,
+  resolvePatientRefundsQuery,
+  resolvePatientRegistersQuery,
 } from './store'
 
 export function mockDepartments() {
@@ -74,10 +79,13 @@ export function mockWindowRegister(body) {
 
 export function mockWindowCharge(body) {
   const billIds = body?.billIds || []
-  const { paidAmount } = chargeBills(billIds)
+  const payChannel = body?.payChannel || 'CASH'
+  const { paidAmount, paymentId, payChannel: channel, channelLabel } = chargeBills(billIds, payChannel)
   return mockResult({
-    paymentId: 92001,
+    paymentId: paymentId ?? 92001,
     paidAmount,
+    payChannel: channel,
+    channelLabel,
     message: paidAmount > 0 ? `收费成功，实收 ¥${paidAmount.toFixed(2)}` : '未找到可结算账单',
   })
 }
@@ -92,12 +100,43 @@ export function mockPatientBillsQuery(params) {
   return mockResult(result)
 }
 
+export function mockPatientRegistersQuery(params) {
+  const result = resolvePatientRegistersQuery(params || {})
+  if (result.error) return Promise.reject(new Error(result.error))
+  return mockResult(result)
+}
+
+export function mockCancelRegister(registerId, data) {
+  try {
+    const result = cancelRegisterByRegistrar(registerId, data?.reason)
+    return mockResult(result)
+  } catch (err) {
+    return Promise.reject(err)
+  }
+}
+
 export function mockRefundBill(body) {
-  const bill = refundBillById(body?.billId)
+  const bill = refundBillById(body?.billId, body?.reason)
   if (!bill) return Promise.reject(new Error('仅「已支付」账单可退费'))
   return mockResult({
     billId: bill.id,
     amount: bill.amount,
     message: '退费成功',
   })
+}
+
+export function mockPatientPaymentsQuery(params) {
+  const result = resolvePatientPaymentsQuery(params || {})
+  if (result.error) return Promise.reject(new Error(result.error))
+  return mockResult(result)
+}
+
+export function mockPatientRefundsQuery(params) {
+  const result = resolvePatientRefundsQuery(params || {})
+  if (result.error) return Promise.reject(new Error(result.error))
+  return mockResult(result)
+}
+
+export function mockShiftSummary(workDate) {
+  return mockResult(getShiftSummary(workDate))
 }

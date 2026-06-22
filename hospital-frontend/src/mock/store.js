@@ -37,6 +37,8 @@ function ensureInstrumentData(row, techType) {
 let nextPatientId = 100
 let nextRegisterId = 30000
 let nextBillId = 81000
+let nextPaymentId = 92000
+let nextRefundId = 93000
 let nextInspectionId = 61000
 let nextCheckId = 62000
 let nextDisposalId = 63000
@@ -46,6 +48,8 @@ let nextDraftId = 8000
 const state = {
   registers: [],
   bills: [],
+  payments: [],
+  refunds: [],
   medicalRecords: {},
   inspectionRequests: [],
   checkRequests: [],
@@ -53,8 +57,25 @@ const state = {
   prescriptions: [],
 }
 
+const CHANNEL_LABELS = {
+  CASH: '现金',
+  WECHAT: '微信',
+  ALIPAY: '支付宝',
+  INSURANCE: '医保',
+  SCAN: '扫码',
+}
+
+function channelLabel(channel) {
+  if (!channel) return '—'
+  return CHANNEL_LABELS[channel.toUpperCase()] || channel
+}
+
 function nowIso() {
   return new Date().toISOString()
+}
+
+function formatMockTime(iso) {
+  return iso.replace('T', ' ').slice(0, 16)
 }
 
 function createBill({ medicalRecordNo, patientId, registerId, bizType, bizId, itemName, amount, status = 0 }) {
@@ -347,6 +368,115 @@ function findRegisterByExactIdCard(idCard) {
 }
 
 export function resolvePatientBillsQuery({ medicalRecordNo, idCard, realName, patientId, status }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  const list = getBillsByMedicalRecord(resolved.medicalRecordNo, status)
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+  }
+}
+
+export function resolvePatientPaymentsQuery({ medicalRecordNo, idCard, realName, patientId, registerId }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  let list = state.payments.filter((p) => p.patientId === resolved.patientId)
+  if (registerId != null && registerId !== '') {
+    list = list.filter((p) => p.registerId === Number(registerId))
+  }
+  list = list.map((p) => ({
+    ...p,
+    channelLabel: p.channelLabel || channelLabel(p.channel),
+    paidAt: p.paidAt || formatMockTime(p.payTime || nowIso()),
+    amount: p.amount ?? p.totalAmount,
+  }))
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+    page: 1,
+    pageSize: 20,
+  }
+}
+
+export function resolvePatientRefundsQuery({ medicalRecordNo, idCard, realName, patientId, registerId }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  let list = state.refunds.filter((r) => r.patientId === resolved.patientId)
+  if (registerId != null && registerId !== '') {
+    list = list.filter((r) => r.registerId === Number(registerId))
+  }
+  list = list.map((r) => ({
+    ...r,
+    channelLabel: r.channelLabel || channelLabel(r.channel),
+    refundTime: r.refundTime,
+    amount: r.amount ?? r.refundAmount,
+  }))
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+    page: 1,
+    pageSize: 20,
+  }
+}
+
+export function getShiftSummary(workDate) {
+  const date = workDate || new Date().toISOString().slice(0, 10)
+  const operatorId = 901
+  const dayPayments = state.payments.filter((p) => {
+    const t = (p.payTime || '').slice(0, 10)
+    return p.operatorId === operatorId && t === date
+  })
+  const dayRefunds = state.refunds.filter((r) => {
+    const t = (r.refundTime || '').slice(0, 10)
+    return t === date
+  })
+  const paymentTotal = dayPayments.reduce((s, p) => s + Number(p.totalAmount ?? p.amount ?? 0), 0)
+  const refundTotal = dayRefunds.reduce((s, r) => s + Number(r.refundAmount ?? r.amount ?? 0), 0)
+  const groupByChannel = (rows, amountKey) => {
+    const map = {}
+    for (const row of rows) {
+      const ch = row.channel || 'CASH'
+      if (!map[ch]) map[ch] = { channel: ch, channelLabel: channelLabel(ch), count: 0, totalAmount: 0 }
+      map[ch].count += 1
+      map[ch].totalAmount += Number(row[amountKey] ?? row.amount ?? 0)
+    }
+    return Object.values(map)
+  }
+  return {
+    workDate: date,
+    operatorId,
+    paymentCount: dayPayments.length,
+    paymentTotal: Math.round(paymentTotal * 100) / 100,
+    refundCount: dayRefunds.length,
+    refundTotal: Math.round(refundTotal * 100) / 100,
+    netTotal: Math.round((paymentTotal - refundTotal) * 100) / 100,
+    paymentsByChannel: groupByChannel(dayPayments, 'totalAmount'),
+    refundsByChannel: groupByChannel(dayRefunds, 'refundAmount'),
+  }
+}
+
+function resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId }) {
   let reg = null
   if (medicalRecordNo?.trim()) {
     reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo.trim())
@@ -377,19 +507,105 @@ export function resolvePatientBillsQuery({ medicalRecordNo, idCard, realName, pa
   } else {
     return { error: '请提供病历号、身份证号或姓名' }
   }
-  const list = getBillsByMedicalRecord(reg.medicalRecordNo, status)
   return {
-    multiple: false,
     medicalRecordNo: reg.medicalRecordNo,
     patientId: reg.patientId,
     realName: reg.patientName,
     gender: reg.gender,
     age: reg.age,
+  }
+}
+
+const VISIT_STATE_LABELS = {
+  0: '待支付',
+  1: '已挂号',
+  2: '接诊中',
+  3: '看诊结束',
+  4: '已退号',
+}
+
+function enrichRegisterForDisplay(reg) {
+  const registBill = state.bills.find(
+    (b) => b.registerId === reg.registerId && (b.bizType === 'REGIST' || b.bizType === 'REGISTER'),
+  )
+  return {
+    registerId: reg.registerId,
+    visitState: reg.visitState,
+    visitStateLabel: VISIT_STATE_LABELS[reg.visitState] || '未知',
+    cancellable: reg.visitState === 0 || reg.visitState === 1,
+    workDate: reg.workDate,
+    noonLabel: reg.noonLabel,
+    deptName: reg.deptName,
+    doctorName: reg.doctorName,
+    registLevelName: reg.registLevelName,
+    registFee: reg.registFee ?? registBill?.amount ?? null,
+    registTime: reg.registTime,
+  }
+}
+
+export function resolvePatientRegistersQuery({ medicalRecordNo, idCard, realName, patientId, visitState }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  let list = state.registers.filter((r) => r.patientId === resolved.patientId)
+  if (visitState !== undefined && visitState !== null && visitState !== '') {
+    list = list.filter((r) => r.visitState === Number(visitState))
+  }
+  list = list
+    .slice()
+    .sort((a, b) => String(b.registTime || '').localeCompare(String(a.registTime || '')))
+    .map(enrichRegisterForDisplay)
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
     list,
   }
 }
 
-export function chargeBills(billIds) {
+export function cancelRegisterByRegistrar(registerId, reason) {
+  const reg = state.registers.find((r) => r.registerId === Number(registerId))
+  if (!reg) throw new Error('挂号记录不存在')
+  if (reg.visitState === 0) {
+    state.bills
+      .filter((b) => b.registerId === reg.registerId && b.status === 0)
+      .forEach((b) => {
+        b.status = 3
+        b.statusText = '已作废'
+      })
+    reg.visitState = 4
+    return {
+      registerId: reg.registerId,
+      visitState: 4,
+      message: reason || '待支付挂号已取消',
+    }
+  }
+  if (reg.visitState === 1) {
+    const bill = state.bills.find(
+      (b) =>
+        b.registerId === reg.registerId
+        && (b.bizType === 'REGIST' || b.bizType === 'REGISTER')
+        && b.status === 1,
+    )
+    if (bill) {
+      bill.status = 2
+      bill.statusText = '已退款'
+    }
+    reg.visitState = 4
+    return {
+      registerId: reg.registerId,
+      visitState: 4,
+      message: reason || '退号成功',
+    }
+  }
+  throw new Error('仅待支付或已挂号未接诊可退号')
+}
+
+export function chargeBills(billIds, payChannel = 'CASH') {
   const ids = billIds.map(Number)
   let paidAmount = 0
   const paid = []
@@ -421,14 +637,60 @@ export function chargeBills(billIds) {
       if (rx && rx.status === 10) rx.status = 20
     }
   }
-  return { paidAmount, paid }
+  let paymentId = null
+  if (paid.length) {
+    nextPaymentId += 1
+    paymentId = nextPaymentId
+    const channel = (payChannel || 'CASH').toUpperCase()
+    const titles = paid.map((b) => b.billTitle || b.itemName).filter(Boolean)
+    const payTime = nowIso()
+    state.payments.unshift({
+      paymentId,
+      patientId: paid[0].patientId,
+      registerId: paid[0].registerId,
+      totalAmount: Math.round(paidAmount * 100) / 100,
+      amount: Math.round(paidAmount * 100) / 100,
+      channel,
+      channelLabel: channelLabel(channel),
+      payTime,
+      paidAt: formatMockTime(payTime),
+      status: 1,
+      summary: titles.length ? titles.join('、') : '窗口缴费',
+      billIds: paid.map((b) => b.id),
+      operatorId: 901,
+    })
+  }
+  return {
+    paidAmount,
+    paid,
+    paymentId,
+    payChannel: (payChannel || 'CASH').toUpperCase(),
+    channelLabel: channelLabel((payChannel || 'CASH').toUpperCase()),
+  }
 }
 
-export function refundBillById(billId) {
+export function refundBillById(billId, reason = '窗口退费') {
   const bill = state.bills.find((b) => b.id === Number(billId))
   if (!bill || bill.status !== 1) return null
   bill.status = 2
   bill.statusText = '已退款'
+  const payment = state.payments.find((p) => p.billIds?.includes(bill.id))
+  nextRefundId += 1
+  const refundTime = nowIso()
+  state.refunds.unshift({
+    refundId: nextRefundId,
+    paymentId: payment?.paymentId ?? null,
+    billId: bill.id,
+    patientId: bill.patientId,
+    registerId: bill.registerId,
+    refundAmount: bill.amount,
+    amount: bill.amount,
+    channel: payment?.channel ?? 'CASH',
+    channelLabel: channelLabel(payment?.channel ?? 'CASH'),
+    refundTime,
+    reason,
+    billTitle: bill.billTitle || bill.itemName,
+  })
   return bill
 }
 
@@ -442,7 +704,14 @@ export function getDoctorQueue(params = {}) {
   } else {
     list = list.filter((r) => r.visitState >= 1 && r.visitState <= 2)
   }
-  return list.sort((a, b) => a.registTime.localeCompare(b.registTime))
+  list = list.sort((a, b) => String(a.registTime || '').localeCompare(String(b.registTime || '')))
+  const seen = new Set()
+  return list.filter((r) => {
+    const key = r.patientId ?? r.medicalRecordNo
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 export function callRegister(registerId) {

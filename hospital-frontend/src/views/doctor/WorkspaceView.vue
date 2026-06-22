@@ -347,8 +347,9 @@ function formatGender(gender) {
       <el-table
         v-loading="loading"
         :data="queue"
+        row-key="registerId"
         highlight-current-row
-        empty-text="暂无候诊患者（Mock 演示：王小明 MR202606040001 已挂号待叫号）"
+        empty-text="暂无候诊患者"
         @row-click="onSelectRow"
       >
         <el-table-column prop="medicalRecordNo" label="病历号" width="150" />

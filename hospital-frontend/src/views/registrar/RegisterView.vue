@@ -55,10 +55,23 @@ const totalSelectedAmount = computed(() => {
 const canSubmit = computed(
   () =>
     form.patientName.trim()
+    && form.idCard.trim()
+    && form.phone.trim()
     && form.deptId
     && selectedSchedulingId.value
     && selectedSchedule.value?.remainQuota > 0,
 )
+
+function clearPatientFields() {
+  form.patientName = ''
+  form.idCard = ''
+  form.gender = 1
+  form.age = ''
+  form.birthDate = ''
+  form.phone = ''
+  form.address = ''
+  form.needRecordBook = false
+}
 
 function syncScheduleTableHeight() {
   nextTick(() => {
@@ -196,14 +209,7 @@ function onScheduleRowClick(row) {
 }
 
 function resetForm() {
-  form.patientName = ''
-  form.idCard = ''
-  form.gender = 1
-  form.age = ''
-  form.birthDate = ''
-  form.phone = ''
-  form.address = ''
-  form.needRecordBook = false
+  clearPatientFields()
   form.settleCategoryId = 1
   form.employeeId = null
   registLevelFilter.value = null
@@ -293,6 +299,9 @@ async function onSubmit() {
     }
     receiptVisible.value = true
     ElMessage.success('挂号成功')
+    clearPatientFields()
+    selectedSchedulingId.value = null
+    await reloadSchedules()
   } catch (err) {
     ElMessage.error(err.message || '挂号失败')
   } finally {
@@ -334,7 +343,7 @@ function rowClassName({ row }) {
             <el-form-item label="姓名" required>
               <el-input v-model="form.patientName" placeholder="请输入患者姓名" clearable />
             </el-form-item>
-            <el-form-item label="身份证">
+            <el-form-item label="身份证" required>
               <el-input
                 v-model="form.idCard"
                 placeholder="18位身份证号"
@@ -352,7 +361,7 @@ function rowClassName({ row }) {
             <el-form-item label="年龄">
               <el-input v-model="form.age" placeholder="岁" style="width: 120px" />
             </el-form-item>
-            <el-form-item label="手机号">
+            <el-form-item label="手机号" required>
               <el-input v-model="form.phone" placeholder="11位手机号" maxlength="11" clearable />
             </el-form-item>
             <el-form-item label="住址">

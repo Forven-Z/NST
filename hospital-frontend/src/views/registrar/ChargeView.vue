@@ -2,7 +2,12 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { fetchPatientBillsByQuery, windowCharge } from '../../api/registrar'
+import {
+  fetchPatientBillsByQuery,
+  fetchPatientPaymentsByQuery,
+  fetchShiftSummary,
+  windowCharge,
+} from '../../api/registrar'
 
 const route = useRoute()
 const medicalRecordNo = ref('')
@@ -11,11 +16,17 @@ const realName = ref('')
 const loading = ref(false)
 const charging = ref(false)
 const bills = ref([])
+const payments = ref([])
 const selectedRows = ref([])
 const payChannel = ref('CASH')
 const tableRef = ref(null)
 const autoSelectPending = ref(false)
 const resolvedPatient = ref(null)
+const activeTab = ref('pending')
+const shiftVisible = ref(false)
+const shiftLoading = ref(false)
+const shiftSummary = ref(null)
+const workDate = ref(new Date().toISOString().slice(0, 10))
 
 const candidateVisible = ref(false)
 const candidates = ref([])
@@ -54,6 +65,7 @@ async function loadBills(params) {
       candidates.value = data.candidates
       candidateVisible.value = true
       bills.value = []
+      payments.value = []
       selectedRows.value = []
       resolvedPatient.value = null
       return
@@ -77,15 +89,31 @@ async function loadBills(params) {
       bills.value.forEach((row) => tableRef.value?.toggleRowSelection(row, true))
       autoSelectPending.value = false
     }
-    if (!bills.value.length) {
+    if (activeTab.value === 'pending' && !bills.value.length) {
       ElMessage.info('该患者暂无待缴账单（可能已全部缴费）')
+    }
+
+    if (resolvedPatient.value?.patientId) {
+      await loadPayments({ patientId: resolvedPatient.value.patientId })
     }
   } catch (err) {
     ElMessage.error(err.message || '查询失败')
     bills.value = []
+    payments.value = []
     resolvedPatient.value = null
   } finally {
     loading.value = false
+  }
+}
+
+async function loadPayments(params) {
+  try {
+    const res = await fetchPatientPaymentsByQuery(params)
+    const data = res.data ?? {}
+    if (data.multiple && data.candidates?.length) return
+    payments.value = data.list ?? []
+  } catch {
+    payments.value = []
   }
 }
 
@@ -126,7 +154,14 @@ async function onCharge() {
   try {
     const billIds = selectedRows.value.map((r) => r.id ?? r.billId)
     const res = await windowCharge({ billIds, payChannel: payChannel.value })
-    ElMessage.success(res.data?.message || '收费成功')
+    const data = res.data ?? {}
+    const channelText = data.channelLabel || data.payChannel || payChannel.value
+    const pid = data.paymentId
+    ElMessage.success(
+      pid
+        ? `${data.message || '收费成功'}（流水 #${pid} · ${channelText}）`
+        : data.message || '收费成功',
+    )
     if (resolvedPatient.value?.medicalRecordNo) {
       medicalRecordNo.value = resolvedPatient.value.medicalRecordNo
       idCard.value = ''
@@ -146,6 +181,36 @@ function formatGender(gender) {
   if (gender === 1) return '男'
   if (gender === 2) return '女'
   return '—'
+}
+
+function onTabChange(tab) {
+  activeTab.value = tab
+}
+
+async function openShiftSummary() {
+  shiftVisible.value = true
+  shiftLoading.value = true
+  try {
+    const res = await fetchShiftSummary({ workDate: workDate.value })
+    shiftSummary.value = res.data ?? null
+  } catch (err) {
+    ElMessage.error(err.message || '加载当班汇总失败')
+    shiftSummary.value = null
+  } finally {
+    shiftLoading.value = false
+  }
+}
+
+async function reloadShiftSummary() {
+  shiftLoading.value = true
+  try {
+    const res = await fetchShiftSummary({ workDate: workDate.value })
+    shiftSummary.value = res.data ?? null
+  } catch (err) {
+    ElMessage.error(err.message || '加载失败')
+  } finally {
+    shiftLoading.value = false
+  }
 }
 
 onMounted(() => {
@@ -169,6 +234,7 @@ onMounted(() => {
           病历号、身份证号按<strong>完整精确</strong>匹配；姓名按<strong>精确</strong>匹配，重名时需点选患者。
         </p>
       </div>
+      <el-button type="primary" plain @click="openShiftSummary">当班汇总</el-button>
     </div>
 
     <el-card shadow="never" class="panel-card">
@@ -215,6 +281,11 @@ onMounted(() => {
         </el-form-item>
       </el-form>
 
+      <el-tabs v-model="activeTab" class="bill-tabs" @tab-change="onTabChange">
+        <el-tab-pane label="待缴账单" name="pending" />
+        <el-tab-pane label="已付流水" name="paid" />
+      </el-tabs>
+
       <div v-if="resolvedPatient?.medicalRecordNo" class="patient-banner">
         <span class="patient-banner-label">当前患者</span>
         <span v-if="resolvedPatient.realName" class="patient-banner-name">{{ resolvedPatient.realName }}</span>
@@ -230,6 +301,7 @@ onMounted(() => {
       </div>
 
       <el-table
+        v-if="activeTab === 'pending'"
         ref="tableRef"
         v-loading="loading"
         :data="bills"
@@ -267,7 +339,29 @@ onMounted(() => {
         </el-table-column>
       </el-table>
 
-      <div v-if="bills.length" class="settle-bar">
+      <el-table
+        v-else
+        v-loading="loading"
+        :data="payments"
+        stripe
+        empty-text="查询后将显示该患者的已付流水"
+      >
+        <el-table-column prop="paymentId" label="流水号" width="100" />
+        <el-table-column prop="summary" label="摘要" min-width="200" />
+        <el-table-column label="金额" width="100" align="right">
+          <template #default="{ row }">
+            <span class="fee">¥{{ row.amount ?? row.totalAmount }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="支付方式" width="100">
+          <template #default="{ row }">{{ row.channelLabel || row.channel || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="支付时间" min-width="160">
+          <template #default="{ row }">{{ row.paidAt || row.payTime || '—' }}</template>
+        </el-table-column>
+      </el-table>
+
+      <div v-if="activeTab === 'pending' && bills.length" class="settle-bar">
         <div class="settle-info">
           已选 <strong>{{ selectedRows.length }}</strong> 项，合计
           <span class="fee-lg">¥{{ totalAmount.toFixed(2) }}</span>
@@ -294,6 +388,57 @@ onMounted(() => {
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <el-dialog v-model="shiftVisible" title="当班收费汇总" width="520px" align-center>
+      <el-form inline class="shift-form">
+        <el-form-item label="日期">
+          <el-date-picker
+            v-model="workDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择日期"
+            style="width: 160px"
+            @change="reloadShiftSummary"
+          />
+        </el-form-item>
+      </el-form>
+      <div v-loading="shiftLoading">
+        <template v-if="shiftSummary">
+          <div class="shift-grid">
+            <div class="shift-stat">
+              <span class="shift-label">收费笔数</span>
+              <strong>{{ shiftSummary.paymentCount ?? 0 }}</strong>
+            </div>
+            <div class="shift-stat">
+              <span class="shift-label">收费合计</span>
+              <strong class="fee">¥{{ shiftSummary.paymentTotal ?? 0 }}</strong>
+            </div>
+            <div class="shift-stat">
+              <span class="shift-label">退费笔数</span>
+              <strong>{{ shiftSummary.refundCount ?? 0 }}</strong>
+            </div>
+            <div class="shift-stat">
+              <span class="shift-label">退费合计</span>
+              <strong class="fee">¥{{ shiftSummary.refundTotal ?? 0 }}</strong>
+            </div>
+          </div>
+          <div class="shift-net">
+            净收 <span class="fee-lg">¥{{ shiftSummary.netTotal ?? 0 }}</span>
+          </div>
+          <div v-if="shiftSummary.paymentsByChannel?.length" class="shift-channels">
+            <h4>收费按渠道</h4>
+            <el-table :data="shiftSummary.paymentsByChannel" size="small" stripe>
+              <el-table-column prop="channelLabel" label="渠道" />
+              <el-table-column prop="count" label="笔数" width="72" />
+              <el-table-column label="金额" width="100" align="right">
+                <template #default="{ row }">¥{{ row.totalAmount }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </template>
+        <el-empty v-else-if="!shiftLoading" description="暂无汇总数据" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -304,6 +449,51 @@ onMounted(() => {
 
 .page-head {
   margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bill-tabs {
+  margin-bottom: 12px;
+}
+
+.shift-form {
+  margin-bottom: 8px;
+}
+
+.shift-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.shift-stat {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.shift-label {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.shift-net {
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.shift-channels h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .page-title {

@@ -1,6 +1,7 @@
 package com.hospital.common.constant;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public final class PaymentChannel {
@@ -14,6 +15,13 @@ public final class PaymentChannel {
     private static final Set<String> REGISTRAR_CHARGE_ALLOWED = Set.of(
             CASH, WECHAT, ALIPAY, INSURANCE, SCAN);
 
+    private static final Map<String, String> LABELS = Map.of(
+            CASH, "现金",
+            WECHAT, "微信",
+            ALIPAY, "支付宝",
+            INSURANCE, "医保",
+            SCAN, "扫码");
+
     private PaymentChannel() {
     }
 
@@ -23,5 +31,12 @@ public final class PaymentChannel {
             return false;
         }
         return REGISTRAR_CHARGE_ALLOWED.contains(channel.trim().toUpperCase(Locale.ROOT));
+    }
+
+    public static String labelOf(String channel) {
+        if (channel == null || channel.isBlank()) {
+            return "—";
+        }
+        return LABELS.getOrDefault(channel.trim().toUpperCase(Locale.ROOT), channel);
     }
 }

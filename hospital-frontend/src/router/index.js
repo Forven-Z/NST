@@ -158,6 +158,11 @@ const router = createRouter({
           name: 'admin-scheduling',
           component: () => import('../views/admin/SchedulingView.vue'),
         },
+        {
+          path: 'finance',
+          name: 'admin-finance',
+          component: () => import('../views/admin/FinanceSummaryView.vue'),
+        },
       ],
     },
   ],

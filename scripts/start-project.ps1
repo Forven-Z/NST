@@ -61,6 +61,27 @@ function Wait-Port($port, $label, $seconds) {
     return $false
 }
 
+function Wait-NacosReady($seconds) {
+    if (-not $seconds) { $seconds = 120 }
+    $url = 'http://127.0.0.1:8848/nacos/v1/console/health/readiness'
+    Write-Host '... waiting Nacos readiness (HTTP + gRPC)' -ForegroundColor Yellow
+    for ($i = 0; $i -lt $seconds; $i++) {
+        try {
+            $r = Invoke-RestMethod -Uri $url -TimeoutSec 3
+            if ($r -eq 'OK') {
+                Start-Sleep -Seconds 2
+                Write-Host 'OK  Nacos ready' -ForegroundColor Green
+                return $true
+            }
+        } catch {
+            # Nacos still starting
+        }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host 'WARN  Nacos readiness timeout — services may retry registration' -ForegroundColor Yellow
+    return $false
+}
+
 function Wait-GatewayReady($seconds) {
     if (-not $seconds) { $seconds = 90 }
     $url = 'http://127.0.0.1:9000/api/v1/auth/staff/login'
@@ -180,6 +201,7 @@ if (-not (Test-Port 8848)) {
 } else {
     Write-Host 'OK  Nacos 8848 already running' -ForegroundColor Green
 }
+Wait-NacosReady 60 | Out-Null
 
 if (-not $SkipBuild) {
     Write-Host "... mvn package ($mvnModules)" -ForegroundColor Yellow
@@ -197,6 +219,9 @@ if (-not $SkipBuild) {
 try {
     foreach ($svc in $serviceChain) {
         Start-ServiceJar $svc.Name $svc.Port $svc.Module
+        if ($svc.Name -eq 'hospital-ai-bridge') {
+            Start-Sleep -Seconds 3
+        }
     }
     if (-not (Wait-GatewayReady 90)) { exit 1 }
     if (-not $SkipFrontend) {

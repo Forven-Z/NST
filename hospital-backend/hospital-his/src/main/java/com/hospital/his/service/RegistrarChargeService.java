@@ -71,6 +71,8 @@ public class RegistrarChargeService {
         Map<String, Object> result = new HashMap<>();
         result.put("paymentId", paymentId);
         result.put("paidAmount", totalAmount);
+        result.put("payChannel", payChannel);
+        result.put("channelLabel", com.hospital.common.constant.PaymentChannel.labelOf(payChannel));
         result.put("message", String.format("收费成功，实收 ¥%.2f", totalAmount));
         return result;
     }
