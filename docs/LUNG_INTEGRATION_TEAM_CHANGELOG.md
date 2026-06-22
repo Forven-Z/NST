@@ -1,8 +1,8 @@
 # 头部 + 肺部 CT CNN 集成 — 小组说明（wsh）
 
-> **分支**：`feature/ai-task-type`（已 push 至 `origin`，待合并 `main`）  
-> **最新提交**：`e85bc20` — feat(pacs-ai): integrate lung CNN alongside head CT pipeline  
-> **负责人**：wsh（CNN / hospital-ai）  
+> **分支**：`feature/ai-task-type`（push 至 `origin`，待合并 `main`）  
+> **最新提交**：`feature/ai-task-type` — 含 PACS 队列 + 影像工作台（§6.6）
+> **负责人**：wsh（CNN / hospital-ai + PACS 检查队列前端）  
 > **原则**：头部与肺部共用同一界面与 API；按检查项目自动选模型；**CNN 只出掩码，文字 AI 报告由大模型组负责**
 
 ---
@@ -13,7 +13,8 @@
 |------|-------------|----------|
 | **所有人** | 否 | `git pull` 拉分支 `feature/ai-task-type`（或等 PR 合并 main 后 pull main） |
 | **要跑 CNN 的同学** | 否 | 执行 `scripts/install-model-weights.ps1`，再 `start-r-pacs-ai.bat` |
-| **前端** | 否 | 已设 `VITE_USE_MOCK=false`；联调前跑 `seed-demo-check.sql` |
+| **前端（PACS 队列）** | 否 | 已改 `TechQueuePanel` / `ImagingAiView`，pull 后 `npm run dev` 即可 |
+| **前端** | 否 | 已设 `VITE_USE_MOCK=false`；联调前跑 `seed-demo-check.sql`（队列空时再跑 `seed-demo-check-extra.sql`） |
 | **大模型组** | 在各自模块 | 文字报告走队列「录入结果」等界面，**不要**依赖 CNN 工作台里的报告栏（已移除） |
 | **his / 患者端等** | 否 | 读 pacs API，见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) |
 | **组长 wsh** | — | 在 GitHub 开 PR：`feature/ai-task-type` → `main` |
@@ -30,7 +31,7 @@
 | taskType | `HEAD_CT_ARTIFACT` | `LUNG_CT_ARTIFACT` |
 | 权重文件 | `best.pth` | `lung_artifact_best.pth`（Dice ≈ 0.87） |
 | MinIO 路径 | `studies/62001/` | `studies/62002/` |
-| 前端入口 | 同一页 `/pacs/imaging-ai` | 同上（标题随 `itemName` 变） |
+| 前端入口 | 同一页 `/pacs/imaging-ai` | 同上（标题：**胸部 CT 伪影检测**） |
 | CNN 输出 | 掩码 + CT 预览 NIfTI | 同上 |
 | CNN 文字报告 | **无**（已删除） | **无**（已删除） |
 
@@ -41,12 +42,14 @@
 ## 三、架构（不变）
 
 ```text
-技师队列 #62001 或 #62002
-  → 影像 AI 工作台
-  → Gateway → pacs（upload + ai-report）
-  → hospital-ai :8000（CNN，内网）
+技师队列（仅 CHECK 类型）
+  status=20「开始执行」→ execute API → 跳转影像 AI 工作台
+  status=30「影像 AI 工作台」+「录入结果」（队列内）
+  status=40「查看影像」→ 工作台查看模式（自动加载 MinIO 预览）
+  工作台内（非查看模式）右上角另有「录入结果」，与队列弹窗相同
+  → Gateway → pacs → hospital-ai :8000（CNN）
   → MinIO：source/ + mask.nii.gz + ct_preview.nii.gz
-  → 回调 pacs → 前端 MprViewer 三视图
+  → 前端 MprViewer 三视图
 ```
 
 文字版 AI 报告：**不在本链路**，由大模型组在其他界面实现。
@@ -143,6 +146,22 @@ npm run dev
 - `TUMOR_SEG`（仍为 STUB）
 - 队列「录入结果」里的 AI 报告栏（留给大模型组）
 
+### 6.6 2026-06-22 — PACS 队列与影像工作台（前端 only）
+
+| 场景 | 改动 |
+|------|------|
+| CHECK + **status=20** | 操作列**只保留「开始执行」**；先 execute（20→30）再跳转影像 AI 工作台 |
+| CHECK + **status=40** | 新增 **「查看影像」**（`view=1` 查看模式，自动加载 MinIO 预览） |
+| **查看模式** | 无「录入结果」按钮 |
+| **工作台（非查看）** | 右上角 **「录入结果」**，与队列弹窗相同 |
+| 胸部标题 | **「胸部 CT 伪影检测」**（原「肺部…」） |
+
+| 文件 | 变更 |
+|------|------|
+| `TechQueuePanel.vue` | `onExecuteAndGoImaging`；status 20/30/40 按钮 |
+| `ImagingAiView.vue` | 查看模式自动加载；工作台录入结果；标题文案 |
+| `docs/sql/seed-demo-check-extra.sql` | 演示单 #62001–#62006（status=20，本地可选） |
+
 ---
 
 ## 七、验收步骤
@@ -152,6 +171,8 @@ npm run dev
 3. **#62001 头部 CT** → 同上，回归头部
 4. 工作台**不应**再出现 CNN 生成的文字报告块
 5. MinIO：`studies/62001/`、`studies/62002/` 各有 `source/`、`mask.nii.gz`
+6. **PACS 队列**：status=20 仅「开始执行」且自动进工作台；status=40 有「查看影像」并自动加载预览
+7. **查看模式**（`view=1`）无「录入结果」；执行/工作台模式右上角有「录入结果」
 
 ---
 
