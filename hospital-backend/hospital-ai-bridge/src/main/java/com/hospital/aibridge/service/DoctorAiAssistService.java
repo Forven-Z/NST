@@ -259,6 +259,9 @@ public class DoctorAiAssistService {
         item.put("title", evidence.title());
         item.put("excerpt", evidence.content());
         item.put("score", Math.round(evidence.score() * 1000D) / 1000D);
+        item.put("sourceUrl", evidence.metadata().get("sourceUrl"));
+        item.put("effectiveDate", evidence.metadata().get("effectiveDate"));
+        item.put("reviewRequired", evidence.metadata().getOrDefault("reviewRequired", true));
         return item;
     }
 

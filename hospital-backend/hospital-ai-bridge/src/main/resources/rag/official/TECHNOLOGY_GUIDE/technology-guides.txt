@@ -1,0 +1,449 @@
+---
+documentCode: TECH-001
+title: 血常规的适用场景
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,内科
+topics: 血常规
+reviewRequired: true
+---
+# 血常规的适用场景
+血常规可辅助评估感染、贫血及血小板异常，但结果必须结合症状、病程和其他检查解释。单项轻度异常不应直接等同于特定疾病，危急值或进行性变化需及时处理。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-002
+title: C反应蛋白与降钙素原解读
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,呼吸内科
+topics: CRP,降钙素原
+reviewRequired: true
+---
+# C反应蛋白与降钙素原解读
+炎症标志物可辅助评估炎症反应和动态趋势，不能单独区分全部细菌与病毒感染。是否使用抗菌药物应结合病灶证据、严重程度、培养结果和临床变化。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-003
+title: 尿常规检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,泌尿外科
+topics: 尿常规
+reviewRequired: true
+---
+# 尿常规检查选择
+尿频尿痛、血尿、水肿或肾脏疾病评估时可选择尿常规，并关注规范留取标本。白细胞、红细胞或蛋白异常需结合症状、镜检和必要的培养进一步判断。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-004
+title: 粪便常规及隐血检查
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,消化内科
+topics: 粪便,隐血
+reviewRequired: true
+---
+# 粪便常规及隐血检查
+腹泻、便血或消化道出血风险评估时可按病情选择粪便相关检查。隐血阳性并不定位病因，肉眼血便、贫血或持续症状需要进一步临床评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-005
+title: 肝功能检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,消化内科
+topics: 肝功能
+reviewRequired: true
+---
+# 肝功能检查选择
+黄疸、乏力、肝病风险或可能影响肝脏的用药前后可评估肝功能。转氨酶、胆红素和白蛋白等指标应结合病程、药物和影像综合解释。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-006
+title: 肾功能检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,内科
+topics: 肾功能
+reviewRequired: true
+---
+# 肾功能检查选择
+肾病风险、脱水、少尿或使用需按肾功能调整的药物时可评估肌酐等指标。单次结果应结合年龄、基础水平、尿量和变化趋势解释。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-007
+title: 血糖与糖化血红蛋白
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,内分泌科
+topics: 血糖,糖化血红蛋白
+reviewRequired: true
+---
+# 血糖与糖化血红蛋白
+血糖用于识别当前糖代谢异常，糖化血红蛋白反映较长期平均水平，两者适用情境不同。急性症状、贫血或影响红细胞寿命的情况可能影响解释，应结合临床复核。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-008
+title: 血脂检测与风险评估
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,心血管内科
+topics: 血脂
+reviewRequired: true
+---
+# 血脂检测与风险评估
+血脂检测用于心血管风险评估和治疗随访，不能脱离既往心脑血管病、糖尿病、血压和吸烟情况单独决策。异常结果应结合采血状态及整体风险解释。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-009
+title: 电解质检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,急诊科
+topics: 电解质
+reviewRequired: true
+---
+# 电解质检查选择
+呕吐腹泻、脱水、心律失常、肾病或使用影响电解质的药物时可选择电解质检查。明显钾钠异常可能危及心脏和神经功能，需结合症状和心电表现及时处理。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-010
+title: 凝血功能检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,普通外科
+topics: 凝血
+reviewRequired: true
+---
+# 凝血功能检查选择
+异常出血、肝病、抗凝治疗或特定操作前可按指征选择凝血检查。结果异常应结合药物、血小板、肝功能和出血表现判断，不能机械作为所有操作的常规筛查。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-011
+title: 甲状腺功能检查
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,内分泌科
+topics: 甲状腺功能
+reviewRequired: true
+---
+# 甲状腺功能检查
+存在甲状腺症状、甲状腺肿大或相关药物影响时可选择甲状腺功能检查。异常结果需结合激素间关系、妊娠状态、急性疾病和必要的复查判断。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-012
+title: 心肌标志物动态检测
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,心血管内科
+topics: 肌钙蛋白,心肌酶
+reviewRequired: true
+---
+# 心肌标志物动态检测
+疑似急性心肌损伤时，肌钙蛋白需结合症状起始时间、心电图和动态变化解释。一次阴性结果不能在所有时间窗排除急性冠脉综合征，升高也不只见于心肌梗死。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-013
+title: 呼吸道病原抗原检测
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 检验科,呼吸内科
+topics: 新冠,流感,抗原
+reviewRequired: true
+---
+# 呼吸道病原抗原检测
+呼吸道抗原检测结果受采样时间、标本质量和流行情况影响。阴性结果不能在高疑似患者中完全排除感染，阳性结果也应结合症状和当地防控要求处理。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-014
+title: 胸部X线检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,呼吸内科
+topics: 胸部X线
+reviewRequired: true
+---
+# 胸部X线检查选择
+发热咳嗽伴低氧、呼吸困难、异常肺部体征或肺炎风险时，可由医生评估胸部X线的必要性。轻症无危险信号者不宜机械重复影像检查。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-015
+title: 胸部CT检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,呼吸内科
+topics: 胸部CT
+reviewRequired: true
+---
+# 胸部CT检查选择
+胸部CT可在X线不能解释症状、怀疑复杂肺部病变或需进一步分层时使用。应考虑辐射、既往影像和检查是否会改变处置，不作为所有咳嗽患者的常规项目。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-016
+title: 头部CT检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,神经内科
+topics: 头部CT,头痛
+reviewRequired: true
+---
+# 头部CT检查选择
+突发剧烈头痛、外伤、意识改变或局灶神经缺损时，可按临床情境考虑头部CT。无红旗症状且神经检查正常的常见头痛不宜常规重复影像。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-017
+title: 颅脑MRI检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,神经内科
+topics: 颅脑MRI
+reviewRequired: true
+---
+# 颅脑MRI检查选择
+MRI适用于需要更细致评估脑实质、后颅窝或亚急性神经病变的情境，具体选择需结合急迫性和禁忌。急危重患者不应因等待MRI延误必要的稳定和初始检查。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-018
+title: 腹部CT检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,普通外科
+topics: 腹部CT,腹痛
+reviewRequired: true
+---
+# 腹部CT检查选择
+腹痛存在急腹症、梗阻、穿孔或复杂感染疑虑时，可根据查体和初步检查考虑腹部CT。需关注辐射、造影剂风险、妊娠可能及检查能否改变治疗。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-019
+title: 腹部超声检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,消化内科
+topics: 腹部超声
+reviewRequired: true
+---
+# 腹部超声检查选择
+胆囊、肝胆、腹水及部分腹部疾病评估可优先考虑超声，其无电离辐射但受体型和操作者影响。阴性结果不能排除所有急腹症，应结合临床变化。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-020
+title: 甲状腺超声检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,内分泌科
+topics: 甲状腺超声
+reviewRequired: true
+---
+# 甲状腺超声检查选择
+甲状腺结节、肿大或局部压迫症状可选择超声评估结构，但超声不能替代甲状腺功能检查。结节风险需依据规范特征和临床背景分层。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-021
+title: 泌尿系统超声检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 放射科,泌尿外科
+topics: 泌尿超声
+reviewRequired: true
+---
+# 泌尿系统超声检查选择
+尿路梗阻、肾积水、残余尿或部分结石评估可选择泌尿系统超声。持续剧痛、感染伴梗阻或肾功能恶化时不能仅依赖门诊超声等待。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-022
+title: 十二导联心电图适用场景
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 心血管内科,急诊科
+topics: 心电图
+reviewRequired: true
+---
+# 十二导联心电图适用场景
+胸痛、心悸、晕厥、呼吸困难或电解质异常时，十二导联心电图可提供重要信息。正常心电图不能在所有情况下排除急性心肌缺血或阵发性心律失常。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-023
+title: 超声心动图检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 心血管内科
+topics: 心脏超声
+reviewRequired: true
+---
+# 超声心动图检查选择
+心脏杂音、心衰表现、结构性心脏病或心功能评估时可选择超声心动图。检查结果需结合症状、体征、心电图和既往心脏病史解释。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-024
+title: 动态心电图检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 心血管内科
+topics: 动态心电图
+reviewRequired: true
+---
+# 动态心电图检查选择
+间歇性心悸、晕厥或疑似阵发性心律失常而静息心电图未捕获时，可按发作频率选择动态监测。监测期间严重症状不应等待报告而延误急诊评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: TECH-025
+title: 肺功能检查选择
+knowledgeType: TECHNOLOGY_GUIDE
+sourceName: 国家卫生健康委员会诊疗规范公开资料
+sourceUrl: https://www.nhc.gov.cn/yzygj/
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 呼吸内科
+topics: 肺功能,哮喘,慢阻肺
+reviewRequired: true
+---
+# 肺功能检查选择
+稳定期反复喘息、慢性咳嗽或气流受限评估可选择肺功能检查。急性严重呼吸困难时应先稳定患者，检查质量和结果需结合配合程度及支气管舒张反应。
+
+

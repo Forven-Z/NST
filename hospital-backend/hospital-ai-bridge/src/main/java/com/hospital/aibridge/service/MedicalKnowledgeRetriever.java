@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 使用 Spring AI 的 EmbeddingModel（由 DashScope OpenAI 兼容接口提供）生成查询向量。
@@ -63,16 +65,16 @@ public class MedicalKnowledgeRetriever {
         if (record == null) {
             return "";
         }
-        if (StringUtils.hasText(record.getSymptomsSummary())) {
-            return record.getSymptomsSummary();
-        }
-        return String.join("；",
+        return Stream.of(
+                value("症状摘要", record.getSymptomsSummary()),
                 value("主诉", record.getReadme()),
                 value("现病史", record.getPresent()),
                 value("既往史", record.getHistory()),
                 value("过敏史", record.getAllergy()),
                 value("体格检查", record.getPhysique()),
-                value("初步诊断", record.getDiagnosis()));
+                value("初步诊断", record.getDiagnosis()))
+                .filter(StringUtils::hasText)
+                .collect(Collectors.joining("；"));
     }
 
     private String value(String label, String value) {

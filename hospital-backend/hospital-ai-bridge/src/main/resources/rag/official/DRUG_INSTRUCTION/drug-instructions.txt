@@ -1,0 +1,449 @@
+---
+documentCode: DRUG-001
+title: 阿莫西林用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 青霉素,过敏,阿莫西林胶囊
+reviewRequired: true
+---
+# 阿莫西林用药复核
+阿莫西林属于抗菌药物，处方前应确认细菌感染指征、青霉素及头孢类严重过敏史、肾功能和既往不良反应。普通感冒样症状不应作为常规使用依据。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-002
+title: 布洛芬用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 解热镇痛,NSAID,布洛芬缓释胶囊
+reviewRequired: true
+---
+# 布洛芬用药复核
+布洛芬用于对症缓解发热或疼痛时，应复核消化道出血、肾功能、心血管风险、妊娠和并用抗凝或其他非甾体抗炎药。避免与其他同类成分重复使用。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-003
+title: 对乙酰氨基酚用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 解热镇痛,肝功能,对乙酰氨基酚片
+reviewRequired: true
+---
+# 对乙酰氨基酚用药复核
+对乙酰氨基酚用于发热或疼痛的对症处理，处方前应核对肝功能、饮酒情况和其他复方感冒药中的同成分。不得因症状未缓解而随意叠加或超说明书使用。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-004
+title: 氯雷他定用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 抗过敏,嗜睡,氯雷他定片
+reviewRequired: true
+---
+# 氯雷他定用药复核
+氯雷他定用于过敏相关症状时，应确认症状与适应证相符，并复核肝肾功能、妊娠哺乳和并用药。若出现呼吸困难、低血压或进行性面唇舌肿胀，不能只依赖口服抗过敏药。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-005
+title: 西替利嗪用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 抗过敏,肾功能,盐酸西替利嗪片
+reviewRequired: true
+---
+# 西替利嗪用药复核
+西替利嗪用于过敏症状时，应关注嗜睡、驾驶操作风险、肾功能和其他镇静药物。严重过敏反应的呼吸循环危险信号需要紧急救治。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-006
+title: 氨溴索用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 祛痰,咳嗽,盐酸氨溴索片
+reviewRequired: true
+---
+# 氨溴索用药复核
+氨溴索用于痰液黏稠相关症状时，应先评估咳嗽病因和排痰能力。持续高热、咯血、低氧或呼吸困难时，不应以祛痰药替代进一步评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-007
+title: 乙酰半胱氨酸用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 祛痰,气道,乙酰半胱氨酸颗粒
+reviewRequired: true
+---
+# 乙酰半胱氨酸用药复核
+乙酰半胱氨酸作为祛痰药时，应结合痰液情况、气道反应和基础呼吸疾病判断。出现喘息加重、呼吸困难或不能有效排痰时需重新评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-008
+title: 奥美拉唑用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 抑酸,相互作用,奥美拉唑肠溶胶囊
+reviewRequired: true
+---
+# 奥美拉唑用药复核
+奥美拉唑使用前应确认反流或酸相关疾病指征，并复核长期用药必要性、相互作用和警示症状。吞咽困难、消化道出血、贫血或体重下降不能仅以抑酸治疗掩盖。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-009
+title: 蒙脱石散用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 腹泻,补液,蒙脱石散
+reviewRequired: true
+---
+# 蒙脱石散用药复核
+蒙脱石散只能作为部分腹泻的对症措施，不能替代补液和病因评估。血便、明显脱水、持续高热或剧烈腹痛时应及时就医，并注意与其他口服药错开。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-010
+title: 口服补液盐用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 腹泻,脱水,口服补液盐散（III）
+reviewRequired: true
+---
+# 口服补液盐用药复核
+口服补液盐适用于能够饮水者的脱水预防和纠正，应按说明书比例配制，不能随意改变浓度。休克、意识障碍、持续呕吐或无法饮水者需要静脉及急症评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-011
+title: 二甲双胍用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 糖尿病,肾功能,盐酸二甲双胍片
+reviewRequired: true
+---
+# 二甲双胍用药复核
+二甲双胍处方前应确认肾功能、急性缺氧或严重感染、脱水及造影检查等相关风险。急性重症状态或进食明显减少时，应由医生重新评估用药。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-012
+title: 氨氯地平用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 高血压,水肿,苯磺酸氨氯地平片
+reviewRequired: true
+---
+# 氨氯地平用药复核
+氨氯地平用于血压管理时，应结合规范血压测量、其他降压药和水肿、头晕等不良反应评估。胸痛或伴器官损害表现的严重高血压不能仅通过门诊加药处理。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-013
+title: 氯沙坦用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 高血压,妊娠,氯沙坦钾片
+reviewRequired: true
+---
+# 氯沙坦用药复核
+氯沙坦使用前应复核妊娠可能、肾功能、血钾、脱水和其他影响肾素血管紧张素系统的药物。治疗过程中需按病情监测血压、肾功能和电解质。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-014
+title: 阿托伐他汀用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 调脂,肝功能,阿托伐他汀钙片
+reviewRequired: true
+---
+# 阿托伐他汀用药复核
+阿托伐他汀应基于整体心血管风险使用，处方前复核肝病、肌肉症状、妊娠和潜在相互作用。出现明显肌痛无力或深色尿时应及时评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-015
+title: 沙丁胺醇吸入剂复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 支气管舒张,喘息,沙丁胺醇吸入气雾剂
+reviewRequired: true
+---
+# 沙丁胺醇吸入剂复核
+沙丁胺醇吸入剂用于可逆性气道痉挛时，应确认吸入技术并关注心悸、震颤及使用频率。频繁依赖缓解药、疗效差、低氧或不能完整说话提示哮喘控制不佳或严重发作。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-016
+title: 布地奈德吸入剂复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 吸入激素,哮喘,布地奈德吸入气雾剂
+reviewRequired: true
+---
+# 布地奈德吸入剂复核
+布地奈德吸入剂用于气道炎症控制时，应核对适应证、吸入技术、依从性并指导使用后漱口。它不能替代严重急性喘息时的紧急评估和救治。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-017
+title: 阿奇霉素用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 抗菌药物,QT间期,阿奇霉素片
+reviewRequired: true
+---
+# 阿奇霉素用药复核
+阿奇霉素处方前应确认抗菌指征，并复核心律失常或QT间期风险、肝功能和相互作用。病毒性上呼吸道感染不应常规使用抗菌药物。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-018
+title: 头孢呋辛酯用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 头孢菌素,过敏,头孢呋辛酯片
+reviewRequired: true
+---
+# 头孢呋辛酯用药复核
+头孢呋辛酯使用前应确认感染指征、严重β内酰胺类过敏史、肾功能和既往抗菌药物暴露。治疗反应差或出现严重皮疹、呼吸困难时需立即复评。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-019
+title: 莫匹罗星软膏用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 局部抗菌,伤口,莫匹罗星软膏
+reviewRequired: true
+---
+# 莫匹罗星软膏用药复核
+莫匹罗星用于适当的局部细菌感染时，应先评估伤口范围、深度、脓肿和全身感染表现。深部感染、大面积创面或发热扩散性红肿不能仅靠局部用药。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-020
+title: 复方氨酚烷胺用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 复方感冒药,重复成分,复方氨酚烷胺胶囊
+reviewRequired: true
+---
+# 复方氨酚烷胺用药复核
+复方感冒药处方前必须核对全部成分、患者年龄、肝肾功能和同时使用的退热止痛药。尤其应避免与其他含对乙酰氨基酚制剂重复。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-021
+title: 药物过敏史复核原则
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 过敏,严重不良反应,通用
+reviewRequired: true
+---
+# 药物过敏史复核原则
+开具处方前应区分真正的药物过敏、非过敏性不良反应和患者不确定的既往经历，并记录具体药名、反应及严重程度。既往严重速发反应或严重皮肤反应时不得未经评估再次暴露。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-022
+title: 儿童与妊娠用药复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 儿童,妊娠,哺乳,通用
+reviewRequired: true
+---
+# 儿童与妊娠用药复核
+儿童、妊娠和哺乳期用药应核对年龄体重、孕周、药物暴露风险和权威说明书，不可直接套用成人方案。缺少必要信息时应暂停生成具体用法并由医生补充评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-023
+title: 肝肾功能与剂量复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 肝功能,肾功能,通用
+reviewRequired: true
+---
+# 肝肾功能与剂量复核
+可能经肝肾代谢或排泄的药物，处方前应结合近期肝肾功能、脱水和基础疾病判断是否需要调整或避免。AI草稿不得在缺少关键功能指标时自行推断安全剂量。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-024
+title: 抗菌药物合理使用
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 抗菌药物,耐药,通用
+reviewRequired: true
+---
+# 抗菌药物合理使用
+抗菌药物应基于可能的细菌感染、病灶、严重程度和当地规范选择，并尽量依据微生物结果调整。普通感冒和多数无肺炎证据的急性支气管炎不应常规使用抗菌药物。
+
+
+=== DOCUMENT ===
+---
+documentCode: DRUG-025
+title: 重复成分与相互作用复核
+knowledgeType: DRUG_INSTRUCTION
+sourceName: 国家药品监督管理局药品数据与安全用药公开资料
+sourceUrl: https://www.nmpa.gov.cn/datasearch/home-index.html
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 药房,内科
+ topics: 重复用药,相互作用,通用
+reviewRequired: true
+---
+# 重复成分与相互作用复核
+确认处方前应检查同成分、同类药物、处方药与非处方药及患者自购药，避免重复和重要相互作用。多重用药、抗凝药、镇静药或影响QT间期药物并用时应提高复核级别。
+
+
