@@ -9,9 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 
@@ -101,6 +103,116 @@ public class RagKnowledgeRepository {
             return 0L;
         }
     }
+
+    public Optional<String> findContentHash(String code) {
+        if (!available) {
+            return Optional.empty();
+        }
+        return jdbcClient.sql("""
+                SELECT d.metadata ->> 'contentHash'
+                FROM ai_knowledge_document d
+                WHERE d.document_code = :code
+                  AND d.status = 'ACTIVE'
+                  AND EXISTS (
+                      SELECT 1 FROM ai_knowledge_chunk c
+                      WHERE c.document_id = d.id
+                        AND vector_dims(c.embedding) = :dimensions
+                  )
+                """)
+                .param("code", code)
+                .param("dimensions", properties.getDimensions())
+                .query(String.class)
+                .optional();
+    }
+
+    public long countActiveOfficialDocuments() {
+        if (!available) {
+            return 0L;
+        }
+        Long count = jdbcClient.sql("""
+                SELECT COUNT(*)
+                FROM ai_knowledge_document
+                WHERE status = 'ACTIVE'
+                  AND metadata ->> 'dataLevel' = 'OFFICIAL_SUMMARY'
+                """).query(Long.class).single();
+        return count == null ? 0L : count;
+    }
+
+    @Transactional
+    public void upsertDocument(String code, String title, String knowledgeType,
+                               String sourceName, String sourceVersion, LocalDate effectiveDate,
+                               Map<String, Object> metadata, List<KnowledgeChunk> chunks) {
+        if (!available || chunks == null || chunks.isEmpty()) {
+            throw new IllegalStateException("RAG repository unavailable or document has no chunks");
+        }
+        try {
+            String metadataJson = objectMapper.writeValueAsString(metadata);
+            Long documentId = jdbcClient.sql("""
+                    INSERT INTO ai_knowledge_document
+                        (document_code, title, knowledge_type, source_name, source_version,
+                         effective_date, status, metadata)
+                    VALUES (:code, :title, :knowledgeType, :sourceName, :sourceVersion,
+                            :effectiveDate, 'ACTIVE', CAST(:metadata AS jsonb))
+                    ON CONFLICT (document_code) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        knowledge_type = EXCLUDED.knowledge_type,
+                        source_name = EXCLUDED.source_name,
+                        source_version = EXCLUDED.source_version,
+                        effective_date = EXCLUDED.effective_date,
+                        expire_date = NULL,
+                        status = 'ACTIVE',
+                        metadata = EXCLUDED.metadata,
+                        update_time = CURRENT_TIMESTAMP
+                    RETURNING id
+                    """)
+                    .param("code", code)
+                    .param("title", title)
+                    .param("knowledgeType", knowledgeType)
+                    .param("sourceName", sourceName)
+                    .param("sourceVersion", sourceVersion)
+                    .param("effectiveDate", effectiveDate)
+                    .param("metadata", metadataJson)
+                    .query(Long.class).single();
+            jdbcClient.sql("DELETE FROM ai_knowledge_chunk WHERE document_id = :documentId")
+                    .param("documentId", documentId).update();
+            for (KnowledgeChunk chunk : chunks) {
+                if (chunk.embedding() == null || chunk.embedding().length != properties.getDimensions()) {
+                    throw new IllegalArgumentException("Embedding dimension mismatch for " + code);
+                }
+                jdbcClient.sql("""
+                        INSERT INTO ai_knowledge_chunk
+                            (document_id, chunk_no, content, token_count, embedding, metadata)
+                        VALUES (:documentId, :chunkNo, :content, :tokenCount,
+                                CAST(:embedding AS vector), CAST(:metadata AS jsonb))
+                        """)
+                        .param("documentId", documentId)
+                        .param("chunkNo", chunk.chunkNo())
+                        .param("content", chunk.content())
+                        .param("tokenCount", Math.max(1, chunk.content().length() / 2))
+                        .param("embedding", vectorLiteral(chunk.embedding()))
+                        .param("metadata", metadataJson)
+                        .update();
+            }
+        } catch (RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to sync RAG document " + code, ex);
+        }
+    }
+
+    public int deactivateDemoDocuments() {
+        if (!available) {
+            return 0;
+        }
+        return jdbcClient.sql("""
+                UPDATE ai_knowledge_document
+                SET status = 'INACTIVE', update_time = CURRENT_TIMESTAMP
+                WHERE status = 'ACTIVE'
+                  AND (source_version = 'DEMO-1.0' OR document_code LIKE 'DEMO-%')
+                """).update();
+    }
+
+    public record KnowledgeChunk(int chunkNo, String content, float[] embedding) { }
 
     /**
      * 保存一个单切片演示文档。正式知识导入可沿用此表结构扩展为多切片。

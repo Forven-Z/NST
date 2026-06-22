@@ -27,6 +27,9 @@
 | **SQL** | [sql/README.md](./sql/README.md) | 建表与 seed |
 | **L4 按需** | [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) | **影像 MinIO + 按 patient_id 查结果**（跨模块必读） |
 | **L4 按需** | [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) | CT CNN 集成与 pacs API |
+| **L4 按需** | [RAG_VECTOR_DATABASE.md](./RAG_VECTOR_DATABASE.md) | 医生端RAG向量表、Embedding、检索与验证SQL |
+| **L4 按需** | [RAG_KNOWLEDGE_BASE.md](./RAG_KNOWLEDGE_BASE.md) | 4个知识TXT的格式、分类、维护与审核规则 |
+| **L4 按需** | [RAG_RUN_GUIDE.md](./RAG_RUN_GUIDE.md) | 医生端RAG首次安装、启动、入库验证与Postman测试 |
 
 > **已合并删除**（勿再引用）：`API_INTERFACE_SPEC.md`、`FRONTEND_API_MAP.md`（正文）→ **API.md v2.1**；`INTEGRATION_CHECKLIST.md` → RUNBOOK §十二；`DEVELOPMENT_RATIONALE.md` → IMPLEMENTATION_PLAN §八；`TECH_ARCHITECTURE.md` → MICROSERVICES §八。
 
