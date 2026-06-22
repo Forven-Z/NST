@@ -28,9 +28,11 @@ function syncPhoneRegistry() {
 let nextRegisterId = 31000
 let nextBillId = 82000
 let nextPaymentId = 90000
+let nextRefundId = 91000
 const registers = []
 const bills = []
 const payments = []
+const refunds = []
 const triageSessions = {}
 
 function ok(data) {
@@ -113,7 +115,8 @@ function seedRegisters() {
     paymentId: 90001,
     paidAt: '2026-06-03 09:30:00',
     amount: 20,
-    channel: '模拟支付',
+    channel: 'WECHAT',
+    channelLabel: '微信',
     registerId: 3000,
     patientId: 10001,
     summary: '挂号费 · 内科',
@@ -449,6 +452,30 @@ function listPayments(params) {
     list = list.filter((p) => p.registerId === Number(params.registerId))
   }
   list.sort((a, b) => (b.paymentId || 0) - (a.paymentId || 0))
+  list = list.map(function (p) {
+    return Object.assign({}, p, {
+      channelLabel: p.channelLabel || p.channel || '—',
+    })
+  })
+  return ok({ list, page: 1, pageSize: 20 })
+}
+
+function listRefunds(params) {
+  params = params || {}
+  let list = [...refunds]
+  if (params.patientId) {
+    list = list.filter(function (r) { return r.patientId === Number(params.patientId) })
+  }
+  if (params.registerId) {
+    list = list.filter(function (r) { return r.registerId === Number(params.registerId) })
+  }
+  list.sort(function (a, b) { return (b.refundId || 0) - (a.refundId || 0) })
+  list = list.map(function (r) {
+    return Object.assign({}, r, {
+      channelLabel: r.channelLabel || r.channel || '—',
+      amount: r.amount != null ? r.amount : r.refundAmount,
+    })
+  })
   return ok({ list, page: 1, pageSize: 20 })
 }
 
@@ -476,7 +503,8 @@ function mockPay(billIds) {
       paymentId: nextPaymentId,
       paidAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       amount: Math.round(paid * 100) / 100,
-      channel: '模拟支付',
+      channel: 'WECHAT',
+      channelLabel: '微信',
       registerId: first.registerId,
       patientId: first.patientId,
       summary: titles,
@@ -798,6 +826,7 @@ module.exports = {
   queueStatus,
   listBills,
   listPayments,
+  listRefunds,
   mockPay,
   cancelRegister,
   getMedicalRecord,

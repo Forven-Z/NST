@@ -13,6 +13,8 @@ spring:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${NACOS_NAMESPACE:}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
+        # 本地一键启动时 Nacos gRPC 可能尚未就绪；false 避免注册失败导致 Gateway 退出
+        fail-fast: false
     gateway:
       discovery:
         locator:

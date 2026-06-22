@@ -66,8 +66,8 @@ public class PatientLoginPersistence {
         String normalizedPhone = StringUtils.hasText(phone) ? phone.trim() : null;
         String normalizedIdCard = IdCardUtils.normalizeIdCard(idCard);
 
-        if (!StringUtils.hasText(normalizedPhone) && !StringUtils.hasText(normalizedIdCard)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "请填写身份证号或手机号");
+        if (!StringUtils.hasText(normalizedPhone) || !StringUtils.hasText(normalizedIdCard)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "请填写身份证号和手机号");
         }
 
         LocalDate resolvedBirthDate = IdCardUtils.resolveBirthDate(birthDate, age, normalizedIdCard);

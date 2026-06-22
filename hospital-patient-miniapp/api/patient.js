@@ -65,6 +65,11 @@ function fetchPayments(params) {
   return get('/patient/payments', params)
 }
 
+function fetchRefunds(params) {
+  if (useMock()) return store.listRefunds(params)
+  return get('/patient/refunds', params)
+}
+
 function mockPayment(billIds) {
   if (useMock()) return store.mockPay(billIds)
   return post('/patient/payments', { billIds })
@@ -115,6 +120,7 @@ module.exports = {
   fetchBills,
   fetchPendingBills,
   fetchPayments,
+  fetchRefunds,
   mockPayment,
   cancelRegister,
   fetchMedicalRecord,

@@ -204,9 +204,9 @@ Mock 数据结构 **与本文件一致**。
 | ⬜ | P1 | GET | `/patient/registers/{registerId}/orders` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/bills` | his | PATIENT |
 | ✅ | P1 | POST | `/patient/payments` | his | PATIENT |
-| ⬜ | P2 | GET | `/patient/payments` | his | PATIENT |
-| ⬜ | P2 | GET | `/patient/payments/{paymentId}` | his | PATIENT |
-| ⬜ | P2 | GET | `/patient/refunds` | his | PATIENT |
+| ✅ | P2 | GET | `/patient/payments` | his | PATIENT |
+| ✅ | P2 | GET | `/patient/payments/{paymentId}` | his | PATIENT |
+| ✅ | P2 | GET | `/patient/refunds` | his | PATIENT |
 | P4 | P4 | POST | `/patient/payments/wechat/prepay` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/medical-records/{registerId}` | his | PATIENT |
 | ✅ | P2 | GET | `/patient/reports` | his | PATIENT |
@@ -256,9 +256,14 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2 | GET | `/registrar/schedules` | his | REGISTRAR |
 | ✅ | P2 | POST | `/registrar/refunds` | his | REGISTRAR |
 | ✅ | P2 | GET | `/registrar/patients/{medicalRecordNo}/bills` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/patients/bills` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/patients/payments` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/patients/refunds` | his | REGISTRAR |
+| ✅ | P2 | GET | `/registrar/shift-summary` | his | REGISTRAR |
 | ✅ | P2 | POST | `/registrar/registers/{registerId}/cancel` | his | REGISTRAR |
 | ⬜ | P2 | GET | `/registrar/regist-levels` | his | REGISTRAR |
 | ✅ | P1 | GET | `/admin/departments` 等字典 | mgmt | ADMIN |
+| ✅ | P2 | GET | `/admin/finance/daily-summary` | mgmt | ADMIN |
 | ⬜ | P1 | GET/POST/PUT | `/admin/scheduling` | mgmt | ADMIN |
 | ⬜ | P1 | GET/CRUD | `/admin/employees` | mgmt | ADMIN |
 | ⬜ | P1+ | POST/PUT/DELETE | `/admin/**` 字典写 | mgmt | ADMIN |
@@ -438,13 +443,19 @@ Mock 数据结构 **与本文件一致**。
 **Request**：`{ "billIds": [81001, 81002] }`  
 **Response `data`**：`paymentId`, `paidAmount`, `status`
 
-### GET `/patient/payments` ⬜ P2
+### GET `/patient/payments` ✅ P2
 
-**Query**：`page`, `pageSize`, `registerId`, `patientId`
+**Query**：`page`, `pageSize`, `registerId`, `patientId` / `visitPatientId`  
+**Response `data.list[]`**：`paymentId`, `summary`, `amount`, `channel`, `channelLabel`, `paidAt`, `registerId`
 
-### GET `/patient/payments/{paymentId}` ⬜ P2
+### GET `/patient/payments/{paymentId}` ✅ P2
 
-### GET `/patient/refunds` ⬜ P2
+**Response `data`**：支付摘要 + `bills[]`（关联账单明细，含 `bizTypeLabel`）
+
+### GET `/patient/refunds` ✅ P2
+
+**Query**：`page`, `pageSize`, `registerId`, `patientId` / `visitPatientId`  
+**Response `data.list[]`**：`refundId`, `billTitle`, `refundAmount`, `channel`, `channelLabel`, `refundTime`, `reason`
 
 ### POST `/patient/payments/wechat/prepay` P4
 
@@ -799,6 +810,10 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | POST | `/registrar/charges` | 窗口收费（批量待缴，`payChannel` 记账） |
 | ✅ | POST | `/registrar/refunds` | `{ "billId", "reason" }` |
 | ✅ | GET | `/registrar/patients/{medicalRecordNo}/bills` | 按病历号查账 |
+| ✅ | GET | `/registrar/patients/bills` | 按病历号/身份证/姓名查账 |
+| ✅ | GET | `/registrar/patients/payments` | 患者已付流水（同上查询条件） |
+| ✅ | GET | `/registrar/patients/refunds` | 患者退款记录（同上查询条件） |
+| ✅ | GET | `/registrar/shift-summary` | 当前收费员当班汇总；Query `workDate?` |
 | ✅ | POST | `/registrar/registers/{registerId}/cancel` | 窗口退号 |
 
 **GET `/registrar/schedules` Query**：`deptId`, `employeeId`, `registLevelId`, `workDate`（ISO 日期，缺省为当天）
@@ -841,7 +856,7 @@ Mock 数据结构 **与本文件一致**。
 |--------------|------|
 | `CASH` / `WECHAT` / `ALIPAY` / `INSURANCE` / `SCAN` | 开发期均记账，不调第三方支付 SDK |
 
-**窗口收费 Response `data`**：`paymentId`, `paidAmount`, `message`
+**窗口收费 Response `data`**：`paymentId`, `paidAmount`, `payChannel`, `channelLabel`, `message`
 
 > `REGISTER` 账单付清后 `visit_state` → `1`（已挂号）；`MEDICAL_BOOK` 付清后更新 `patient.need_medical_book`。
 
@@ -919,6 +934,14 @@ Mock 数据结构 **与本文件一致**。
 ### 9.4 字典 CRUD 写操作 ⬜ P2
 
 各资源 `POST` / `PUT` / `DELETE`（逻辑删）与只读路径对称，见 §9.1 资源名。
+
+### 9.6 财务汇总 ✅ P2
+
+| 状态 | Method | 路径 | 说明 |
+|------|--------|------|------|
+| ✅ | GET | `/admin/finance/daily-summary` | Query：`dateFrom?`, `dateTo?`（缺省当天） |
+
+**Response `data`**：`paymentCount`, `paymentTotal`, `refundCount`, `refundTotal`, `netTotal`, `paymentsByChannel[]`, `refundsByChannel[]`（含 `channelLabel`）
 
 ---
 

@@ -20,6 +20,7 @@ import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -111,7 +112,22 @@ public class PaymentService {
     }
 
     public Map<String, Object> listPendingBills(Long visitPatientId) {
+        return listBills(visitPatientId, BillStatus.PENDING, null, null);
+    }
+
+    public Map<String, Object> listBills(Long visitPatientId, Integer status, Long registerId, String scope) {
         Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
-        return Map.of("list", billRepository.findByPatientIdForDisplay(visitId, BillStatus.PENDING));
+        List<Map<String, Object>> list = billRepository.findByPatientIdForDisplay(visitId, status);
+        if (registerId != null) {
+            list = list.stream()
+                    .filter(row -> registerId.equals(row.get("registerId")))
+                    .toList();
+        }
+        if (StringUtils.hasText(scope)) {
+            list = list.stream()
+                    .filter(row -> FinancialQueryService.matchesBillScope((String) row.get("bizType"), scope))
+                    .toList();
+        }
+        return Map.of("list", list);
     }
 }

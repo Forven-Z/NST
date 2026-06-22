@@ -59,7 +59,7 @@
         <view class="price">¥{{item.amount}}</view>
       </view>
       <view class="muted">支付流水 #{{item.paymentId}}</view>
-      <view class="muted">{{item.paidAt}} · {{item.channel}}</view>
+      <view class="muted">{{item.paidAt}} · {{item.channelLabel || item.channel}}</view>
     </view>
   </block>
 </view>

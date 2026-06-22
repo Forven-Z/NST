@@ -1,0 +1,14 @@
+.refund-item {
+  margin-bottom: 16rpx;
+}
+
+.bill-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.reason {
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  color: #475569;
+}

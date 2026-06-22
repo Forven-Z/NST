@@ -19,6 +19,7 @@ import {
   mockCreateEmployee,
   mockDeleteDepartment,
   mockDeleteEmployee,
+  mockFinanceDailySummary,
   mockUpdateDepartment,
   mockUpdateEmployee,
 } from '../mock/admin'
@@ -122,4 +123,9 @@ export function updateAdminSchedule(schedulingId, data) {
   if (data.publishStatus != null) payload.publishStatus = data.publishStatus
   return request.put(`/admin/scheduling/${schedulingId}`, payload)
 }
-
+
+export function fetchFinanceDailySummary(params) {
+  if (useMock()) return mockFinanceDailySummary(params)
+  return request.get('/admin/finance/daily-summary', { params })
+}
+

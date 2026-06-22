@@ -31,6 +31,27 @@ public class RegisterRepository {
                 RegisterChannel.ONLINE, null);
     }
 
+    /** 同日、同医生、同午别是否存在未结束的有效挂号（待支付/已挂号/接诊中） */
+    public boolean existsActiveRegister(Long patientId, Long employeeId, LocalDate visitDate, int noonType) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*)::int
+                        FROM register
+                        WHERE delmark = 0
+                          AND patient_id = :patientId
+                          AND employee_id = :employeeId
+                          AND visit_date = :visitDate
+                          AND noon_type = :noonType
+                          AND visit_state IN (0, 1, 2)
+                        """)
+                .param("patientId", patientId)
+                .param("employeeId", employeeId)
+                .param("visitDate", visitDate)
+                .param("noonType", noonType)
+                .query(Integer.class)
+                .single();
+        return count != null && count > 0;
+    }
+
     public long insertRegister(Long patientId, Long schedulingId, Long deptId, Long employeeId,
                                Long registLevelId, Long settleCategoryId, LocalDate visitDate,
                                int noonType, int visitState, BigDecimal registFee,
@@ -156,27 +177,49 @@ public class RegisterRepository {
     public List<Map<String, Object>> findDoctorQueue(Long employeeId, Integer visitState, String keyword,
                                                     int offset, int limit) {
         return jdbcClient.sql("""
-                        SELECT r.id AS register_id,
-                               p.medical_record_no,
-                               p.real_name AS patient_name,
-                               p.gender,
-                               p.birth_date,
-                               r.visit_state,
-                               r.create_time AS regist_time,
-                               rl.level_name AS regist_level_name
-                        FROM register r
-                        JOIN patient p ON r.patient_id = p.id
-                        JOIN regist_level rl ON r.regist_level_id = rl.id
-                        WHERE r.delmark = 0
-                          AND r.employee_id = :employeeId
-                          AND r.visit_date = CURRENT_DATE
-                          AND (CAST(:visitState AS INTEGER) IS NULL OR r.visit_state = CAST(:visitState AS INTEGER))
-                          AND (
-                              CAST(:keyword AS VARCHAR) IS NULL OR CAST(:keyword AS VARCHAR) = ''
-                              OR p.medical_record_no ILIKE :keywordPattern
-                              OR p.real_name ILIKE :keywordPattern
-                          )
-                        ORDER BY r.create_time
+                        SELECT register_id,
+                               patient_id,
+                               medical_record_no,
+                               patient_name,
+                               gender,
+                               birth_date,
+                               visit_state,
+                               regist_time,
+                               regist_level_name
+                        FROM (
+                            SELECT r.id AS register_id,
+                                   r.patient_id,
+                                   p.medical_record_no,
+                                   p.real_name AS patient_name,
+                                   p.gender,
+                                   p.birth_date,
+                                   r.visit_state,
+                                   r.create_time AS regist_time,
+                                   rl.level_name AS regist_level_name,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY r.patient_id
+                                       ORDER BY r.create_time ASC, r.id ASC
+                                   ) AS rn
+                            FROM register r
+                            JOIN patient p ON r.patient_id = p.id
+                            JOIN regist_level rl ON r.regist_level_id = rl.id
+                            WHERE r.delmark = 0
+                              AND r.employee_id = :employeeId
+                              AND r.visit_date = CURRENT_DATE
+                              AND (
+                                  CAST(:visitState AS INTEGER) IS NOT NULL
+                                      AND r.visit_state = CAST(:visitState AS INTEGER)
+                                  OR CAST(:visitState AS INTEGER) IS NULL
+                                      AND r.visit_state IN (1, 2)
+                              )
+                              AND (
+                                  CAST(:keyword AS VARCHAR) IS NULL OR CAST(:keyword AS VARCHAR) = ''
+                                  OR p.medical_record_no ILIKE :keywordPattern
+                                  OR p.real_name ILIKE :keywordPattern
+                              )
+                        ) q
+                        WHERE rn = 1
+                        ORDER BY regist_time
                         LIMIT :limit OFFSET :offset
                         """)
                 .param("employeeId", employeeId)
@@ -188,6 +231,7 @@ public class RegisterRepository {
                 .query((rs, rowNum) -> {
                     Map<String, Object> row = new HashMap<>();
                     row.put("registerId", rs.getLong("register_id"));
+                    row.put("patientId", rs.getLong("patient_id"));
                     row.put("medicalRecordNo", rs.getString("medical_record_no"));
                     row.put("patientName", rs.getString("patient_name"));
                     row.put("gender", rs.getObject("gender", Integer.class));
@@ -332,6 +376,39 @@ public class RegisterRepository {
                 .param("visitState", visitState)
                 .param("limit", limit)
                 .param("offset", offset)
+                .query((rs, rowNum) -> mapRegisterRow(rs))
+                .list();
+    }
+
+    /** 收费窗口：按患者查挂号记录（可选 visitState 过滤） */
+    public List<Map<String, Object>> findByPatientIdForRegistrar(Long patientId, Integer visitState, int limit) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        WHERE r.delmark = 0
+                          AND r.patient_id = :patientId
+                          AND (CAST(:visitState AS INTEGER) IS NULL OR r.visit_state = CAST(:visitState AS INTEGER))
+                        ORDER BY r.create_time DESC
+                        LIMIT :limit
+                        """)
+                .param("patientId", patientId)
+                .param("visitState", visitState)
+                .param("limit", limit)
                 .query((rs, rowNum) -> mapRegisterRow(rs))
                 .list();
     }

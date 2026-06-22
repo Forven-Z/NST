@@ -12,6 +12,7 @@
     "pages/cards/cards",
     "pages/cards/add/add",
     "pages/bills/bills",
+    "pages/refunds/refunds",
     "pages/profile/profile",
     "pages/medical-record/medical-record",
     "pages/orders/orders"

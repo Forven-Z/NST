@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — 启动、联调与验收手册
 
-> **版本**：v2.7 | 2026-06-15  
+> **版本**：v2.8 | 2026-06-15  
 > **用途**：日常 **开什么、怎么开**；**R-min～R-full 联调验收**（原 INTEGRATION_CHECKLIST 已并入本文 §十二）。  
 > **环境安装**（首次装软件）：见 [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md)  
 > **实现进度**：见 [PROGRESS.md](./PROGRESS.md)  
@@ -43,7 +43,35 @@ cd <你的仓库路径>\NST
 .\scripts\start-project.ps1 -Restart             # 先 stop-project 再启动
 ```
 
-停止：`.\scripts\stop-project.ps1`（不关 Nacos；需关 Nacos 见 §八）
+停止：`.\scripts\stop-project.ps1`（不关 Nacos；需关 Nacos 见 §八；会一并停止 his 副本 **9202**）
+
+### A.1 答辩：hospital-his 双实例（Gateway 负载均衡）
+
+> **用途**：Nacos 中 `hospital-his` 显示 **2 个实例**，Gateway `lb://hospital-his` 轮询分流。  
+> **前提**：必须先 `start-project.ps1`（主实例 **9102**、Nacos、Gateway 已就绪）。
+
+```powershell
+# 1. 正常一键启动
+.\scripts\start-project.ps1 -EnvProfile cloud   # 或 local
+
+# 2. 追加第二个 his 实例（固定端口 9202，服务名仍为 hospital-his）
+.\scripts\start-his-replica.ps1 -EnvProfile cloud
+
+# 3. Nacos 控制台 → 服务管理 → hospital-his → 实例数应为 2（9102 + 9202）
+
+# 4. 演示结束，仅停副本（主实例 9102 继续运行）
+.\scripts\stop-his-replica.ps1
+```
+
+**如何验证负载均衡**
+
+| 步骤 | 说明 |
+|------|------|
+| 经 Gateway 访问 | 必须用 **`http://127.0.0.1:9000/api/v1/...`**，不要直连 9102/9202 |
+| 看日志 | 主实例 `logs/project/hospital-his.log`，副本 `logs/project/hospital-his-replica-9202.log` |
+| 多次请求 | 带 Token 反复请求如 `GET /registrar/departments`，两日志应交替出现访问 |
+
+**注意**：`hospital-ai-bridge` 等模块若配置了 `HOSPITAL_HIS_BASE_URL=http://127.0.0.1:9102` 为 Feign **直连**，不经过 Gateway 负载均衡；答辩演示 LB 时用 **前端或 curl 打 9000** 即可。
 
 ### B. 精简启动（仅 R-min · 小程序 / 最小联调）
 
@@ -68,7 +96,9 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 | 文件 | 作用 | 不会启动 |
 |------|------|----------|
 | [scripts/start-project.ps1](../scripts/start-project.ps1) | **一键启动**：`env-{profile}.ps1` → Nacos（8848，若未运行）→ **8 个 Java 微服务**（9101～9107、9000）→ PC 前端（5173） | PostgreSQL、MinIO、**Python hospital-ai（8000）**、小程序 |
-| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9107）+ 前端（5173） | **不关** Nacos（8848）、Python（8000）、PG/MinIO |
+| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9107、**9202**）+ 前端（5173） | **不关** Nacos（8848）、Python（8000）、PG/MinIO |
+| [scripts/start-his-replica.ps1](../scripts/start-his-replica.ps1) | **答辩用**：在 9102 已启后，再起 his 副本 **9202**（Nacos 双实例 + Gateway LB） | 不启 Nacos/Gateway/其他微服务 |
+| [scripts/stop-his-replica.ps1](../scripts/stop-his-replica.ps1) | 仅停 his 副本 **9202** | 不影响主实例 9102 |
 | [scripts/env-cloud.ps1](../scripts/env-cloud.ps1) | `DB_HOST` / `MINIO_*` → ECS；`DB_PASSWORD` 为**云 PG 密码**（≠ 本机 `123456`） | 不启任何进程 |
 | [scripts/env-local.ps1](../scripts/env-local.ps1) | `DB_HOST` / `MINIO_*` → `127.0.0.1` | 不启任何进程 |
 | [scripts/start-r-min.ps1](../scripts/start-r-min.ps1) | **R-min 精简**：auth + his + ai-bridge + gateway（无 lis/pacs/前端） | 同上 |
@@ -429,7 +459,7 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | Nacos | http://127.0.0.1:8848/nacos | 控制台可开 |
 | MinIO | http://127.0.0.1:9002 | 控制台可登录 |
 | Gateway | http://127.0.0.1:9000 | 有响应（非连接拒绝） |
-| Nacos 服务列表 | 控制台 → 服务管理 | 已启的 Java 服务已注册 |
+| Nacos 服务列表 | 控制台 → 服务管理 | 已启的 Java 服务已注册；答辩 LB 时 **hospital-his 可为 2 实例**（9102+9202） |
 | 端口占用 | `netstat -ano ^| findstr :9000` | gateway 在监听 |
 
 ---
@@ -438,7 +468,8 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 
 | 组件 | 停法 |
 | --- | --- |
-| Java 服务 | IDEA Stop，或关闭 jar 窗口 |
+| Java 服务 | IDEA Stop，或 `.\scripts\stop-project.ps1`（含 9202 副本） |
+| his 副本（仅 9202） | `.\scripts\stop-his-replica.ps1` |
 | MinIO | 关闭 MinIO CMD 窗口 |
 | Nacos | `D:\dev\nacos\bin\shutdown.cmd` |
 | PostgreSQL | 一般 **不要停**（Windows 服务保持运行） |
@@ -565,3 +596,4 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | v2.5 | 2026-06-15 | §零 D 补充脚本边界（不含 Python/PG/MinIO）；`start-project` 默认 `cloud` |
 | v2.6 | 2026-06-15 | 新增 `start-hospital-ai.ps1` / `stop-hospital-ai.ps1`（单独启停 CNN :8000） |
 | v2.7 | 2026-06-15 | `start-project` 默认 `-EnvProfile local`（本机库；云端显式 `-EnvProfile cloud`） |
+| v2.8 | 2026-06-15 | §A.1 `start-his-replica.ps1` / `stop-his-replica.ps1`（his 双实例 LB 答辩演示）；`stop-project` 含 9202 |
