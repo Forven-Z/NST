@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MprViewer from '../../components/imaging/MprViewer.vue'
@@ -16,6 +16,7 @@ const router = useRouter()
 const checkRequestId = computed(() => Number(route.query.checkRequestId) || null)
 const patientName = computed(() => route.query.patientName || '-')
 const itemName = computed(() => route.query.itemName || '-')
+const viewMode = computed(() => route.query.view === '1' || route.query.view === 'true')
 
 const pageTitle = computed(() => {
   const name = itemName.value || ''
@@ -160,6 +161,38 @@ async function onDicomChange(e) {
   else studyStatus.value = '请选择影像文件'
 }
 
+async function loadStoredPreview() {
+  if (!checkRequestId.value) return
+  error.value = ''
+  resetResults()
+  previewLoading.value = true
+  studyStatus.value = '正在从 MinIO 加载历史影像…'
+  try {
+    const previewRes = await fetchPacsImagingPreview(checkRequestId.value)
+    maskSlices.value = previewRes.data?.maskSlices || []
+    const [ctUrl, maskUrl] = await Promise.all([
+      fetchPacsPreviewBlob(checkRequestId.value, 'ct'),
+      fetchPacsPreviewBlob(checkRequestId.value, 'mask'),
+    ])
+    ctObjectUrl.value = ctUrl
+    maskObjectUrl.value = maskUrl
+    showResults.value = true
+    studyStatus.value = '已加载 MinIO 中的影像与掩码'
+    await nextTick()
+    mountViewer.value = true
+  } catch (err) {
+    showResults.value = false
+    studyStatus.value = '暂无可查看的 AI 影像'
+    const msg = err.message || '加载失败'
+    error.value = /尚未|未完成|不存在|404|COMPLETED/i.test(msg)
+      ? '尚未 AI 检测，请先上传并完成检测'
+      : msg
+    ElMessage.warning(error.value)
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 async function loadPreviewVolumes() {
   if (!checkRequestId.value) return
   revokeUrls()
@@ -225,6 +258,21 @@ function goBack() {
   router.push('/pacs/queue')
 }
 
+onMounted(() => {
+  if (viewMode.value && checkRequestId.value) {
+    loadStoredPreview()
+  }
+})
+
+watch(
+  () => [route.query.checkRequestId, route.query.view],
+  () => {
+    if (viewMode.value && checkRequestId.value) {
+      loadStoredPreview()
+    }
+  },
+)
+
 onBeforeUnmount(() => {
   stopProgressTimer()
   revokeUrls()
@@ -241,6 +289,7 @@ onBeforeUnmount(() => {
           <template v-if="checkRequestId">
             · 检查 #{{ checkRequestId }} {{ patientName }} · {{ itemName }}
           </template>
+          <template v-if="viewMode"> · 查看模式</template>
         </p>
       </div>
       <el-button link type="primary" @click="goBack">返回检查队列</el-button>
@@ -319,7 +368,9 @@ onBeforeUnmount(() => {
         <p v-else-if="showResults && ctObjectUrl && !mountViewer" class="panel-tip">
           掩码已就绪，正在准备阅片组件…
         </p>
-        <p v-else class="panel-tip">上传并完成 AI 检测后显示三视图</p>
+        <p v-else class="panel-tip">
+          {{ viewMode ? '正在尝试加载已保存的影像…' : '上传并完成 AI 检测后显示三视图' }}
+        </p>
       </section>
     </main>
   </div>
