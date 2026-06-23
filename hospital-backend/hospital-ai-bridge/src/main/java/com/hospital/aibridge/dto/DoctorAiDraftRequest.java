@@ -11,5 +11,6 @@ public class DoctorAiDraftRequest {
     private Long registerId;
     private String draftType;
     private DiagnosisSuggestRequest medicalRecord;
+    private String clinicalResultContext;
     private List<Map<String, Object>> candidates;
 }

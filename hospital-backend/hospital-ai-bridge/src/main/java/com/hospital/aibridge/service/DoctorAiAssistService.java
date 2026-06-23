@@ -115,6 +115,9 @@ public class DoctorAiAssistService {
                 参考知识用于判断医学必要性，但最终只能返回候选项目中真实存在的 ID。
                 """.formatted(request.getDraftType(), recordText(request.getMedicalRecord()),
                 writeJson(request.getCandidates()), evidenceText(retrieval.evidence()));
+        prompt = prompt + "\n\n检查/检验返回结果：\n" + resultContextText(request.getClinicalResultContext())
+                + "\n\n处方/处置生成约束：若本次生成的是 PRESCRIPTION 或 DISPOSAL，必须结合检查/检验返回结果，"
+                + "不得基于未返回结果进行推断；如果结果与候选处方/处置不匹配，应保守处理并在 aiReason 中提示医生核对。";
         Map<String, Object> result = enabled() ? callJson(prompt).orElse(fallback) : fallback;
         DraftSafetyValidator.ValidationResult validation = safetyValidator.validate(
                 request.getDraftType(), resultItems(result), request.getCandidates());
@@ -222,6 +225,10 @@ public class DoctorAiAssistService {
 
     private String text(String value) {
         return StringUtils.hasText(value) ? value : "未填写";
+    }
+
+    private String resultContextText(String value) {
+        return StringUtils.hasText(value) ? value : "无已返回检查/检验结果";
     }
 
     private String writeJson(Object value) {
