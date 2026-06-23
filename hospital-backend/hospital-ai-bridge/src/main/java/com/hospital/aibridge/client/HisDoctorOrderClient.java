@@ -46,6 +46,14 @@ public class HisDoctorOrderClient {
         };
     }
 
+    public Map<String, Object> getMedicalRecord(Long registerId, String authorization) {
+        return get("/api/v1/doctor/medical-records/" + registerId, authorization, "获取 HIS 病历失败");
+    }
+
+    public Map<String, Object> getRegisterOrders(Long registerId, String authorization) {
+        return get("/api/v1/doctor/registers/" + registerId + "/orders", authorization, "获取检查/检验结果失败");
+    }
+
     private Map<String, Object> submitClinicalOrders(
             Long registerId,
             List<Map<String, Object>> items,
@@ -125,6 +133,40 @@ public class HisDoctorOrderClient {
             throw ex;
         } catch (RestClientException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "调用 HIS 开单接口失败: " + ex.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> get(String path, String authorization, String failureMessage) {
+        if (!StringUtils.hasText(authorization)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "生成 AI 草稿需要转发医生 Authorization Token");
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.AUTHORIZATION, authorization);
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    hisBaseUrl + path,
+                    org.springframework.http.HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    Map.class);
+            Map<String, Object> body = response.getBody();
+            if (body == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, failureMessage + "：HIS 未返回响应");
+            }
+            if (Boolean.FALSE.equals(body.get("success"))) {
+                Object code = body.get("code");
+                int errorCode = code instanceof Number number ? number.intValue() : ErrorCode.BAD_REQUEST;
+                throw new BusinessException(errorCode, String.valueOf(body.getOrDefault("message", failureMessage)));
+            }
+            Object data = body.get("data");
+            if (data instanceof Map<?, ?> map) {
+                return new LinkedHashMap<>((Map<String, Object>) map);
+            }
+            return new LinkedHashMap<>();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RestClientException ex) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, failureMessage + "：" + ex.getMessage());
         }
     }
 }

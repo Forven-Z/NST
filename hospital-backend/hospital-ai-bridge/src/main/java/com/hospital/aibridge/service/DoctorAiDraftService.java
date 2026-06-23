@@ -9,10 +9,13 @@ import com.hospital.aibridge.repository.AiChatSessionRepository;
 import com.hospital.aibridge.repository.AiCatalogRepository;
 import com.hospital.aibridge.repository.AiPrescriptionDraftRepository;
 import com.hospital.aibridge.repository.AiRegisterRepository;
+import com.hospital.common.constant.ErrorCode;
+import com.hospital.common.exception.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +75,9 @@ public class DoctorAiDraftService {
         request.setRegisterId(registerId);
         request.setDraftType(draftType);
         request.setMedicalRecord(recordRequest(registerId, requestBody));
+        if ("DISPOSAL".equals(draftType)) {
+            request.setClinicalResultContext(requiredClinicalResultContext(registerId, authorization, request.getMedicalRecord()));
+        }
         request.setCandidates(candidates(requestBody, draftType));
         Map<String, Object> generated = aiAssistService.generateDraft(request);
         Map<String, Object> response = persistGeneratedDraft(registerId, draftType, generated);
@@ -88,6 +94,7 @@ public class DoctorAiDraftService {
         request.setRegisterId(registerId);
         request.setDraftType("PRESCRIPTION");
         request.setMedicalRecord(recordRequest(registerId));
+        request.setClinicalResultContext(requiredClinicalResultContext(registerId, authorization, request.getMedicalRecord()));
         request.setCandidates(prescriptionCandidates());
         Map<String, Object> generated = aiAssistService.generateDraft(request);
         Map<String, Object> response = persistGeneratedDraft(registerId, "PRESCRIPTION", generated);
@@ -111,6 +118,7 @@ public class DoctorAiDraftService {
         request.setRegisterId(registerId);
         request.setDraftType("PRESCRIPTION");
         request.setMedicalRecord(recordRequest(registerId, requestBody));
+        request.setClinicalResultContext(requiredClinicalResultContext(registerId, authorization, request.getMedicalRecord()));
         request.setCandidates(prescriptionCandidates());
         Map<String, Object> generated = aiAssistService.generateDraft(request);
         Map<String, Object> response = persistGeneratedDraft(registerId, "PRESCRIPTION", generated);
@@ -316,6 +324,144 @@ public class DoctorAiDraftService {
         if (source.containsKey("inspectionAdvice")) {
             request.setInspectionAdvice(text(source.get("inspectionAdvice")));
         }
+    }
+
+    private String requiredClinicalResultContext(Long registerId, String authorization, DiagnosisSuggestRequest record) {
+        Map<String, Object> hisMedicalRecord = hisDoctorOrderClient.getMedicalRecord(registerId, authorization);
+        applyMissingRecordFields(record, hisMedicalRecord);
+
+        Map<String, Object> orders = hisDoctorOrderClient.getRegisterOrders(registerId, authorization);
+        List<Map<String, Object>> checks = mapItems(orders.get("checks"));
+        List<Map<String, Object>> inspections = mapItems(orders.get("inspections"));
+        int orderedCount = checks.size() + inspections.size();
+        List<Map<String, Object>> returnedChecks = returnedResults(checks, "check");
+        List<Map<String, Object>> returnedInspections = returnedResults(inspections, "inspection");
+        if (orderedCount == 0 || returnedChecks.isEmpty() && returnedInspections.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "检查/检验结果未返回，暂不能生成 AI 处方/处置草稿");
+        }
+        return clinicalResultText(record, returnedChecks, returnedInspections);
+    }
+
+    private void applyMissingRecordFields(DiagnosisSuggestRequest request, Map<String, Object> source) {
+        if (request == null || source == null || source.isEmpty()) {
+            return;
+        }
+        if (!StringUtils.hasText(request.getReadme())) {
+            request.setReadme(text(source.get("readme")));
+        }
+        if (!StringUtils.hasText(request.getPresent())) {
+            request.setPresent(text(source.get("present")));
+        }
+        if (!StringUtils.hasText(request.getPresentTreat())) {
+            request.setPresentTreat(text(source.get("presentTreat")));
+        }
+        if (!StringUtils.hasText(request.getHistory())) {
+            request.setHistory(text(source.get("history")));
+        }
+        if (!StringUtils.hasText(request.getAllergy())) {
+            request.setAllergy(text(source.get("allergy")));
+        }
+        if (!StringUtils.hasText(request.getPhysique())) {
+            request.setPhysique(text(source.get("physique")));
+        }
+        if (!StringUtils.hasText(request.getDiagnosis())) {
+            request.setDiagnosis(text(source.get("diagnosis")));
+        }
+        if (!StringUtils.hasText(request.getCure())) {
+            request.setCure(text(source.get("cure")));
+        }
+        if (!StringUtils.hasText(request.getCheckAdvice())) {
+            request.setCheckAdvice(text(source.get("checkAdvice")));
+        }
+        if (!StringUtils.hasText(request.getInspectionAdvice())) {
+            request.setInspectionAdvice(text(source.get("inspectionAdvice")));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> mapItems(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) new LinkedHashMap<>((Map<String, Object>) item))
+                .toList();
+    }
+
+    private List<Map<String, Object>> returnedResults(List<Map<String, Object>> rows, String kind) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            if (status(row.get("status")) < 40 || !StringUtils.hasText(text(row.get("resultText")))) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("kind", kind);
+            item.put("requestId", firstNonNull(row.get("requestId"), row.get("checkRequestId"), row.get("inspectionRequestId")));
+            item.put("itemName", text(row.get("itemName")));
+            item.put("resultTime", row.get("resultTime"));
+            item.put("resultText", text(row.get("resultText")));
+            results.add(item);
+        }
+        return results;
+    }
+
+    private String clinicalResultText(DiagnosisSuggestRequest record,
+                                      List<Map<String, Object>> returnedChecks,
+                                      List<Map<String, Object>> returnedInspections) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("病历摘要：\n");
+        builder.append("主诉：").append(blankToUnset(record == null ? null : record.getReadme())).append('\n');
+        builder.append("现病史：").append(blankToUnset(record == null ? null : record.getPresent())).append('\n');
+        builder.append("初步诊断：").append(blankToUnset(record == null ? null : record.getDiagnosis())).append("\n\n");
+        appendReturnedResults(builder, "已返回检查结果：", returnedChecks);
+        builder.append('\n');
+        appendReturnedResults(builder, "已返回检验结果：", returnedInspections);
+        return builder.toString();
+    }
+
+    private void appendReturnedResults(StringBuilder builder, String title, List<Map<String, Object>> results) {
+        builder.append(title).append('\n');
+        if (results.isEmpty()) {
+            builder.append("- 无\n");
+            return;
+        }
+        for (Map<String, Object> result : results) {
+            builder.append("- ")
+                    .append(blankToUnset(text(result.get("itemName"))))
+                    .append("，时间：")
+                    .append(blankToUnset(result.get("resultTime") == null ? null : String.valueOf(result.get("resultTime"))))
+                    .append("，结果：")
+                    .append(text(result.get("resultText")).trim())
+                    .append('\n');
+        }
+    }
+
+    private int status(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private Object firstNonNull(Object... values) {
+        for (Object value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String blankToUnset(String value) {
+        return StringUtils.hasText(value) ? value : "未填写";
     }
 
     private String text(Object value) {
