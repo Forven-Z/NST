@@ -146,17 +146,17 @@ VITE_USE_MOCK=false
 
 ### 4.3 开发账号（联调）
 
-见 `docs/sql/README.md` / `seed-dict.sql`：
+见 [`docs/sql/README.md`](./sql/README.md) §三 / `seed-dict.sql`（密码均为 `123456`）：
 
-
-| 账号          | 密码     | 角色   |
-| ----------- | ------ | ---- |
-| doctor01    | 123456 | 门诊医生 |
-| lab01       | 123456 | 检验   |
-| check01     | 123456 | 检查   |
-| pharmacy01  | 123456 | 药师   |
-| registrar01 | 123456 | 收费员  |
-| admin       | 123456 | 管理员  |
+| 账号 | 角色 |
+|------|------|
+| doctor01～doctor06 | 门诊医生（内科/外科，含专家号 doctor03/05） |
+| disposal01 | 处置医生 |
+| lab01 / lab02 | 检验 |
+| check01～check03 | 检查（放射/CT，AI 分诊演示） |
+| pharmacy01 | 药师 |
+| registrar01 | 收费员 |
+| admin | 管理员 |
 
 
 对外统一经 **Gateway :9000**。

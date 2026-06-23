@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.3 | 2026-06-10  
+> **版本**：v2.5 | 2026-06-04  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
 > **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14**（业务 ID 即各表 `id`）  
@@ -289,7 +289,7 @@ Mock 数据结构 **与本文件一致**。
 
 **Response `data`**：`accessToken`, `refreshToken`, `expiresIn`, `userId`, `employeeId`, `realName`, `roles[]`, `deptId`, `deptName`
 
-**Mock 账号**（密码均为 `123456`）：`doctor01` · `lab01` · `check01` · `pharmacy01` · `registrar01` · `disposal01` · `admin`
+**Mock 账号**（密码均为 `123456`）：完整列表见 [`docs/sql/README.md` §三](./sql/README.md#三测试账号seed-写入后)。常用：`doctor01`～`doctor06` · `disposal01` · `lab01` · `lab02` · `check01`～`check03` · `pharmacy01` · `registrar01` · `admin`
 
 ### GET `/auth/me` ✅ P1
 
@@ -1112,9 +1112,11 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.5 | 2026-06-04 | §3.1 账号：检验 `lab01`/`lab02`；检查 `check01`～`check03`；移除 `inspection01` |
+| v2.4 | 2026-06-04 | §3.1 Mock 账号链至 `sql/README.md` §三；补充 doctor02～06、inspection01、lab02 |
 | v2.3 | 2026-06-10 | 医生工作台字典只读：`GET /doctor/medical-technologies`、`GET /doctor/drugs`；附录 G8 |
 | v2.2 | 2026-06-10 | 对齐 PC 前端审计：§0.3～0.4 前端现状、§5.5 无聚合 results、§8.1 regist-levels、§8.5/§9.5 Mock 排班请假、§6.0 Method 对齐、附录 F/G |
 | v2.1 | 2026-06-09 | 对齐 PC 医生工作台/医技队列 Mock：finish/orders、三段式报告、result-detail/ai-report、状态枚举、AI 草稿结构、白名单与附录 A |
 | v2.0 | 2026-06-04 | **合并**原 `API.md` + `API_INTERFACE_SPEC.md` 为唯一契约；**统一路径**（§〇）；增加实现状态总览 |
-| v1.4 | 2026-06 | DATABASE v1.14 对齐 |
+| v1.4 | 2026-06-04 | DATABASE v1.14 对齐 |
 | v1.0 | 2026-05 | 初版 API 目录 |

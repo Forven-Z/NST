@@ -32,8 +32,21 @@ const SEED_USERNAMES = {
   4: 'pharmacy01',
   5: 'registrar01',
   6: 'admin',
-  8: 'inspection01',
-  19: 'disposal01',
+  7: 'doctor02',
+  8: 'doctor03',
+  9: 'doctor04',
+  10: 'doctor05',
+  11: 'disposal01',
+  12: 'doctor06',
+  13: 'lab02',
+  15: 'check02',
+  16: 'check03',
+}
+
+const SEED_USER_IDS = {
+  1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6,
+  7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
+  13: 13, 15: 14, 16: 15,
 }
 
 const DEFAULT_PASSWORD = '123456'
@@ -117,7 +130,7 @@ function buildSeedEmployees() {
       empNo: 'E006',
       realName: '系统管理员',
       gender: 1,
-      deptId: 10,
+      deptId: 8,
       title: '系统管理员',
       roleType: 'ADMIN',
       phone: '',
@@ -126,7 +139,7 @@ function buildSeedEmployees() {
   }
   for (const emp of list) {
     const username = SEED_USERNAMES[emp.employeeId] || slugUsername(emp.empNo, emp.realName)
-    registerAuth(emp, username, DEFAULT_PASSWORD, emp.employeeId <= 8 ? emp.employeeId : null)
+    registerAuth(emp, username, DEFAULT_PASSWORD, SEED_USER_IDS[emp.employeeId] ?? null)
   }
   nextEmployeeId = Math.max(...list.map((e) => e.employeeId), nextEmployeeId) + 1
   return list

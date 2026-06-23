@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — 启动、联调与验收手册
 
-> **版本**：v2.8 | 2026-06-15  
+> **版本**：v2.11 | 2026-06-04  
 > **用途**：日常 **开什么、怎么开**；**R-min～R-full 联调验收**（原 INTEGRATION_CHECKLIST 已并入本文 §十二）。  
 > **环境安装**（首次装软件）：见 [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md)  
 > **实现进度**：见 [PROGRESS.md](./PROGRESS.md)  
@@ -16,7 +16,7 @@
 
 ### A. 一键启动（日常 · 默认本机库）
 
-**前提**：本机 PostgreSQL 5432 已启（Windows 服务 `postgresql-x64-16`）；影像联调另需本机 MinIO :9001（见 §4.3）。
+**前提**：本机 PostgreSQL 5432 已启（Windows 服务 `postgresql-x64-16`）。**MinIO** 由脚本自动处理：`local` 本机未运行时自动启 `:9001`；`cloud` 探测 ECS 远程 MinIO（见 §4.3 / §4.5）。
 
 在仓库根目录 **PowerShell** 执行 **一条命令**：
 
@@ -26,21 +26,23 @@ cd <你的仓库路径>\NST
 # 云端库：.\scripts\start-project.ps1 -EnvProfile cloud
 ```
 
-脚本会自动：加载 `env-local.ps1` → 启 Nacos（若未运行）→ `mvn package` → 启动 **全部 Java 微服务**（auth/his/lis/pacs/disposal/management/ai-bridge/gateway）→ 新开窗口运行 **PC 前端** `npm run dev`。
+脚本会自动：加载 `env-{profile}.ps1` → **MinIO**（local 自动启 / cloud 健康检查）→ 启 Nacos（若未运行）→ `mvn package` → 启动 **全部 Java 微服务**（auth/his/lis/pacs/disposal/management/ai-bridge/gateway）→ 新开窗口运行 **PC 前端** `npm run dev`。
 
 | 访问 | 地址 |
 |------|------|
 | PC 前端 | http://localhost:5173 |
 | API（Gateway） | http://127.0.0.1:9000/api/v1 |
-| 测试登录 | `doctor01` / `123456` |
+| 测试登录 | `doctor01` / `123456`（完整账号见 [sql/README.md §三](./sql/README.md#三测试账号seed-写入后)） |
 
 常用参数：
 
 ```powershell
-.\scripts\start-project.ps1 -EnvProfile cloud    # 阿里云 ECS 库
+.\scripts\start-project.ps1 -EnvProfile cloud    # 阿里云 ECS 库 + 远程 MinIO 探测
 .\scripts\start-project.ps1 -SkipBuild           # 跳过 Maven 编译（已打包过）
 .\scripts\start-project.ps1 -SkipFrontend        # 只启后端
+.\scripts\start-project.ps1 -SkipMinio             # 不测影像时跳过 MinIO
 .\scripts\start-project.ps1 -Restart             # 先 stop-project 再启动
+.\scripts\start-project.ps1 -MinioHome D:\dev\minio -MinioData D:\dev\minio-data  # 自定义本机 MinIO 路径
 ```
 
 停止：`.\scripts\stop-project.ps1`（不关 Nacos；需关 Nacos 见 §八；会一并停止 his 副本 **9202**）
@@ -95,8 +97,8 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 
 | 文件 | 作用 | 不会启动 |
 |------|------|----------|
-| [scripts/start-project.ps1](../scripts/start-project.ps1) | **一键启动**：`env-{profile}.ps1` → Nacos（8848，若未运行）→ **8 个 Java 微服务**（9101～9107、9000）→ PC 前端（5173） | PostgreSQL、MinIO、**Python hospital-ai（8000）**、小程序 |
-| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9107、**9202**）+ 前端（5173） | **不关** Nacos（8848）、Python（8000）、PG/MinIO |
+| [scripts/start-project.ps1](../scripts/start-project.ps1) | **一键启动**：`env-{profile}.ps1` → **MinIO**（local 自动启 9001 / cloud 远程健康检查）→ Nacos（8848，若未运行）→ **8 个 Java 微服务**（9101～9107、9000）→ PC 前端（5173） | PostgreSQL、**Python hospital-ai（8000）**、小程序 |
+| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9107、**9202**）+ 前端（5173） | **不关** Nacos（8848）、MinIO（9001）、Python（8000）、PG |
 | [scripts/start-his-replica.ps1](../scripts/start-his-replica.ps1) | **答辩用**：在 9102 已启后，再起 his 副本 **9202**（Nacos 双实例 + Gateway LB） | 不启 Nacos/Gateway/其他微服务 |
 | [scripts/stop-his-replica.ps1](../scripts/stop-his-replica.ps1) | 仅停 his 副本 **9202** | 不影响主实例 9102 |
 | [scripts/env-cloud.ps1](../scripts/env-cloud.ps1) | `DB_HOST` / `MINIO_*` → ECS；`DB_PASSWORD` 为**云 PG 密码**（≠ 本机 `123456`） | 不启任何进程 |
@@ -114,7 +116,7 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 | 组件 | cloud 模式 | local 模式 |
 |------|------------|------------|
 | PostgreSQL | ECS 上 `docker-compose`（§4.5） | 本机 Windows 服务 `postgresql-x64-16` |
-| MinIO | ECS 上 `docker-compose` | 本机手动启 MinIO（§4.3） |
+| MinIO | ECS 上 `docker-compose`；`start-project` **探测** `$MINIO_ENDPOINT` | `start-project` **自动启**本机 `:9001`（或 `-SkipMinio` 跳过） |
 | Nacos | `start-project` / `start-r-min` 本机启 | 同上 |
 
 #### Python 影像 AI（P4 · 单独启）
@@ -142,6 +144,7 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 |------|------|
 | `scripts/r-*-acceptance.ps1` | 各模块自动化验收（经 Gateway 9000） |
 | [scripts/seed-demo-check.ps1](../scripts/seed-demo-check.ps1) | 向云/本机 PG 灌影像演示数据（`check_request` #62001） |
+| `docs/sql/seed-demo-patients.sql` | 演示患者 `MR202606040100` + 今日内科挂号（小程序联调） |
 | [scripts/miniapp-smoke.ps1](../scripts/miniapp-smoke.ps1) | 患者小程序 API 冒烟（6 项） |
 | [scripts/stop-r-min.ps1](../scripts/stop-r-min.ps1) | 停止 `start-r-min` 拉起的进程 |
 
@@ -262,7 +265,11 @@ D:\dev\nacos\bin\startup.cmd -m standalone
 
 ### 4.3 MinIO（对象存储 · API 9001 / 控制台 9002）
 
-**必须先有本机 `D:\dev\minio\minio.license`**（每人各自申请，见 DEV_ENV_SETUP §6.3.3）。
+**推荐**：`.\scripts\start-project.ps1` 会在 **local** 模式下自动启动本机 MinIO（`:9001` 未监听时）；**cloud** 模式仅探测 `env-cloud.ps1` 中的远程 MinIO。不测影像时可加 `-SkipMinio`。
+
+**手动启动**（与脚本等价，见 DEV_ENV_SETUP §6.3）：
+
+**必须先有本机 `D:\dev\minio\minio.license`**（AIStor 版；每人各自申请）。若使用社区版 `minio-community.exe` 则无需 license。
 
 ```cmd
 D:\dev\minio\start-minio.bat
@@ -321,7 +328,8 @@ mkdir -p sql
 # 本机 scp：schema.sql、seed-dict.sql → /opt/hospital/sql/
 docker exec -i hospital-postgres psql -U postgres -d hospital < sql/schema.sql
 docker exec -i hospital-postgres psql -U postgres -d hospital < sql/seed-dict.sql
-# 可选 PACS 演示：还需上传 seed-demo-check.sql 后再执行
+# 可选演示：seed-demo-patients.sql（测试患者+挂号）、seed-demo-check.sql（影像 #62001）
+# docker exec -i hospital-postgres psql -U postgres -d hospital < sql/seed-demo-patients.sql
 # docker exec -i hospital-postgres psql -U postgres -d hospital < sql/seed-demo-check.sql
 ```
 
@@ -423,7 +431,7 @@ npm run dev
 
 - 浏览器打开 Vite 提示的地址（通常 **http://localhost:5173**）
 - API 应指向 Gateway：`http://127.0.0.1:9000/api/v1`（见前端 env 配置）
-- 测试账号（seed）：`doctor01` / `123456` → `POST /auth/staff/login`
+- 测试账号（seed）：见 [sql/README.md §三](./sql/README.md#三测试账号seed-写入后)（如 `doctor01` / `123456`）→ `POST /auth/staff/login`
 
 ### 6.2 患者微信小程序
 
@@ -597,3 +605,6 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | v2.6 | 2026-06-15 | 新增 `start-hospital-ai.ps1` / `stop-hospital-ai.ps1`（单独启停 CNN :8000） |
 | v2.7 | 2026-06-15 | `start-project` 默认 `-EnvProfile local`（本机库；云端显式 `-EnvProfile cloud`） |
 | v2.8 | 2026-06-15 | §A.1 `start-his-replica.ps1` / `stop-his-replica.ps1`（his 双实例 LB 答辩演示）；`stop-project` 含 9202 |
+| v2.9 | 2026-06-15 | `start-project.ps1`：local 自动启 MinIO / cloud 远程健康检查；`-SkipMinio`、`-MinioHome` |
+| v2.10 | 2026-06-04 | 测试账号链至 `sql/README.md` §三；§4.5 补充 `seed-demo-patients.sql` / 云库重跑 seed 说明 |
+| v2.11 | 2026-06-04 | 测试账号：检验 `lab01`/`lab02`；检查 `check01`～`check03`（见 `sql/README.md` §三） |
