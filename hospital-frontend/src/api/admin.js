@@ -112,7 +112,7 @@ export function fetchAiSchedulingSuggest(params) {
 
 export function applyAiSchedulingReplace(schedulingId, data) {
   if (useMock()) return mockUpdateAdminSchedule(schedulingId, data)
-  return request.post(`/admin/scheduling/${schedulingId}/ai-replace`)
+  return request.post(`/admin/scheduling/${schedulingId}/ai-replace`, data || {})
 }
 
 export function updateAdminSchedule(schedulingId, data) {

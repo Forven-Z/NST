@@ -1,23 +1,33 @@
 package com.hospital.management.controller;
 
 import com.hospital.common.Result;
-import com.hospital.common.constant.ErrorCode;
+import com.hospital.management.dto.SchedulingAiSuggestRequest;
+import com.hospital.management.service.SchedulingAiSuggestService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/admin/scheduling")
+@RequiredArgsConstructor
 public class SchedulingAiStubController {
 
+    private final SchedulingAiSuggestService schedulingAiSuggestService;
+
     @PostMapping("/ai-suggest")
-    public Result<Void> aiSuggest() {
-        return Result.fail(ErrorCode.AI_DISABLED, "AI 排班建议尚未接入，请使用手工编辑或手工替班");
+    public Result<Map<String, Object>> aiSuggest(@RequestBody(required = false) SchedulingAiSuggestRequest request) {
+        Long deptId = request == null ? null : request.getDeptId();
+        return Result.success(schedulingAiSuggestService.suggest(deptId));
     }
 
     @PostMapping("/{id}/ai-replace")
-    public Result<Void> aiReplace(@PathVariable Long id) {
-        return Result.fail(ErrorCode.AI_DISABLED, "AI 替班尚未接入，请使用「手工换人」");
+    public Result<Map<String, Object>> aiReplace(@PathVariable Long id,
+                                                 @RequestBody(required = false) Map<String, Object> request) {
+        return Result.success(schedulingAiSuggestService.replace(id, request));
     }
 }

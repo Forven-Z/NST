@@ -32,6 +32,8 @@ const leaveRequests = ref([])
 const allDepts = ref([])
 const registLevels = ref([])
 const aiSuggestions = ref([])
+const aiRiskItems = ref([])
+const aiWarnings = ref([])
 const candidateEmployees = ref([])
 const editCandidates = ref([])
 const publishingId = ref(null)
@@ -202,9 +204,13 @@ async function loadLeaveRequests() {
 async function onAiSuggest() {
   aiLoading.value = true
   aiSuggestions.value = []
+  aiRiskItems.value = []
+  aiWarnings.value = []
   try {
     const res = await fetchAiSchedulingSuggest({ deptId: deptFilter.value || undefined })
     aiSuggestions.value = res.data?.suggestions ?? []
+    aiRiskItems.value = res.data?.riskItems ?? []
+    aiWarnings.value = res.data?.warnings ?? []
     ElMessage.success(res.data?.message || 'AI 排班建议已生成')
   } catch (err) {
     ElMessage.warning(err.message || 'AI 排班建议尚未接入')
@@ -221,7 +227,7 @@ async function onApplyAiReplace(suggestion) {
   const schedulingId = suggestion?.schedulingId
   if (!schedulingId) return
 
-  if (useMock() && suggestion?.replaceable && suggestion.proposedSchedule) {
+  if (suggestion?.replaceable && suggestion.proposedSchedule) {
     try {
       await ElMessageBox.confirm(
         `将应用 AI 建议：${suggestion.suggestion}`,
@@ -233,7 +239,10 @@ async function onApplyAiReplace(suggestion) {
     }
     replacingId.value = schedulingId
     try {
-      await updateAdminSchedule(schedulingId, suggestion.proposedSchedule)
+      await applyAiSchedulingReplace(schedulingId, {
+        ...suggestion.proposedSchedule,
+        leaveRequestId: suggestion.leaveRequestId,
+      })
       ElMessage.success('已应用 AI 推荐排班')
       await Promise.all([loadSchedules(), loadLeaveRequests()])
     } catch (err) {
@@ -246,7 +255,7 @@ async function onApplyAiReplace(suggestion) {
 
   replacingId.value = schedulingId
   try {
-    await applyAiSchedulingReplace(schedulingId, suggestion?.proposedSchedule)
+    await applyAiSchedulingReplace(schedulingId, suggestion || {})
   } catch (err) {
     ElMessage.warning(err.message || 'AI 替班尚未接入')
   } finally {
@@ -431,7 +440,7 @@ function rowClassName({ row }) {
                   link
                   type="warning"
                   :loading="replacingId === row.schedulingId"
-                  @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || { schedulingId: row.schedulingId })"
+                  @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || row)"
                 >
                   AI 替班
                 </el-button>
@@ -522,7 +531,7 @@ function rowClassName({ row }) {
               link
               type="warning"
               :loading="replacingId === row.schedulingId"
-              @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || { schedulingId: row.schedulingId })"
+              @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || row)"
             >
               {{ row.needsSubstitute ? 'AI 替班' : 'AI 替换' }}
             </el-button>
@@ -530,10 +539,32 @@ function rowClassName({ row }) {
         </el-table-column>
       </el-table>
 
-      <el-card v-if="aiSuggestions.length" shadow="never" class="ai-suggest-card">
+      <el-card v-if="aiSuggestions.length || aiRiskItems.length || aiWarnings.length" shadow="never" class="ai-suggest-card">
         <template #header>
           <span>AI 排班建议详情</span>
         </template>
+        <el-alert
+          v-for="(w, index) in aiWarnings"
+          :key="`ai-warning-${index}`"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="ai-warning"
+          :title="w"
+        />
+        <div v-for="risk in aiRiskItems" :key="`risk-${risk.type}-${risk.schedulingId || risk.title}`" class="suggest-item">
+          <div class="suggest-head">
+            <strong>{{ risk.title }}</strong>
+            <el-tag
+              size="small"
+              :type="risk.level === 'HIGH' ? 'danger' : risk.level === 'MEDIUM' ? 'warning' : 'info'"
+            >
+              {{ risk.level || 'INFO' }}
+            </el-tag>
+          </div>
+          <p>{{ risk.description }}</p>
+          <p v-if="risk.suggestion">建议：{{ risk.suggestion }}</p>
+        </div>
         <div v-for="s in aiSuggestions" :key="s.schedulingId" class="suggest-item">
           <div class="suggest-head">
             <strong>{{ s.workDate }} {{ s.noonLabel }} · {{ s.employeeName }}</strong>
@@ -541,6 +572,8 @@ function rowClassName({ row }) {
             <el-tag size="small">置信度 {{ Math.round((s.confidence || 0) * 100) }}%</el-tag>
           </div>
           <p>{{ s.suggestion }}</p>
+          <p v-if="s.reason">原因：{{ s.reason }}</p>
+          <p v-if="s.warnings?.length" class="warning-text">注意：{{ s.warnings.join('；') }}</p>
           <el-button
             v-if="s.replaceable"
             size="small"
@@ -748,6 +781,10 @@ function rowClassName({ row }) {
   border-radius: 8px;
 }
 
+.ai-warning {
+  margin-bottom: 8px;
+}
+
 .suggest-item {
   padding: 8px 0;
   border-bottom: 1px solid #f1f5f9;
@@ -769,6 +806,10 @@ function rowClassName({ row }) {
   margin: 0 0 8px;
   font-size: 13px;
   color: #475569;
+}
+
+.warning-text {
+  color: #b45309 !important;
 }
 
 .muted {
