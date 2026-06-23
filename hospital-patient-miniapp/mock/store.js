@@ -707,7 +707,7 @@ function matchTriageDept(text) {
     return { deptId: 9, deptCode: 'OBGYN', deptName: '妇产科', matchedDeptName: '妇产科', confidence: 0.82 }
   }
   if (value.indexOf('外伤') >= 0 || value.indexOf('肿块') >= 0 || value.indexOf('摔') >= 0 || value.indexOf('伤口') >= 0) {
-    return { deptId: 7, deptCode: 'SURGERY', deptName: '外科', matchedDeptName: '外科', confidence: 0.78 }
+    return { deptId: 6, deptCode: 'SURGERY', deptName: '外科', matchedDeptName: '外科', confidence: 0.78 }
   }
   return { deptId: 1, deptCode: 'INTERNAL', deptName: '内科', matchedDeptName: '内科', confidence: 0.74 }
 }

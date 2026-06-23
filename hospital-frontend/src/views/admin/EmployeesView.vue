@@ -147,7 +147,7 @@ function onRoleTypeChange(roleType) {
     form.title = '挂号收费员'
   }
   if (roleType === 'ADMIN' && !form.deptId) {
-    const adminDept = departments.value.find((d) => d.deptCode === 'SYS_ADMIN')
+    const adminDept = departments.value.find((d) => d.deptCode === 'INFO_CENTER')
     if (adminDept) form.deptId = adminDept.id
   }
 }

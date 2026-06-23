@@ -1,33 +1,55 @@
 /**
- * Mock 排班字典（与 PC mock/dict.js 规则一致，CommonJS）
+ * Mock 排班字典（与 PC mock/dict.js、seed-dict.sql 对齐，CommonJS）
  */
 const OUTPATIENT_DEPTS = [
   { id: 1, deptName: '内科' },
-  { id: 7, deptName: '外科' },
-  { id: 8, deptName: '儿科' },
-  { id: 9, deptName: '妇产科' },
+  { id: 6, deptName: '外科' },
 ]
 
 const DOCTORS = [
   { employeeId: 1, realName: '张医生', title: '主治医师', deptId: 1, role: 'regular' },
-  { employeeId: 7, realName: '刘医生', title: '住院医师', deptId: 1, role: 'regular' },
-  { employeeId: 11, realName: '王教授', title: '主任医师', deptId: 1, role: 'expert' },
-  { employeeId: 12, realName: '李主任', title: '副主任医师', deptId: 1, role: 'expert' },
-  { employeeId: 8, realName: '赵医生', title: '主治医师', deptId: 7, role: 'regular' },
-  { employeeId: 13, realName: '钱医生', title: '住院医师', deptId: 7, role: 'regular' },
-  { employeeId: 14, realName: '陈主任', title: '副主任医师', deptId: 7, role: 'expert' },
-  { employeeId: 9, realName: '周医生', title: '主治医师', deptId: 8, role: 'regular' },
-  { employeeId: 16, realName: '郑主任', title: '副主任医师', deptId: 8, role: 'expert' },
-  { employeeId: 10, realName: '吴医生', title: '主治医师', deptId: 9, role: 'regular' },
-  { employeeId: 18, realName: '黄教授', title: '主任医师', deptId: 9, role: 'expert' },
+  { employeeId: 7, realName: '李医生', title: '主治医师', deptId: 1, role: 'regular' },
+  { employeeId: 8, realName: '陈教授', title: '主任医师', deptId: 1, role: 'expert' },
+  { employeeId: 9, realName: '王医生', title: '主治医师', deptId: 6, role: 'regular' },
+  { employeeId: 10, realName: '刘教授', title: '主任医师', deptId: 6, role: 'expert' },
+  { employeeId: 12, realName: '赵医生', title: '主治医师', deptId: 6, role: 'regular' },
 ]
 
 const EXPERT_SLOTS = {
-  11: [{ weekday: 1, noonType: 1 }, { weekday: 3, noonType: 1 }, { weekday: 5, noonType: 1 }],
-  12: [{ weekday: 2, noonType: 1 }, { weekday: 4, noonType: 1 }],
-  14: [{ weekday: 3, noonType: 1 }, { weekday: 5, noonType: 2 }],
-  16: [{ weekday: 2, noonType: 1 }, { weekday: 6, noonType: 1 }],
-  18: [{ weekday: 1, noonType: 2 }, { weekday: 4, noonType: 1 }],
+  8: [{ weekday: 1, noonType: 1 }, { weekday: 4, noonType: 1 }],
+  10: [{ weekday: 2, noonType: 1 }, { weekday: 5, noonType: 1 }],
+}
+
+function formatDate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function listInternalRegularDoctors(weekday) {
+  const docs = []
+  if (weekday !== 0) docs.push(DOCTORS.find((d) => d.employeeId === 1))
+  if (weekday !== 3) docs.push(DOCTORS.find((d) => d.employeeId === 7))
+  return docs.filter(Boolean)
+}
+
+function listSurgeryRegularDoctors(weekday) {
+  const docs = []
+  if (weekday !== 0) docs.push(DOCTORS.find((d) => d.employeeId === 9))
+  if (weekday !== 3) docs.push(DOCTORS.find((d) => d.employeeId === 12))
+  return docs.filter(Boolean)
+}
+
+function listRegularDoctors(deptId, weekday) {
+  if (deptId === 1) return listInternalRegularDoctors(weekday)
+  if (deptId === 6) return listSurgeryRegularDoctors(weekday)
+  return []
+}
+
+function hasExpertSlot(employeeId, weekday, noonType) {
+  const slots = EXPERT_SLOTS[employeeId] || []
+  return slots.some((s) => s.weekday === weekday && s.noonType === noonType)
 }
 
 function buildSchedules() {
@@ -38,19 +60,13 @@ function buildSchedules() {
   for (let off = 0; off < 7; off += 1) {
     const d = new Date(today)
     d.setDate(d.getDate() + off)
-    const wd = d.getDay()
-    if (wd === 0) continue
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const workDate = `${y}-${m}-${day}`
+    const weekday = d.getDay()
+    const workDate = formatDate(d)
     for (const dept of OUTPATIENT_DEPTS) {
-      const regulars = DOCTORS.filter((x) => x.deptId === dept.id && x.role === 'regular')
       const experts = DOCTORS.filter((x) => x.deptId === dept.id && x.role === 'expert')
       for (const noon of [{ noonType: 1, noonLabel: '上午' }, { noonType: 2, noonLabel: '下午' }]) {
-        if (wd === 6 && noon.noonType === 2) continue
-        const reg = regulars[(off + dept.id + noon.noonType) % regulars.length]
-        if (reg) {
+        const regDocs = listRegularDoctors(dept.id, weekday)
+        for (const reg of regDocs) {
           list.push({
             schedulingId: id++,
             deptId: dept.id,
@@ -68,24 +84,22 @@ function buildSchedules() {
           })
         }
         for (const exp of experts) {
-          const slots = EXPERT_SLOTS[exp.employeeId] || []
-          if (slots.some((s) => s.weekday === wd && s.noonType === noon.noonType)) {
-            list.push({
-              schedulingId: id++,
-              deptId: dept.id,
-              deptName: dept.deptName,
-              employeeId: exp.employeeId,
-              doctorName: exp.realName,
-              employeeTitle: exp.title,
-              registLevelId: 2,
-              levelName: '专家号',
-              registFee: 65,
-              workDate,
-              noonType: noon.noonType,
-              noonLabel: noon.noonLabel,
-              remainQuota: 8,
-            })
-          }
+          if (!hasExpertSlot(exp.employeeId, weekday, noon.noonType)) continue
+          list.push({
+            schedulingId: id++,
+            deptId: dept.id,
+            deptName: dept.deptName,
+            employeeId: exp.employeeId,
+            doctorName: exp.realName,
+            employeeTitle: exp.title,
+            registLevelId: 2,
+            levelName: '专家号',
+            registFee: 65,
+            workDate,
+            noonType: noon.noonType,
+            noonLabel: noon.noonLabel,
+            remainQuota: 8,
+          })
         }
       }
     }

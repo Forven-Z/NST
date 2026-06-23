@@ -2,9 +2,8 @@
  * Mock 字典与排班（门诊挂号）
  *
  * 排班规则依据公开资料归纳（见 mock/README.md §排班常识），非主观臆造：
- * - 普通号：各科室每个开诊半天均设普通门诊，住院/主治医师等轮流出诊
- * - 专家号：仅副主任医师及以上；多数固定每周 1～3 个半天，非每时段都有
- * - 开诊时段：常见上午 08:00–12:00、下午 13:00–17:00
+ * - 普通号：含周日；同一半天可多名医生同时出诊；每人固定休 1 天/周（上 6 天）
+ * - 专家号：每周 2 个上午
  */
 
 export const MOCK_SETTLE_CATEGORIES = [
@@ -17,37 +16,24 @@ export const MOCK_REGIST_LEVELS = [
   { id: 2, levelCode: 'EXPERT', levelName: '专家号', registFee: 65 },
 ]
 
-/** 门诊科室（Mock 扩展；seed 中已有内科等） */
+/** 门诊科室（与 seed-dict.sql 对齐：内科 id=1、外科 id=6） */
 export const MOCK_OUTPATIENT_DEPTS = [
   { id: 1, deptCode: 'INTERNAL', deptName: '内科', deptType: 1, sortNo: 1 },
-  { id: 7, deptCode: 'SURGERY', deptName: '外科', deptType: 1, sortNo: 2 },
-  { id: 8, deptCode: 'PEDIATRICS', deptName: '儿科', deptType: 1, sortNo: 3 },
-  { id: 9, deptCode: 'OBSTETRICS', deptName: '妇产科', deptType: 1, sortNo: 4 },
+  { id: 6, deptCode: 'SURGERY', deptName: '外科', deptType: 1, sortNo: 6 },
 ]
 
 /**
  * role:
- * - regular：仅出普通门诊（主治医师/住院医师等）
- * - expert：可出专家门诊（对应副高及以上职称）；普通门诊由 regular 医生承担
+ * - regular：仅出普通门诊
+ * - expert：可出专家门诊（对应副高及以上职称）
  */
 export const MOCK_DOCTORS = [
-  // 内科
   { employeeId: 1, empNo: 'E001', realName: '张医生', title: '主治医师', deptId: 1, role: 'regular' },
-  { employeeId: 7, empNo: 'E007', realName: '刘医生', title: '住院医师', deptId: 1, role: 'regular' },
-  { employeeId: 11, empNo: 'E011', realName: '王教授', title: '主任医师', deptId: 1, role: 'expert' },
-  { employeeId: 12, empNo: 'E012', realName: '李主任', title: '副主任医师', deptId: 1, role: 'expert' },
-  // 外科
-  { employeeId: 8, empNo: 'E008', realName: '赵医生', title: '主治医师', deptId: 7, role: 'regular' },
-  { employeeId: 13, empNo: 'E013', realName: '钱医生', title: '住院医师', deptId: 7, role: 'regular' },
-  { employeeId: 14, empNo: 'E014', realName: '陈主任', title: '副主任医师', deptId: 7, role: 'expert' },
-  // 儿科
-  { employeeId: 9, empNo: 'E009', realName: '周医生', title: '主治医师', deptId: 8, role: 'regular' },
-  { employeeId: 15, empNo: 'E015', realName: '孙医生', title: '住院医师', deptId: 8, role: 'regular' },
-  { employeeId: 16, empNo: 'E016', realName: '郑主任', title: '副主任医师', deptId: 8, role: 'expert' },
-  // 妇产科
-  { employeeId: 10, empNo: 'E010', realName: '吴医生', title: '主治医师', deptId: 9, role: 'regular' },
-  { employeeId: 17, empNo: 'E017', realName: '冯医生', title: '住院医师', deptId: 9, role: 'regular' },
-  { employeeId: 18, empNo: 'E018', realName: '黄教授', title: '主任医师', deptId: 9, role: 'expert' },
+  { employeeId: 7, empNo: 'E007', realName: '李医生', title: '主治医师', deptId: 1, role: 'regular' },
+  { employeeId: 8, empNo: 'E008', realName: '陈教授', title: '主任医师', deptId: 1, role: 'expert' },
+  { employeeId: 9, empNo: 'E009', realName: '王医生', title: '主治医师', deptId: 6, role: 'regular' },
+  { employeeId: 10, empNo: 'E010', realName: '刘教授', title: '主任医师', deptId: 6, role: 'expert' },
+  { employeeId: 12, empNo: 'E012', realName: '赵医生', title: '主治医师', deptId: 6, role: 'regular' },
 ]
 
 /**
@@ -55,26 +41,13 @@ export const MOCK_DOCTORS = [
  * 参考：多数专家每周固定 1～3 天出诊，号源有限（百度健康·医学科普）
  */
 const EXPERT_CLINIC_SLOTS = {
-  11: [ // 王教授 内科：周一三五上午
+  8: [ // 陈教授 内科：周一、周四上午（每周 2 半天）
     { weekday: 1, noonType: 1 },
-    { weekday: 3, noonType: 1 },
+    { weekday: 4, noonType: 1 },
+  ],
+  10: [ // 刘教授 外科：周二、周五上午（每周 2 半天）
+    { weekday: 2, noonType: 1 },
     { weekday: 5, noonType: 1 },
-  ],
-  12: [ // 李主任 内科：周二四上午
-    { weekday: 2, noonType: 1 },
-    { weekday: 4, noonType: 1 },
-  ],
-  14: [ // 陈主任 外科：周三上午、周五下午
-    { weekday: 3, noonType: 1 },
-    { weekday: 5, noonType: 2 },
-  ],
-  16: [ // 郑主任 儿科：周二上午、周六上午
-    { weekday: 2, noonType: 1 },
-    { weekday: 6, noonType: 1 },
-  ],
-  18: [ // 黄教授 妇产科：周一下午、周四上午
-    { weekday: 1, noonType: 2 },
-    { weekday: 4, noonType: 1 },
   ],
 }
 
@@ -94,22 +67,32 @@ function formatDate(d) {
   return `${y}-${m}-${day}`
 }
 
-function isClinicDay(weekday) {
-  // 周日多数医院无日常门诊（以当日公告为准）；Mock 跳过周日
-  return weekday !== 0
-}
-
-function isNormalSessionOpen(weekday, noonType) {
-  if (!isClinicDay(weekday)) return false
-  // 周六常仅开上午（参考多家医院「周六日出诊以公告为准」）
-  if (weekday === 6 && noonType === 2) return false
+function isNormalSessionOpen() {
   return true
 }
 
-function pickRegularDoctor(deptId, dayOffset, noonType, pool) {
-  if (!pool.length) return null
+/** 内科普通：张(1)休周日、李(7)休周三；其余日期两人同时在岗 */
+function listInternalRegularDoctors(weekday) {
+  const docs = []
+  if (weekday !== 0) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 1))
+  if (weekday !== 3) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 7))
+  return docs.filter(Boolean)
+}
+
+/** 外科普通：王(9)休周日、赵(12)休周三；其余日期两人同时在岗 */
+function listSurgeryRegularDoctors(weekday) {
+  const docs = []
+  if (weekday !== 0) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 9))
+  if (weekday !== 3) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 12))
+  return docs.filter(Boolean)
+}
+
+function listRegularDoctors(deptId, dayOffset, noonType, pool, weekday) {
+  if (deptId === 1) return listInternalRegularDoctors(weekday)
+  if (deptId === 6) return listSurgeryRegularDoctors()
+  if (!pool.length) return []
   const idx = (deptId * 7 + dayOffset * 2 + noonType) % pool.length
-  return pool[idx]
+  return [pool[idx]]
 }
 
 function hasExpertSlot(employeeId, weekday, noonType) {
@@ -123,14 +106,13 @@ function hasExpertSlot(employeeId, weekday, noonType) {
  */
 export const MOCK_STAFF_MEMBERS = [
   { employeeId: 2, empNo: 'E002', realName: '李检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
-  { employeeId: 3, empNo: 'E003', realName: '王检查', title: '放射技师', deptId: 2, roleType: 'CHECK_DOCTOR' },
+  { employeeId: 3, empNo: 'E003', realName: '王检查', title: '影像医师', deptId: 2, roleType: 'CHECK_DOCTOR' },
   { employeeId: 4, empNo: 'E004', realName: '赵药师', title: '主管药师', deptId: 4, roleType: 'PHARMACIST' },
   { employeeId: 5, empNo: 'E005', realName: '钱收费', title: '挂号收费员', deptId: 5, roleType: 'REGISTRAR' },
-  { employeeId: 8, empNo: 'E008', realName: '周检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
-  { employeeId: 19, empNo: 'E019', realName: '孙处置', title: '护士', deptId: 6, roleType: 'DISPOSAL_DOCTOR' },
-  { employeeId: 20, empNo: 'E020', realName: '吴检查', title: '放射技师', deptId: 2, roleType: 'CHECK_DOCTOR' },
-  { employeeId: 21, empNo: 'E021', realName: '郑药师', title: '药师', deptId: 4, roleType: 'PHARMACIST' },
-  { employeeId: 22, empNo: 'E022', realName: '冯收费', title: '挂号收费员', deptId: 5, roleType: 'REGISTRAR' },
+  { employeeId: 11, empNo: 'E011', realName: '孙处置', title: '处置医师', deptId: 7, roleType: 'DISPOSAL_DOCTOR' },
+  { employeeId: 13, empNo: 'E013', realName: '周检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
+  { employeeId: 15, empNo: 'E015', realName: '李影像', title: '影像医师', deptId: 2, roleType: 'CHECK_DOCTOR' },
+  { employeeId: 16, empNo: 'E016', realName: '陈影像', title: '影像医师', deptId: 2, roleType: 'CHECK_DOCTOR' },
 ]
 
 const DUTY_SHIFT_NAMES = {
@@ -138,7 +120,7 @@ const DUTY_SHIFT_NAMES = {
   3: '检验值班',
   4: '药房值班',
   5: '窗口值班',
-  6: '处置值班',
+  7: '处置值班',
 }
 
 function buildStaffDutySchedules(startId) {
@@ -151,14 +133,13 @@ function buildStaffDutySchedules(startId) {
     const workDate = new Date(today)
     workDate.setDate(workDate.getDate() + dayOffset)
     const weekday = workDate.getDay()
-    if (weekday === 0) continue
 
     for (const staff of MOCK_STAFF_MEMBERS) {
       const onMorning = (staff.employeeId + dayOffset) % 3 !== 2
       const onAfternoon = (staff.employeeId + dayOffset) % 4 === 0
       const sessions = []
       if (onMorning) sessions.push(NOON_SESSIONS[0])
-      if (onAfternoon && weekday !== 6) sessions.push(NOON_SESSIONS[1])
+      if (onAfternoon) sessions.push(NOON_SESSIONS[1])
 
       for (const noon of sessions) {
         list.push({
@@ -205,11 +186,11 @@ function buildSchedules() {
       const expertPool = MOCK_DOCTORS.filter((d) => d.deptId === dept.id && d.role === 'expert')
 
       for (const noon of NOON_SESSIONS) {
-        if (!isNormalSessionOpen(weekday, noon.noonType)) continue
+        if (!isNormalSessionOpen()) continue
 
-        // ① 每个开诊半天必有普通号，医生轮流（保障日常号源）
-        const regDoc = pickRegularDoctor(dept.id, dayOffset, noon.noonType, regularPool)
-        if (regDoc) {
+        // ① 每个开诊半天：所有在岗普通医生各一条排班（可多人在岗）
+        const regDocs = listRegularDoctors(dept.id, dayOffset, noon.noonType, regularPool, weekday)
+        for (const regDoc of regDocs) {
           const used = dayOffset === 0 && noon.noonType === 1 ? 5 : (schedulingId % 4)
           list.push({
             schedulingId: schedulingId++,
@@ -231,7 +212,7 @@ function buildSchedules() {
             remainQuota: NORMAL_QUOTA - Math.min(used, NORMAL_QUOTA - 1),
             publishStatus: 1,
             scheduleKind: 1,
-            isRotating: true,
+            isRotating: false,
           })
         }
 
@@ -312,12 +293,12 @@ export function countExpertSessions(deptId, employeeId) {
 
 /** 医技/行政科室（与 seed-dict.sql 对齐） */
 export const MOCK_TECH_DEPARTMENTS = [
-  { id: 2, deptCode: 'RADIOLOGY', deptName: '放射科', deptType: 2, sortNo: 5 },
-  { id: 3, deptCode: 'LAB', deptName: '检验科', deptType: 2, sortNo: 6 },
-  { id: 4, deptCode: 'PHARMACY', deptName: '药房', deptType: 3, sortNo: 7 },
-  { id: 5, deptCode: 'REGISTRATION', deptName: '挂号收费处', deptType: 4, sortNo: 8 },
-  { id: 6, deptCode: 'DISPOSAL', deptName: '处置科', deptType: 2, sortNo: 9 },
-  { id: 10, deptCode: 'SYS_ADMIN', deptName: '系统管理科', deptType: 4, sortNo: 10 },
+  { id: 2, deptCode: 'RADIOLOGY', deptName: '放射科', deptType: 2, sortNo: 2 },
+  { id: 3, deptCode: 'LAB', deptName: '检验科', deptType: 2, sortNo: 3 },
+  { id: 4, deptCode: 'PHARMACY', deptName: '药房', deptType: 3, sortNo: 4 },
+  { id: 5, deptCode: 'REGISTRATION', deptName: '挂号收费处', deptType: 4, sortNo: 5 },
+  { id: 7, deptCode: 'DISPOSAL', deptName: '处置科', deptType: 2, sortNo: 7 },
+  { id: 8, deptCode: 'INFO_CENTER', deptName: '信息科', deptType: 4, sortNo: 8 },
 ]
 
 export const MOCK_ALL_DEPARTMENTS = [...MOCK_OUTPATIENT_DEPTS, ...MOCK_TECH_DEPARTMENTS]
@@ -330,8 +311,8 @@ export const MOCK_MEDICAL_TECHNOLOGIES = [
   { id: 2, itemCode: 'INS-BLOOD', itemName: '血常规', techType: 'INSPECTION', price: 35, deptId: 3 },
   { id: 3, itemCode: 'INS-GLU', itemName: '空腹血糖', techType: 'INSPECTION', price: 12, deptId: 3 },
   { id: 4, itemCode: 'CHK-CXR', itemName: '胸部 X 线', techType: 'CHECK', price: 90, deptId: 2 },
-  { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 6 },
-  { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 6 },
+  { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 7 },
+  { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 7 },
 ]
 
 export const MOCK_DRUGS = [

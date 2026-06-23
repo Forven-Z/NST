@@ -1,20 +1,24 @@
-# 一键启动智慧云脑诊疗平台（Nacos + 全部 Java 微服务 + PC 前端）
-# 版本：v1.2 | 2026-06-15
+# 一键启动智慧云脑诊疗平台（Nacos + MinIO + 全部 Java 微服务 + PC 前端）
+# 版本：v1.3 | 2026-06-15
 #
 # Usage:
 #   .\scripts\start-project.ps1                      # 默认 local（本机 PG/MinIO）+ 启前端
-#   .\scripts\start-project.ps1 -EnvProfile cloud    # 阿里云 ECS 库
+#   .\scripts\start-project.ps1 -EnvProfile cloud    # 阿里云 ECS 库/MinIO（仅探测远程）
 #   .\scripts\start-project.ps1 -SkipBuild           # 跳过 mvn package
 #   .\scripts\start-project.ps1 -SkipFrontend        # 只启后端
+#   .\scripts\start-project.ps1 -SkipMinio           # 不测影像时可跳过 MinIO
 #   .\scripts\start-project.ps1 -Restart             # 先 stop-project 再启动
 
 param(
     [switch]$SkipBuild,
     [switch]$SkipFrontend,
+    [switch]$SkipMinio,
     [switch]$Restart,
     [ValidateSet('local', 'cloud')]
     [string]$EnvProfile = 'local',
     [string]$NacosHome = 'D:\dev\nacos',
+    [string]$MinioHome = 'D:\dev\minio',
+    [string]$MinioData = 'D:\dev\minio-data',
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot)
 )
 
@@ -80,6 +84,95 @@ function Wait-NacosReady($seconds) {
     }
     Write-Host 'WARN  Nacos readiness timeout — services may retry registration' -ForegroundColor Yellow
     return $false
+}
+
+function Wait-MinioHealth($endpoint, $label, $seconds) {
+    if (-not $seconds) { $seconds = 60 }
+    $base = $endpoint.TrimEnd('/')
+    $url = "$base/minio/health/live"
+    Write-Host "... waiting MinIO health ($label)" -ForegroundColor Yellow
+    for ($i = 0; $i -lt $seconds; $i++) {
+        try {
+            $resp = Invoke-WebRequest -Uri $url -TimeoutSec 3 -UseBasicParsing
+            if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) {
+                Write-Host "OK  MinIO ready ($label)" -ForegroundColor Green
+                return $true
+            }
+        } catch {
+            # MinIO still starting or unreachable
+        }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host "WARN  MinIO not ready after ${seconds}s ($label)" -ForegroundColor Yellow
+    return $false
+}
+
+function Resolve-LocalMinioInstall {
+    $candidates = @(
+        @{ Exe = Join-Path $MinioHome 'minio.exe'; License = Join-Path $MinioHome 'minio.license'; Community = $false },
+        @{ Exe = Join-Path $MinioHome 'minio-community.exe'; License = $null; Community = $true },
+        @{ Exe = 'C:\dev\minio\minio-community.exe'; License = $null; Community = $true }
+    )
+    foreach ($item in $candidates) {
+        if (-not (Test-Path $item.Exe)) { continue }
+        if (-not $item.Community -and -not (Test-Path $item.License)) { continue }
+        return $item
+    }
+    return $null
+}
+
+function Start-LocalMinio {
+    if (Test-Port 9001) {
+        Write-Host 'OK  local MinIO 9001 already running' -ForegroundColor Green
+        return (Wait-MinioHealth 'http://127.0.0.1:9001' 'local' 15)
+    }
+
+    $install = Resolve-LocalMinioInstall
+    if (-not $install) {
+        Write-Host 'WARN  local MinIO not found — install under D:\dev\minio (see DEV_ENV_SETUP §6.3)' -ForegroundColor Yellow
+        Write-Host '      need minio.exe + minio.license, or minio-community.exe' -ForegroundColor Yellow
+        return $false
+    }
+
+    if (-not (Test-Path $MinioData)) {
+        New-Item -ItemType Directory -Force -Path $MinioData | Out-Null
+    }
+
+    $env:MINIO_ROOT_USER = 'minioadmin'
+    $env:MINIO_ROOT_PASSWORD = 'minioadmin123'
+    $args = @(
+        'server', $MinioData,
+        '--address', ':9001',
+        '--console-address', ':9002'
+    )
+    if (-not $install.Community) {
+        $args += @('--license', $install.License)
+    }
+
+    Write-Host "... starting local MinIO ($($install.Exe))" -ForegroundColor Yellow
+    Start-Process -FilePath $install.Exe -ArgumentList $args -WindowStyle Minimized
+    if (-not (Wait-Port 9001 'MinIO' 30)) { return $false }
+    return (Wait-MinioHealth 'http://127.0.0.1:9001' 'local' 30)
+}
+
+function Ensure-MinioReady {
+    if ($SkipMinio) {
+        Write-Host 'SKIP MinIO (-SkipMinio)' -ForegroundColor Yellow
+        return
+    }
+
+    if ($EnvProfile -eq 'local') {
+        if (-not (Start-LocalMinio)) {
+            Write-Host 'WARN  local MinIO unavailable — PACS/imaging may fail (use -SkipMinio to silence)' -ForegroundColor Yellow
+        }
+        return
+    }
+
+    $endpoint = if ($env:MINIO_ENDPOINT) { $env:MINIO_ENDPOINT } else { 'http://127.0.0.1:9001' }
+    if (Wait-MinioHealth $endpoint "cloud $endpoint" 30) {
+        return
+    }
+    Write-Host 'WARN  cloud MinIO unreachable — start on ECS: docker-compose up -d minio (see RUNBOOK §4.5)' -ForegroundColor Yellow
 }
 
 function Wait-GatewayReady($seconds) {
@@ -163,6 +256,7 @@ function Start-FrontendDev {
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host " NST one-click start ($EnvProfile)" -ForegroundColor Cyan
 Write-Host " DB_HOST=$env:DB_HOST" -ForegroundColor Cyan
+Write-Host " MINIO=$env:MINIO_ENDPOINT" -ForegroundColor Cyan
 Write-Host ' Gateway -> http://127.0.0.1:9000/api/v1' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
@@ -181,12 +275,11 @@ if ($EnvProfile -eq 'local') {
         exit 1
     }
     Write-Host 'OK  local PostgreSQL 5432' -ForegroundColor Green
-    if (-not (Test-Port 9001)) {
-        Write-Host 'WARN  local MinIO 9001 not listening - PACS/imaging may be unavailable' -ForegroundColor Yellow
-    }
 } else {
     Write-Host "OK  cloud DB via DB_HOST=$env:DB_HOST" -ForegroundColor Green
 }
+
+Ensure-MinioReady
 
 if (-not (Test-Port 8848)) {
     $startup = Join-Path $NacosHome 'bin\startup.cmd'
