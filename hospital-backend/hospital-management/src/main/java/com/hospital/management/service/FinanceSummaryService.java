@@ -53,8 +53,22 @@ public class FinanceSummaryService {
     private List<Map<String, Object>> enrichChannelSummary(List<Map<String, Object>> rows) {
         return rows.stream().map(row -> {
             Map<String, Object> item = new HashMap<>(row);
-            item.put("channelLabel", PaymentChannel.labelOf((String) row.get("channel")));
+            item.put("channelLabel", channelLabel((String) row.get("channel")));
             return item;
         }).toList();
+    }
+
+    private String channelLabel(String channel) {
+        if (channel == null || channel.isBlank()) {
+            return "-";
+        }
+        return switch (channel.trim().toUpperCase()) {
+            case PaymentChannel.CASH -> "现金";
+            case PaymentChannel.WECHAT -> "微信";
+            case PaymentChannel.ALIPAY -> "支付宝";
+            case PaymentChannel.INSURANCE -> "医保";
+            case PaymentChannel.SCAN -> "扫码";
+            default -> channel;
+        };
     }
 }
