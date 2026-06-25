@@ -2,7 +2,6 @@ import request from './request'
 import { useMock } from '../utils/mock'
 import {
   mockDisposalExecute,
-  mockDisposalGenerateAiReport,
   mockDisposalQueue,
   mockDisposalResult,
   mockDisposalResultDetail,
@@ -26,9 +25,4 @@ export function saveDisposalResult(id, data) {
 export function fetchDisposalResultDetail(id) {
   if (useMock()) return mockDisposalResultDetail(id)
   return request.get(`/disposal/requests/${id}/result-detail`)
-}
-
-export function generateDisposalAiReport(id) {
-  if (useMock()) return mockDisposalGenerateAiReport(id)
-  return request.post(`/disposal/requests/${id}/ai-report`)
 }

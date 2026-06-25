@@ -3,12 +3,16 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MprViewer from '../../components/imaging/MprViewer.vue'
+import CheckReportSheet from '../../components/medical/CheckReportSheet.vue'
 import {
   fetchPacsImagingPreview,
   fetchPacsPreviewBlob,
+  fetchPacsResultDetail,
   generatePacsAiReport,
+  generatePacsLlmReport,
   savePacsResult,
   uploadPacsImaging,
+  uploadPacsReportSnapshots,
 } from '../../api/pacs'
 
 const route = useRoute()
@@ -49,10 +53,23 @@ const maskSlices = ref([])
 const mountViewer = ref(false)
 
 const resultDialogVisible = ref(false)
-const resultText = ref('')
-const resultAttachment = ref('')
+const checkReport = ref(null)
+const detailLoading = ref(false)
 const savingResult = ref(false)
-const generatingSuggestion = ref(false)
+const generatingLlm = ref(false)
+const mprViewerRef = ref(null)
+/** preview | entry | review | readonly */
+const dialogMode = ref('entry')
+
+const isEditableEntry = computed(() => dialogMode.value === 'entry')
+
+const resultDialogTitle = computed(() => {
+  const name = itemName.value || ''
+  if (dialogMode.value === 'preview') return `检查报告预览 · ${name}`
+  if (dialogMode.value === 'review') return `审阅检查报告 · ${name}`
+  if (dialogMode.value === 'readonly') return `查看检查报告 · ${name}`
+  return `录入检查报告 · ${name}`
+})
 
 function revokeUrls() {
   if (ctObjectUrl.value) URL.revokeObjectURL(ctObjectUrl.value)
@@ -266,50 +283,178 @@ function goBack() {
   router.push('/pacs/queue')
 }
 
-function openResultDialog() {
-  resultText.value = ''
-  resultAttachment.value = ''
-  resultDialogVisible.value = true
+async function captureAndApplySnapshots() {
+  const captured = mprViewerRef.value?.captureReportSnapshots?.()
+  if (!captured?.axial && !captured?.coronal && !captured?.sagittal) {
+    ElMessage.warning('请先完成影像加载后再采图')
+    return null
+  }
+  if (checkReport.value) {
+    checkReport.value = {
+      ...checkReport.value,
+      findings: {
+        ...checkReport.value.findings,
+        localSnapshots: {
+          axial: captured.axial,
+          coronal: captured.coronal,
+          sagittal: captured.sagittal,
+        },
+        snapshotMeta: captured.meta,
+      },
+    }
+  }
+  try {
+    await uploadPacsReportSnapshots(checkRequestId.value, captured)
+  } catch (err) {
+    ElMessage.warning(err.message || '采图上传失败，将仅本地预览')
+  }
+  return captured
 }
 
-async function onGenerateAiSuggestion() {
+function reportHasEntry() {
+  if (!checkReport.value) return false
+  const ai = checkReport.value.analysis?.aiReportText?.trim() || ''
+  const doctor = checkReport.value.analysis?.doctorReportText?.trim() || ''
+  const findings = checkReport.value.findings?.findingsText?.trim() || ''
+  return !!(ai || doctor || findings)
+}
+
+function enterEntryMode() {
+  dialogMode.value = 'entry'
+}
+
+async function openResultDialog(mode = 'entry') {
   if (!checkRequestId.value) return
-  generatingSuggestion.value = true
+  dialogMode.value = mode
+  checkReport.value = null
+  detailLoading.value = true
   try {
-    const res = await generatePacsAiReport(checkRequestId.value)
-    const text = res.data?.aiReportText || res.data?.resultText || ''
-    if (text) {
-      resultText.value = text
-      ElMessage.success('AI 建议已填入结果文本，请核对后保存')
-    } else {
-      ElMessage.info('暂无 AI 建议')
+    const res = await fetchPacsResultDetail(checkRequestId.value)
+    checkReport.value = { ...res.data }
+    if (mountViewer.value && (mode === 'entry' || mode === 'preview')) {
+      await captureAndApplySnapshots()
+      const refreshed = await fetchPacsResultDetail(checkRequestId.value)
+      checkReport.value = {
+        ...refreshed.data,
+        findings: {
+          ...refreshed.data.findings,
+          localSnapshots: checkReport.value?.findings?.localSnapshots,
+        },
+      }
     }
+    if (mode === 'review' && !reportHasEntry()) {
+      ElMessage.warning('报告尚未录入，请先由录入医师完成录入')
+      return
+    }
+    resultDialogVisible.value = true
   } catch (err) {
-    ElMessage.error(err.message || 'AI 建议生成失败')
+    ElMessage.error(err.message || '加载报告详情失败')
   } finally {
-    generatingSuggestion.value = false
+    detailLoading.value = false
   }
 }
 
-async function onSaveResult() {
-  if (!checkRequestId.value) return
-  if (!resultText.value.trim()) {
-    ElMessage.warning('请填写结果文本')
+async function onRecaptureSnapshots() {
+  detailLoading.value = true
+  try {
+    await captureAndApplySnapshots()
+    ElMessage.success('已重新采集三视图采图')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function onGenerateLlmReport() {
+  if (!checkRequestId.value || !checkReport.value) return
+  const findingsText = checkReport.value.findings?.findingsText?.trim() || ''
+  if (!findingsText) {
+    ElMessage.warning('请先填写 CT 所见')
+    return
+  }
+  generatingLlm.value = true
+  try {
+    const res = await generatePacsLlmReport(checkRequestId.value, findingsText)
+    checkReport.value = mergeCheckReportAfterLlm(checkReport.value, res.data)
+    ElMessage.success('AI 报告已生成，请核对诊断印象')
+  } catch (err) {
+    ElMessage.error(err.message || 'AI 报告生成失败')
+  } finally {
+    generatingLlm.value = false
+  }
+}
+
+function mergeCheckReportAfterLlm(current, generated) {
+  const preservedFindings = current?.findings?.findingsText ?? current?.findingsText ?? ''
+  return {
+    ...generated,
+    findings: {
+      ...(generated.findings || {}),
+      findingsText: preservedFindings || generated.findings?.findingsText || '',
+    },
+    findingsText: preservedFindings || generated.findingsText || '',
+  }
+}
+
+function updateCheckFindings(text) {
+  if (!checkReport.value) return
+  checkReport.value = {
+    ...checkReport.value,
+    findings: { ...checkReport.value.findings, findingsText: text },
+    findingsText: text,
+  }
+}
+
+function updateCheckAi(text) {
+  if (!checkReport.value) return
+  checkReport.value = {
+    ...checkReport.value,
+    analysis: { ...checkReport.value.analysis, aiReportText: text, aiReportStatus: 'READY' },
+    aiReportText: text,
+    aiReportStatus: 'READY',
+  }
+}
+
+function updateCheckDoctor(text) {
+  if (!checkReport.value) return
+  checkReport.value = {
+    ...checkReport.value,
+    analysis: { ...checkReport.value.analysis, doctorReportText: text },
+    doctorReportText: text,
+  }
+}
+
+async function submitResult(signOpts, successMessage) {
+  if (!checkRequestId.value || !checkReport.value) return
+  const findings = checkReport.value.findings?.findingsText?.trim() || ''
+  const ai = checkReport.value.analysis?.aiReportText?.trim() || ''
+  const doctor = checkReport.value.analysis?.doctorReportText?.trim() || ''
+  if (!signOpts.signAsReviewerOnly && !ai && !doctor) {
+    ElMessage.warning('请生成 AI 报告或填写检查医师意见')
     return
   }
   savingResult.value = true
   try {
     await savePacsResult(checkRequestId.value, {
-      resultText: resultText.value.trim(),
-      resultAttachment: resultAttachment.value.trim() || undefined,
+      findingsText: findings,
+      aiReportText: ai,
+      doctorReportText: doctor,
+      ...signOpts,
     })
-    ElMessage.success('结果已保存，医生可在工作站查看')
+    ElMessage.success(successMessage)
     resultDialogVisible.value = false
   } catch (err) {
     ElMessage.error(err.message || '保存失败')
   } finally {
     savingResult.value = false
   }
+}
+
+async function onSaveEntry() {
+  await submitResult({ pendingReview: true }, '录入已保存，待审核医师发布')
+}
+
+async function onPublishReview() {
+  await submitResult({ signAsReviewerOnly: true }, '报告已发布')
 }
 
 onMounted(() => {
@@ -347,9 +492,10 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <div class="header-actions">
-        <el-button v-if="showResultEntry" type="success" @click="openResultDialog">
-          录入结果
-        </el-button>
+        <template v-if="showResultEntry">
+          <el-button type="success" @click="openResultDialog('entry')">录入</el-button>
+          <el-button type="primary" @click="openResultDialog('review')">审阅</el-button>
+        </template>
         <el-button link type="primary" @click="goBack">返回检查队列</el-button>
       </div>
     </header>
@@ -415,6 +561,7 @@ onBeforeUnmount(() => {
         <div v-if="previewLoading" class="preview-loading">正在从 MinIO 拉取预览…</div>
         <div v-else-if="showResults && ctObjectUrl && mountViewer && !generating" class="viewer-wrap">
           <MprViewer
+            ref="mprViewerRef"
             :key="`${checkRequestId}-${ctObjectUrl}`"
             :ct-url="ctObjectUrl"
             :mask-url="maskObjectUrl"
@@ -435,33 +582,56 @@ onBeforeUnmount(() => {
 
     <el-dialog
       v-model="resultDialogVisible"
-      :title="`录入结果 · ${itemName}`"
-      width="560px"
+      :title="resultDialogTitle"
+      width="860px"
       destroy-on-close
     >
-      <el-form label-position="top">
-        <el-form-item label="结果文本（resultText）" required>
-          <el-input
-            v-model="resultText"
-            type="textarea"
-            :rows="8"
-            placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
-          />
-        </el-form-item>
-        <el-form-item label="结果附件（resultAttachment，可选）">
-          <el-input
-            v-model="resultAttachment"
-            placeholder="如 minio://bucket/key/report.pdf"
-          />
-        </el-form-item>
-      </el-form>
+      <div v-loading="detailLoading" class="report-dialog-wrap">
+        <CheckReportSheet
+          v-if="checkReport"
+          :report="checkReport"
+          :editable-findings="isEditableEntry"
+          :editable-ai="isEditableEntry"
+          :editable-doctor="isEditableEntry"
+          :show-recapture="isEditableEntry"
+          @update:findings-text="updateCheckFindings"
+          @update:ai-report-text="updateCheckAi"
+          @update:doctor-report-text="updateCheckDoctor"
+          @recapture="onRecaptureSnapshots"
+        />
+        <div v-if="dialogMode === 'preview'" class="report-corner-actions">
+          <el-button type="primary" @click="enterEntryMode">录入</el-button>
+        </div>
+      </div>
       <template #footer>
-        <el-button :loading="generatingSuggestion" @click="onGenerateAiSuggestion">
-          生成 AI 建议填入
+        <el-button
+          v-if="dialogMode === 'entry'"
+          type="primary"
+          plain
+          :loading="generatingLlm"
+          :disabled="detailLoading"
+          @click="onGenerateLlmReport"
+        >
+          生成 AI 报告
         </el-button>
-        <el-button @click="resultDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="savingResult" @click="onSaveResult">
-          保存并发布
+        <el-button @click="resultDialogVisible = false">
+          {{ dialogMode === 'preview' || dialogMode === 'readonly' ? '关闭' : '取消' }}
+        </el-button>
+        <el-button
+          v-if="dialogMode === 'entry'"
+          type="primary"
+          :loading="savingResult"
+          @click="onSaveEntry"
+        >
+          保存录入
+        </el-button>
+        <el-button
+          v-if="dialogMode === 'review'"
+          type="success"
+          :loading="savingResult"
+          @click="onPublishReview"
+        >
+          发布
         </el-button>
       </template>
     </el-dialog>
@@ -539,5 +709,22 @@ onBeforeUnmount(() => {
 .panel-tip, .preview-loading { color: #8aa0b4; padding: 48px 0; text-align: center; }
 .panel-tip.error { color: #ff9a9a; }
 .empty-hint { padding: 48px; text-align: center; color: #8aa0b4; }
+.sign-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 8px 0;
+}
+.report-dialog-wrap {
+  position: relative;
+}
+.report-corner-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
 @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
 </style>

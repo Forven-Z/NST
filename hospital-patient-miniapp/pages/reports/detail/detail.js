@@ -32,7 +32,7 @@ Page({
           detail.purposeLabel = '检验目的'
           detail.contentSectionTitle = '检验报告'
           detail.timeLabel = '报告时间'
-        } else {
+        } else if (detail.type === 'exam') {
           detail.applySectionTitle = '申请信息'
           detail.purposeLabel = '检查目的'
           detail.contentSectionTitle = '检查报告'

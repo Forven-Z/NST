@@ -14,7 +14,7 @@ export function executeLisRequest(id) {
 
 export function saveLisResult(id, data) {
   if (useMock()) return mockLisSaveResult(id, data)
-  return request.put(`/lis/requests/${id}/result`, data)
+  return request.post(`/lis/requests/${id}/result`, data)
 }
 
 export function fetchLisResultDetail(id) {

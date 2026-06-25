@@ -71,6 +71,48 @@ public class DisposalRequestRepository {
                 .optional();
     }
 
+    public Optional<Map<String, Object>> findDisposalRecordContext(Long id) {
+        return jdbcClient.sql("""
+                        SELECT dr.id AS disposal_request_id,
+                               dr.register_id,
+                               dr.patient_id,
+                               dr.status,
+                               dr.purpose,
+                               dr.body_part,
+                               dr.remark AS order_remark,
+                               dr.result_text,
+                               dr.result_time,
+                               dr.execute_time,
+                               dr.result_input_id,
+                               dr.reviewer_id,
+                               mt.item_name,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               p.gender,
+                               p.age,
+                               d.dept_name AS department_name,
+                               mr.diagnosis AS clinical_diagnosis,
+                               e1.real_name AS executor_name,
+                               rep.real_name AS recorder_name,
+                               rev.real_name AS reviewer_name,
+                               doc.real_name AS ordering_doctor_name
+                        FROM disposal_request dr
+                        JOIN patient p ON dr.patient_id = p.id
+                        JOIN medical_technology mt ON dr.medical_technology_id = mt.id
+                        JOIN register reg ON dr.register_id = reg.id
+                        JOIN department d ON reg.dept_id = d.id
+                        LEFT JOIN medical_record mr ON mr.register_id = dr.register_id AND mr.delmark = 0
+                        LEFT JOIN employee e1 ON dr.executor_id = e1.id
+                        LEFT JOIN employee rep ON dr.result_input_id = rep.id
+                        LEFT JOIN employee rev ON dr.reviewer_id = rev.id
+                        LEFT JOIN employee doc ON dr.doctor_id = doc.id
+                        WHERE dr.id = :id AND dr.delmark = 0
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> mapRecordContext(rs))
+                .optional();
+    }
+
     public void markExecuted(Long id, Long executorId) {
         jdbcClient.sql("""
                         UPDATE disposal_request
@@ -83,57 +125,68 @@ public class DisposalRequestRepository {
                 .update();
     }
 
-    public void saveResult(Long id, Long resultInputId, String resultText, String resultAttachment) {
+    public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
+        if (reviewOnly) {
+            jdbcClient.sql("""
+                            UPDATE disposal_request
+                            SET reviewer_id = :reviewerId,
+                                status = 40,
+                                result_time = :now,
+                                update_time = NOW()
+                            WHERE id = :id
+                            """)
+                    .param("id", id)
+                    .param("reviewerId", reviewerId)
+                    .param("now", OffsetDateTime.now())
+                    .update();
+            return;
+        }
+        int status = reviewerId != null ? 40 : 30;
         jdbcClient.sql("""
                         UPDATE disposal_request
-                        SET status = 40,
+                        SET status = :status,
                             result_input_id = :resultInputId,
+                            reviewer_id = :reviewerId,
                             result_time = :now,
                             result_text = :resultText,
-                            result_attachment = :resultAttachment,
+                            result_attachment = NULL,
                             update_time = NOW()
                         WHERE id = :id
                         """)
                 .param("id", id)
+                .param("status", status)
                 .param("resultInputId", resultInputId)
+                .param("reviewerId", reviewerId)
                 .param("now", OffsetDateTime.now())
                 .param("resultText", resultText)
-                .param("resultAttachment", resultAttachment)
                 .update();
     }
 
-    public Optional<Map<String, Object>> findResultDetail(Long id) {
-        return jdbcClient.sql("""
-                        SELECT dr.id AS disposal_request_id,
-                               dr.status,
-                               dr.result_text,
-                               dr.result_attachment,
-                               dr.result_time,
-                               dr.purpose,
-                               dr.body_part,
-                               p.medical_record_no,
-                               p.real_name AS patient_name,
-                               mt.item_name
-                        FROM disposal_request dr
-                        JOIN patient p ON dr.patient_id = p.id
-                        JOIN medical_technology mt ON dr.medical_technology_id = mt.id
-                        WHERE dr.id = :id AND dr.delmark = 0
-                        """)
-                .param("id", id)
-                .query((rs, rowNum) -> {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("disposalRequestId", rs.getLong("disposal_request_id"));
-                    row.put("status", rs.getInt("status"));
-                    row.put("resultText", rs.getString("result_text"));
-                    row.put("resultAttachment", rs.getString("result_attachment"));
-                    row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
-                    row.put("purpose", rs.getString("purpose"));
-                    row.put("bodyPart", rs.getString("body_part"));
-                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
-                    row.put("patientName", rs.getString("patient_name"));
-                    row.put("itemName", rs.getString("item_name"));
-                    return row;
-                })
-                .optional();
+    private Map<String, Object> mapRecordContext(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("disposalRequestId", rs.getLong("disposal_request_id"));
+        row.put("registerId", rs.getLong("register_id"));
+        row.put("patientId", rs.getLong("patient_id"));
+        row.put("status", rs.getInt("status"));
+        row.put("purpose", rs.getString("purpose"));
+        row.put("bodyPart", rs.getString("body_part"));
+        row.put("orderRemark", rs.getString("order_remark"));
+        row.put("resultText", rs.getString("result_text"));
+        row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+        row.put("executeTime", rs.getObject("execute_time", OffsetDateTime.class));
+        row.put("itemName", rs.getString("item_name"));
+        row.put("medicalRecordNo", rs.getString("medical_record_no"));
+        row.put("patientName", rs.getString("patient_name"));
+        row.put("gender", rs.getObject("gender") != null ? rs.getInt("gender") : null);
+        row.put("age", rs.getObject("age") != null ? rs.getInt("age") : null);
+        row.put("departmentName", rs.getString("department_name"));
+        row.put("clinicalDiagnosis", rs.getString("clinical_diagnosis"));
+        row.put("executorName", rs.getString("executor_name"));
+        row.put("recorderName", rs.getString("recorder_name"));
+        row.put("reviewerName", rs.getString("reviewer_name"));
+        row.put("resultInputId", rs.getObject("result_input_id") != null ? rs.getLong("result_input_id") : null);
+        row.put("reviewerId", rs.getObject("reviewer_id") != null ? rs.getLong("reviewer_id") : null);
+        row.put("orderingDoctorName", rs.getString("ordering_doctor_name"));
+        return row;
     }
 }

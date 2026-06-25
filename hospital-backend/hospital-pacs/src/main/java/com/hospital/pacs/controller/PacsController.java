@@ -2,8 +2,8 @@ package com.hospital.pacs.controller;
 
 import com.hospital.common.Result;
 import com.hospital.pacs.dto.CheckResultRequest;
+import com.hospital.pacs.dto.LlmReportRequest;
 import com.hospital.pacs.service.PacsCheckService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,7 +43,20 @@ public class PacsController {
     @PostMapping("/requests/{id}/result")
     public Result<Map<String, Object>> saveResult(
             @PathVariable Long id,
-            @Valid @RequestBody CheckResultRequest request) {
+            @RequestBody CheckResultRequest request) {
         return Result.success(pacsCheckService.saveResult(id, request));
+    }
+
+    @GetMapping("/requests/{id}/result-detail")
+    public Result<Map<String, Object>> resultDetail(@PathVariable Long id) {
+        return Result.success(pacsCheckService.getResultDetail(id));
+    }
+
+    @PostMapping("/requests/{id}/llm-report")
+    public Result<Map<String, Object>> llmReport(
+            @PathVariable Long id,
+            @RequestBody(required = false) LlmReportRequest request) {
+        String findingsText = request != null ? request.getFindingsText() : null;
+        return Result.success(pacsCheckService.generateLlmReport(id, findingsText));
     }
 }

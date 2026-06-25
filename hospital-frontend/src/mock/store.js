@@ -4,6 +4,24 @@
  */
 import { mockAiReportText, mockInstrumentData } from './ai-reports'
 import {
+  composeLabReportView,
+  composeLabResultText,
+  defaultLabItems,
+  generateLabAiReportStub,
+  parseLabPublishedText,
+} from '../utils/labReport'
+import {
+  composeDisposalRecordView,
+  composeDisposalResultText,
+  parseDisposalResultText,
+} from '../utils/disposalRecord'
+import {
+  composeCheckReportView,
+  composeCheckResultText,
+  generateCheckAiReportStub,
+  parseCheckResultText,
+} from '../utils/checkReport'
+import {
   consumeScheduleQuota,
   getDeptById,
   getDoctorById,
@@ -21,10 +39,173 @@ function buildPublishedResultText({ instrumentData = '', aiReportText = '', doct
 
 function initResultFields(row, techType) {
   row.instrumentData = ''
+  row.findingsText = ''
   row.aiReportText = ''
   row.doctorReportText = ''
   row.aiReportStatus = 'PENDING'
+  row.resultItems = []
+  row.processText = ''
+  row.outcomeText = ''
   row.techType = techType
+}
+
+function mockCurrentRealName() {
+  try {
+    const raw = localStorage.getItem('hospital_staff_auth')
+    if (!raw) return '演示医师'
+    const data = JSON.parse(raw)
+    return data.user?.realName || '演示医师'
+  } catch {
+    return '演示医师'
+  }
+}
+
+/** Mock 双签：与后端 MedTechSignSupport 行为对齐 */
+function applyMockMedTechSign(row, payload, { reporterField, reviewerField, aliasFields = [] }) {
+  if (!payload || typeof payload !== 'object') return
+  const name = mockCurrentRealName()
+  if (payload.signAsReviewerOnly) {
+    row[reviewerField] = name
+    return
+  }
+  if (payload.pendingReview) {
+    row[reporterField] = name
+    row[reviewerField] = ''
+    aliasFields.forEach((f) => {
+      row[f] = name
+    })
+    return
+  }
+  row[reporterField] = name
+  row[reviewerField] = name
+  aliasFields.forEach((f) => {
+    row[f] = name
+  })
+}
+
+function ensureLabItems(row) {
+  if (!row.resultItems?.length) {
+    row.resultItems = defaultLabItems(row.itemName)
+  }
+  return row.resultItems
+}
+
+/** 送检科室：挂号/开单所在门诊科室（非医技执行科室） */
+function referringDepartment(registerId) {
+  if (!registerId) return '—'
+  const reg = state.registers.find((r) => r.registerId === Number(registerId))
+  return reg?.deptName || '—'
+}
+
+function buildDisposalRecordRow(row) {
+  const parsed = parseDisposalResultText(row.resultText)
+  const process = row.processText || parsed.processText
+  const outcome = row.outcomeText || parsed.outcomeText
+  return composeDisposalRecordView(
+    {
+      disposalRequestId: row.disposalRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      patientName: row.patientName,
+      medicalRecordNo: row.medicalRecordNo,
+      genderLabel: row.genderLabel || '—',
+      ageLabel: row.ageLabel || '—',
+      department: referringDepartment(row.registerId),
+      clinicalDiagnosis: row.clinicalDiagnosis || '—',
+      purpose: row.purpose,
+      bodyPart: row.bodyPart,
+      orderRemark: row.remark,
+      reportTime: row.resultTime ?? nowIso(),
+      executeTime: row.executeTime ?? row.resultTime ?? nowIso(),
+      orderingDoctorName: row.orderingDoctorName || '门诊医生',
+      executorName: row.executorName || '处置医师',
+      recorderName: row.recorderName || '处置医师',
+      reviewerName: row.reviewerName || '',
+    },
+    { processText: process, outcomeText: outcome },
+  )
+}
+
+function buildCheckReportRow(row) {
+  ensureInstrumentData(row, 'CHECK')
+  const parsed = parseCheckResultText(row.resultText)
+  const findings = (row.findingsText || parsed.findingsText || '').trim()
+  const ai = row.aiReportText || parsed.aiReportText
+  const doctor = row.doctorReportText || parsed.doctorReportText
+  return composeCheckReportView(
+    {
+      checkRequestId: row.checkRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      patientName: row.patientName,
+      medicalRecordNo: row.medicalRecordNo,
+      genderLabel: row.genderLabel || '—',
+      ageLabel: row.ageLabel || '—',
+      department: referringDepartment(row.registerId),
+      bodyPart: row.bodyPart,
+      purpose: row.purpose,
+      clinicalDiagnosis: row.clinicalDiagnosis || '—',
+      orderRemark: row.remark,
+      examDate: row.executeTime ?? row.resultTime ?? nowIso(),
+      executeTime: row.executeTime ?? row.resultTime ?? nowIso(),
+      reportTime: row.resultTime ?? nowIso(),
+      orderingDoctorName: row.orderingDoctorName || '门诊医生',
+      executorName: row.executorName || '放射科医师',
+      reporterName: row.reporterName || '放射科医师',
+      reviewerName: row.reviewerName || '',
+      studyStatus: row.studyStatus || 'NONE',
+      hasImaging: row.studyStatus === 'COMPLETED',
+    },
+    {
+      findingsText: findings,
+      instrumentData: row.instrumentData,
+      studyStatus: row.studyStatus,
+      hasImaging: row.studyStatus === 'COMPLETED' || !!row.reportSnapshots,
+      reportImages: row.reportSnapshots
+        ? { axial: row.reportSnapshots.axial, coronal: row.reportSnapshots.coronal, sagittal: row.reportSnapshots.sagittal }
+        : null,
+      localSnapshots: row.reportSnapshots || null,
+      snapshotMeta: row.snapshotMeta,
+    },
+    {
+      aiReportText: ai,
+      doctorReportText: doctor,
+      aiReportStatus: row.aiReportStatus || (ai ? 'READY' : 'PENDING'),
+    },
+  )
+}
+
+function buildLabReportRow(row) {
+  ensureLabItems(row)
+  const parsed = parseLabPublishedText(row.resultText)
+  const ai = row.aiReportText || parsed.aiReportText
+  const doctor = row.doctorReportText || parsed.doctorReportText
+  return composeLabReportView(
+    {
+      inspectionRequestId: row.inspectionRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      patientName: row.patientName,
+      medicalRecordNo: row.medicalRecordNo,
+      genderLabel: row.genderLabel || '—',
+      ageLabel: row.ageLabel || '—',
+      department: referringDepartment(row.registerId),
+      clinicalDiagnosis: row.clinicalDiagnosis || '—',
+      purpose: row.purpose,
+      orderRemark: row.remark,
+      reportTime: row.resultTime ?? nowIso(),
+      testerName: row.testerName || '检验师',
+      reporterName: row.reporterName || row.testerName || '检验师',
+      reviewerName: row.reviewerName || '',
+      orderingDoctorName: row.orderingDoctorName || '门诊医生',
+    },
+    row.resultItems,
+    {
+      aiReportText: ai,
+      doctorReportText: doctor,
+      aiReportStatus: row.aiReportStatus || (ai ? 'READY' : 'PENDING'),
+    },
+  )
 }
 
 function ensureInstrumentData(row, techType) {
@@ -124,6 +305,7 @@ function seedDemoPatients() {
     visitState: 1,
     registTime: nowIso(),
     workDate: new Date().toISOString().slice(0, 10),
+    noonType: 1,
     noonLabel: '上午',
     triageLevel: 'NORMAL',
     triageNote: 'AI 分诊：常见病初诊，分配普通门诊',
@@ -162,6 +344,7 @@ function seedDemoPatients() {
     visitState: 2,
     registTime: nowIso(),
     workDate: new Date().toISOString().slice(0, 10),
+    noonType: 1,
     noonLabel: '上午',
     triageLevel: 'URGENT',
     triageNote: 'AI 分诊：反复头痛，优先接诊',
@@ -210,7 +393,9 @@ function seedDemoPatients() {
     registLevelName: '普通号',
     visitState: 2,
     registTime: nowIso(),
-    triageLevel: 'NORMAL',
+    workDate: new Date().toISOString().slice(0, 10),
+    noonType: 2,
+    noonLabel: '下午',
     triageNote: 'AI 分诊：老年慢病复诊',
     assignedByAi: true,
   })
@@ -528,11 +713,17 @@ function enrichRegisterForDisplay(reg) {
   const registBill = state.bills.find(
     (b) => b.registerId === reg.registerId && (b.bizType === 'REGIST' || b.bizType === 'REGISTER'),
   )
+  const callTime = reg.callTime || null
+  const cancellable = reg.visitState === 0 || (reg.visitState === 1 && !callTime)
   return {
     registerId: reg.registerId,
     visitState: reg.visitState,
     visitStateLabel: VISIT_STATE_LABELS[reg.visitState] || '未知',
-    cancellable: reg.visitState === 0 || reg.visitState === 1,
+    cancellable,
+    cancelHint: reg.visitState === 1 && !callTime
+      ? '医生叫号后将不可退号；当日 21:00 未就诊将自动结束且不退挂号费'
+      : null,
+    callTime,
     workDate: reg.workDate,
     noonLabel: reg.noonLabel,
     deptName: reg.deptName,
@@ -585,6 +776,7 @@ export function cancelRegisterByRegistrar(registerId, reason) {
     }
   }
   if (reg.visitState === 1) {
+    if (reg.callTime) throw new Error('医生已叫号，不可退号')
     const bill = state.bills.find(
       (b) =>
         b.registerId === reg.registerId
@@ -696,6 +888,18 @@ export function refundBillById(billId, reason = '窗口退费') {
 
 // —— 医生 ——
 
+function resolveNoonType(reg) {
+  if (reg.noonType != null) return Number(reg.noonType)
+  if (reg.noonLabel === '下午') return 2
+  return 1
+}
+
+function compareDoctorQueueOrder(a, b) {
+  const noonDiff = resolveNoonType(a) - resolveNoonType(b)
+  if (noonDiff !== 0) return noonDiff
+  return String(a.registTime || '').localeCompare(String(b.registTime || ''))
+}
+
 export function getDoctorQueue(params = {}) {
   const { visitState } = params
   let list = state.registers.filter((r) => r.deptId === 1)
@@ -704,7 +908,7 @@ export function getDoctorQueue(params = {}) {
   } else {
     list = list.filter((r) => r.visitState >= 1 && r.visitState <= 2)
   }
-  list = list.sort((a, b) => String(a.registTime || '').localeCompare(String(b.registTime || '')))
+  list = list.sort(compareDoctorQueueOrder)
   const seen = new Set()
   return list.filter((r) => {
     const key = r.patientId ?? r.medicalRecordNo
@@ -868,7 +1072,6 @@ function formatResultPayload(row, idKey) {
     [idKey]: row[idKey],
     itemName: row.itemName,
     resultText: row.resultText || '',
-    resultAttachment: row.resultAttachment || '',
     reportTime: row.resultTime ?? nowIso(),
   }
 }
@@ -909,21 +1112,22 @@ export function getInspectionResult(inspectionRequestId) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(inspectionRequestId))
   if (!row) throw new Error('检验申请不存在')
   if (row.status < 40) throw new Error('检验结果尚未出具，请待检验科录入')
-  return enrichDoctorResultView(row, 'inspectionRequestId')
+  return buildLabReportRow(row)
 }
 
 export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  return enrichDoctorResultView(row, 'checkRequestId')
+  ensureInstrumentData(row, 'CHECK')
+  return buildCheckReportRow(row)
 }
 
 export function getDisposalResult(disposalRequestId) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(disposalRequestId))
   if (!row) throw new Error('处置申请不存在')
   if (row.status < 40) throw new Error('处置记录尚未出具，请待处置科录入')
-  return enrichDoctorResultView(row, 'disposalRequestId')
+  return buildDisposalRecordRow(row)
 }
 
 function findTechRow(techType, id) {
@@ -942,24 +1146,72 @@ function findTechRow(techType, id) {
 export function getTechResultDetail(techType, id) {
   const row = findTechRow(techType, id)
   if (!row) throw new Error('申请不存在')
+  if (techType === 'INSPECTION') {
+    ensureLabItems(row)
+    const report = buildLabReportRow(row)
+    return {
+      ...report,
+      medicalRecordNo: row.medicalRecordNo,
+      patientName: row.patientName,
+      techType,
+    }
+  }
+  if (techType === 'DISPOSAL') {
+    const report = buildDisposalRecordRow(row)
+    return {
+      ...report,
+      medicalRecordNo: row.medicalRecordNo,
+      patientName: row.patientName,
+      techType,
+    }
+  }
+  if (techType === 'CHECK') {
+    ensureInstrumentData(row, techType)
+    const report = buildCheckReportRow(row)
+    return {
+      ...report,
+      medicalRecordNo: row.medicalRecordNo,
+      patientName: row.patientName,
+      techType,
+    }
+  }
   ensureInstrumentData(row, techType)
-  const idKey = techType === 'INSPECTION'
-    ? 'inspectionRequestId'
-    : techType === 'CHECK'
-      ? 'checkRequestId'
-      : 'disposalRequestId'
+  const idKey = techType === 'CHECK'
+    ? 'checkRequestId'
+    : techType === 'DISPOSAL'
+      ? 'disposalRequestId'
+      : 'inspectionRequestId'
   return {
     ...formatResultPayload(row, idKey),
     status: row.status,
     medicalRecordNo: row.medicalRecordNo,
     patientName: row.patientName,
     techType,
+    instrumentData: row.instrumentData,
+    aiReportText: row.aiReportText,
+    doctorReportText: row.doctorReportText,
+    aiReportStatus: row.aiReportStatus,
   }
 }
 
-export function generateTechAiReport(techType, id) {
+export function generateTechAiReport(techType, id, findingsTextFromRequest) {
   const row = findTechRow(techType, id)
   if (!row) throw new Error('申请不存在')
+  if (techType === 'INSPECTION') {
+    ensureLabItems(row)
+    row.aiReportText = generateLabAiReportStub(row.itemName, row.resultItems)
+    row.aiReportStatus = 'READY'
+    return getTechResultDetail(techType, id)
+  }
+  if (techType === 'CHECK') {
+    ensureInstrumentData(row, techType)
+    const findings = (findingsTextFromRequest ?? row.findingsText ?? '').trim()
+    if (!findings) throw new Error('请先填写 CT 所见')
+    row.findingsText = findings
+    row.aiReportText = generateCheckAiReportStub(row.itemName, findings)
+    row.aiReportStatus = 'READY'
+    return getTechResultDetail(techType, id)
+  }
   ensureInstrumentData(row, techType)
   row.aiReportText = mockAiReportText(techType, row.itemName)
   row.aiReportStatus = 'READY'
@@ -1054,7 +1306,6 @@ export function getRegisterResults(registerId) {
         typeLabel: item.typeLabel,
         itemName: item.itemName,
         resultText: detail.resultText,
-        resultAttachment: detail.resultAttachment,
         reportTime: detail.reportTime,
       })
     } catch {
@@ -1158,25 +1409,32 @@ export function executeInspection(id) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
-  ensureInstrumentData(row, 'INSPECTION')
-  if (!row.aiReportText) {
-    row.aiReportText = mockAiReportText('INSPECTION', row.itemName)
-    row.aiReportStatus = 'READY'
-  }
+  ensureLabItems(row)
   return row
 }
 
 export function saveInspectionResult(id, payload) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
+  ensureLabItems(row)
   if (typeof payload === 'string') {
     row.resultText = payload
+  } else if (payload?.aiReportText || payload?.doctorReportText) {
+    row.aiReportText = payload.aiReportText?.trim() || row.aiReportText || ''
+    row.doctorReportText = payload.doctorReportText?.trim() || ''
+    row.resultText = composeLabResultText(row.resultItems, row.aiReportText, row.doctorReportText)
+    row.aiReportStatus = row.aiReportText ? 'READY' : 'PENDING'
   } else {
-    row.resultText = payload.resultText ?? ''
-    row.resultAttachment = payload.resultAttachment ?? ''
+    row.resultText = payload?.resultText ?? ''
   }
-  row.status = 40
-  return row
+  applyMockMedTechSign(row, payload, {
+    reporterField: 'reporterName',
+    reviewerField: 'reviewerName',
+    aliasFields: ['testerName'],
+  })
+  row.status = payload?.signAsReviewerOnly ? 40 : payload?.pendingReview ? 30 : 40
+  row.resultTime = nowIso()
+  return buildLabReportRow(row)
 }
 
 export function getCheckQueue(status) {
@@ -1194,16 +1452,38 @@ export function executeCheck(id) {
   return row
 }
 
+export function saveCheckReportSnapshots(id, snapshots) {
+  const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
+  if (!row) throw new Error('申请不存在')
+  row.reportSnapshots = {
+    axial: snapshots?.axial || '',
+    coronal: snapshots?.coronal || '',
+    sagittal: snapshots?.sagittal || '',
+  }
+  row.snapshotMeta = snapshots?.meta || null
+  row.studyStatus = row.studyStatus || 'COMPLETED'
+  return row
+}
+
 export function saveCheckResult(id, payload) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
   if (typeof payload === 'string') {
     row.resultText = payload
+  } else if (payload?.aiReportText || payload?.doctorReportText || payload?.findingsText) {
+    row.findingsText = payload.findingsText?.trim() ?? row.findingsText ?? ''
+    row.aiReportText = payload.aiReportText?.trim() || row.aiReportText || ''
+    row.doctorReportText = payload.doctorReportText?.trim() || row.doctorReportText || ''
+    row.resultText = composeCheckResultText(row.findingsText, row.aiReportText, row.doctorReportText)
+    row.aiReportStatus = row.aiReportText ? 'READY' : 'PENDING'
   } else {
     row.resultText = payload.resultText ?? ''
-    row.resultAttachment = payload.resultAttachment ?? ''
   }
-  row.status = 40
+  applyMockMedTechSign(row, payload, {
+    reporterField: 'reporterName',
+    reviewerField: 'reviewerName',
+  })
+  row.status = payload?.signAsReviewerOnly ? 40 : payload?.pendingReview ? 30 : 40
   return row
 }
 
@@ -1216,11 +1496,7 @@ export function executeDisposal(id) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
-  ensureInstrumentData(row, 'DISPOSAL')
-  if (!row.aiReportText) {
-    row.aiReportText = mockAiReportText('DISPOSAL', row.itemName)
-    row.aiReportStatus = 'READY'
-  }
+  row.executeTime = nowIso()
   return row
 }
 
@@ -1229,21 +1505,23 @@ export function saveDisposalResult(id, payload) {
   if (!row) throw new Error('申请不存在')
   if (typeof payload === 'string') {
     row.resultText = payload
-  } else if (payload.aiReportText || payload.doctorReportText) {
-    const ai = payload.aiReportText?.trim() || ''
-    const doctor = payload.doctorReportText?.trim() || ''
-    if (ai && doctor) row.resultText = `AI：${ai}\n医师：${doctor}`
-    else if (ai) row.resultText = `AI：${ai}`
-    else row.resultText = `医师：${doctor}`
-    row.aiReportText = ai
-    row.doctorReportText = doctor
-    row.resultAttachment = payload.resultAttachment ?? ''
+  } else if (payload?.processText || payload?.outcomeText) {
+    row.processText = payload.processText?.trim() || ''
+    row.outcomeText = payload.outcomeText?.trim() || ''
+    row.resultText = composeDisposalResultText(row.processText, row.outcomeText)
+  } else if (payload?.aiReportText || payload?.doctorReportText) {
+    row.outcomeText = payload.doctorReportText?.trim() || payload.aiReportText?.trim() || ''
+    row.resultText = composeDisposalResultText('', row.outcomeText)
   } else {
-    row.resultText = payload.resultText ?? ''
-    row.resultAttachment = payload.resultAttachment ?? ''
+    row.resultText = payload?.resultText ?? ''
   }
-  row.status = 40
-  return row
+  applyMockMedTechSign(row, payload, {
+    reporterField: 'recorderName',
+    reviewerField: 'reviewerName',
+  })
+  row.status = payload?.signAsReviewerOnly ? 40 : payload?.pendingReview ? 30 : 40
+  row.resultTime = nowIso()
+  return buildDisposalRecordRow(row)
 }
 
 // —— 药房 ——

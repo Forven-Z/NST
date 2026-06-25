@@ -1,6 +1,7 @@
 import request from './request'
 import { useMock } from '../utils/mock'
-import { mockPacsExecute, mockPacsGenerateAiReport, mockPacsQueue, mockPacsSaveResult } from '../mock/pacs'
+import { dataUrlToBlob } from '../utils/reportSnapshot'
+import { mockPacsExecute, mockPacsGenerateAiReport, mockPacsGenerateLlmReport, mockPacsQueue, mockPacsResultDetail, mockPacsSaveResult, mockPacsUploadReportSnapshots } from '../mock/pacs'
 import { mockImagingStudies } from '../mock/pacs-imaging'
 
 export function fetchPacsQueue(params) {
@@ -23,13 +24,37 @@ export function fetchImagingStudies(params) {
   return request.get('/pacs/imaging-studies', { params })
 }
 
+export function fetchPacsResultDetail(id) {
+  if (useMock()) return mockPacsResultDetail(id)
+  return request.get(`/pacs/requests/${id}/result-detail`)
+}
+
 export function generatePacsAiReport(id) {
   if (useMock()) return mockPacsGenerateAiReport(id)
   return request.post(`/pacs/requests/${id}/ai-report`, null, { timeout: 180000 })
 }
 
-export function fetchPacsResultDetail(id) {
-  return request.get(`/pacs/requests/${id}/result-detail`)
+export function generatePacsLlmReport(id, findingsText) {
+  if (useMock()) return mockPacsGenerateLlmReport(id, findingsText)
+  return request.post(`/pacs/requests/${id}/llm-report`, { findingsText }, { timeout: 180000 })
+}
+
+export function uploadPacsReportSnapshots(checkRequestId, snapshots) {
+  if (useMock()) return mockPacsUploadReportSnapshots(checkRequestId, snapshots)
+  const form = new FormData()
+  for (const plane of ['axial', 'coronal', 'sagittal']) {
+    const dataUrl = snapshots?.[plane]
+    if (!dataUrl) continue
+    const blob = dataUrl.startsWith('data:') ? dataUrlToBlob(dataUrl) : null
+    if (blob) form.append(plane, blob, `${plane}.png`)
+  }
+  if (snapshots?.meta) {
+    form.append('meta', JSON.stringify(snapshots.meta))
+  }
+  return request.post(`/pacs/requests/${checkRequestId}/report-snapshots`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  })
 }
 
 export function fetchPacsImagingPreview(id) {
