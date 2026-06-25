@@ -98,6 +98,11 @@ const router = createRouter({
           component: () => import('../views/pharmacy/PendingView.vue'),
         },
         {
+          path: 'drugs',
+          name: 'pharmacy-drugs',
+          component: () => import('../views/pharmacy/DrugsView.vue'),
+        },
+        {
           path: 'my-schedules',
           name: 'pharmacy-my-schedules',
           component: () => import('../views/doctor/MyScheduleView.vue'),

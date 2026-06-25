@@ -9,7 +9,13 @@ import {
   fetchSettleCategories,
   windowRegister,
 } from '../../api/registrar'
-import { applyIdCardToForm, calcAgeFromBirthDate, isValidIdCard, parseIdCard } from '../../utils/id-card'
+import {
+  applyIdCardToForm,
+  calcAgeFromBirthDate,
+  isValidBirthDateStr,
+  isValidIdCard,
+  parseIdCard,
+} from '../../utils/id-card'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -56,6 +62,7 @@ const canSubmit = computed(
   () =>
     form.patientName.trim()
     && form.idCard.trim()
+    && isValidIdCard(form.idCard.trim())
     && form.phone.trim()
     && form.deptId
     && selectedSchedulingId.value
@@ -193,6 +200,8 @@ function onIdCardBlur() {
   }
   if (isValidIdCard(normalized)) {
     applyIdCardToForm(normalized, form)
+  } else if (normalized.length === 18) {
+    ElMessage.warning('身份证号格式或出生日期不合法')
   }
 }
 
@@ -237,7 +246,7 @@ function goToCharge() {
 }
 
 function resolveBirthDateForSubmit() {
-  if (form.birthDate) return form.birthDate
+  if (form.birthDate && isValidBirthDateStr(form.birthDate)) return form.birthDate
   const card = form.idCard?.trim()
   if (card && isValidIdCard(card)) {
     return parseIdCard(card)?.birthDate
@@ -272,6 +281,10 @@ function resolveAgeForSubmit() {
 async function onSubmit() {
   if (!canSubmit.value || !selectedSchedule.value) {
     ElMessage.warning('请完善患者信息并选择有效排班')
+    return
+  }
+  if (!isValidIdCard(form.idCard.trim())) {
+    ElMessage.warning('身份证号格式或出生日期不合法')
     return
   }
   submitting.value = true

@@ -1,8 +1,10 @@
 package com.hospital.common.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.hospital.common.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,6 +31,20 @@ public class GlobalExceptionHandler {
     public Result<Void> handleBusinessException(BusinessException ex) {
         log.warn("业务异常: {}", ex.getMessage());
         return Result.fail(ex.getCode(), ex.getMessage());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public Result<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("请求体解析失败: {}", ex.getMessage());
+        String message = "请求参数格式错误";
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidFormatException invalidFormat
+                && invalidFormat.getPath() != null
+                && !invalidFormat.getPath().isEmpty()) {
+            message = invalidFormat.getPath().get(0).getFieldName() + " 格式不正确";
+        }
+        return Result.fail(400, message);
     }
 
     @ExceptionHandler(Exception.class)
