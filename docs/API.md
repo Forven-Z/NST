@@ -248,6 +248,11 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P3 | GET | `/pharmacy/pending` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/dispense` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/return-drug` | his | PHARMACIST |
+| ✅ | P3 | GET | `/pharmacy/drugs` | his | PHARMACIST |
+| ✅ | P3 | POST | `/pharmacy/drugs` | his | PHARMACIST |
+| ✅ | P3 | PUT | `/pharmacy/drugs/{id}` | his | PHARMACIST |
+| ✅ | P3 | POST | `/pharmacy/drugs/{id}/disable` | his | PHARMACIST |
+| ✅ | P3 | POST | `/pharmacy/drugs/{id}/enable` | his | PHARMACIST |
 | ✅ | P2 | POST | `/registrar/registers` | his | REGISTRAR |
 | ✅ | P2 | POST | `/registrar/charges` | his | REGISTRAR |
 | ✅ | P2 | GET | `/registrar/departments` | his | REGISTRAR |
@@ -785,6 +790,29 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | GET | `/pharmacy/pending?status=20` | 待发药处方 |
 | ✅ | POST | `/pharmacy/prescriptions/{id}/dispense` | status→30 |
 | ✅ | POST | `/pharmacy/prescriptions/{id}/return-drug` | 退药 → 窗口退费 |
+| ✅ | GET | `/pharmacy/drugs` | 药品目录；Query `keyword`, `page`, `pageSize`, `includeDisabled` |
+| ✅ | POST | `/pharmacy/drugs` | 新增药品（编码自动生成 `DRG-NNN`） |
+| ✅ | PUT | `/pharmacy/drugs/{id}` | 编辑名称/价格/库存及选填字段 |
+| ✅ | POST | `/pharmacy/drugs/{id}/disable` | 软停用（`delmark=1`） |
+| ✅ | POST | `/pharmacy/drugs/{id}/enable` | 重新启用 |
+
+**POST `/pharmacy/drugs` Request（必填 + 选填）**
+
+```json
+{
+  "drugName": "阿莫西林胶囊",
+  "retailPrice": 18.50,
+  "stockQty": 100,
+  "drugFormat": "0.25g×24粒",
+  "drugDosage": "胶囊",
+  "drugType": "处方药",
+  "unit": "盒"
+}
+```
+
+**Response `data`**：`id`, `drugCode`, `drugName`, `drugFormat`, `drugDosage`, `drugType`, `unit`, `retailPrice`, `stockQty`, `disabled`（列表/详情含停用状态时）
+
+**说明**：停用后 `GET /doctor/drugs` 不再返回该药品；历史处方仍可发药。
 
 ---
 
@@ -1018,7 +1046,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | 医生 | AI 辅助 | `/ai/diagnosis/suggest` STUB, `/*/ai-draft` STUB | 🎭 |
 | LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`；result 用 **POST** | 部分 |
 | PACS | 影像任务 | `GET /pacs/imaging-studies` ⬜ | 🎭 |
-| 药师 | 发药 | `/pharmacy/pending`, `.../dispense`, `.../return-drug` | ✅ |
+| 药师 | 发药 / 药品管理 | `/pharmacy/pending`, `.../dispense`, `.../return-drug`, `/pharmacy/drugs` | ✅ |
 | 收费员 | 挂号/收费/退费 | §8 `/registrar/**` | ✅ |
 | 管理员 | 员工/科室 | `/admin/employees` CRUD ⬜, `/admin/departments` GET ✅ | 部分 |
 | 管理员 | 排班/请假 | §9.2 `/admin/scheduling/**` ⬜, §9.5 leave 🎭 | 🎭 |

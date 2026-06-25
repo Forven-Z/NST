@@ -333,7 +333,71 @@ export function getMedicalTechById(id) {
 }
 
 export function getDrugById(id) {
-  return MOCK_DRUGS.find((d) => d.id === id)
+  return MOCK_DRUGS.find((d) => d.id === id && !d.disabled)
+}
+
+function nextMockDrugCode() {
+  const nums = MOCK_DRUGS.map((d) => {
+    const m = d.drugCode?.match(/^DRG-(\d+)$/)
+    return m ? parseInt(m[1], 10) : 0
+  })
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `DRG-${String(next).padStart(3, '0')}`
+}
+
+function nextMockDrugId() {
+  return MOCK_DRUGS.reduce((max, d) => Math.max(max, d.id), 0) + 1
+}
+
+export function getPharmacyDrugList(keyword, includeDisabled = false) {
+  const kw = keyword?.trim().toLowerCase()
+  return MOCK_DRUGS.filter((d) => {
+    if (!includeDisabled && d.disabled) return false
+    if (!kw) return true
+    return (
+      d.drugName?.toLowerCase().includes(kw) ||
+      d.drugCode?.toLowerCase().includes(kw)
+    )
+  }).map((d) => ({ ...d, disabled: !!d.disabled }))
+}
+
+export function createPharmacyDrug(body) {
+  const drug = {
+    id: nextMockDrugId(),
+    drugCode: nextMockDrugCode(),
+    drugName: body.drugName?.trim(),
+    drugFormat: body.drugFormat || null,
+    drugDosage: body.drugDosage || null,
+    drugType: body.drugType || null,
+    unit: body.unit || null,
+    retailPrice: body.retailPrice,
+    stockQty: body.stockQty,
+    disabled: false,
+  }
+  MOCK_DRUGS.push(drug)
+  return { ...drug }
+}
+
+export function updatePharmacyDrug(id, body) {
+  const drug = MOCK_DRUGS.find((d) => d.id === id)
+  if (!drug) throw new Error('药品不存在')
+  if (body.drugName != null) drug.drugName = body.drugName.trim()
+  if (body.drugFormat != null) drug.drugFormat = body.drugFormat || null
+  if (body.drugDosage != null) drug.drugDosage = body.drugDosage || null
+  if (body.drugType != null) drug.drugType = body.drugType || null
+  if (body.unit != null) drug.unit = body.unit || null
+  if (body.retailPrice != null) drug.retailPrice = body.retailPrice
+  if (body.stockQty != null) drug.stockQty = body.stockQty
+  return { ...drug, disabled: !!drug.disabled }
+}
+
+export function setPharmacyDrugDisabled(id, disabled) {
+  const drug = MOCK_DRUGS.find((d) => d.id === id)
+  if (!drug) throw new Error('药品不存在')
+  if (disabled && drug.disabled) throw new Error('药品已停用')
+  if (!disabled && !drug.disabled) throw new Error('药品未停用')
+  drug.disabled = disabled
+  return { ...drug, disabled: !!drug.disabled }
 }
 
 /** 窗口挂号成功后扣减号源 */
