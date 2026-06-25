@@ -18,20 +18,25 @@ public class PatientRegisterQueryService {
 
     private final RegisterRepository registerRepository;
     private final PatientFamilyService patientFamilyService;
+    private final RegisterLifecycleService registerLifecycleService;
 
     public Map<String, Object> listRegisters(Integer visitState, int page, int pageSize, Long visitPatientId) {
         Long operatorId = AuthContextHolder.require().getPatientId();
         Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
         int offset = Math.max(page - 1, 0) * pageSize;
         List<Map<String, Object>> list = registerRepository.findByVisitPatientForOperator(
-                operatorId, visitId, visitState, offset, pageSize);
+                        operatorId, visitId, visitState, offset, pageSize)
+                .stream()
+                .map(registerLifecycleService::enrichRegisterRow)
+                .toList();
         return Map.of("list", list, "page", page, "pageSize", pageSize, "visitPatientId", visitId);
     }
 
     public Map<String, Object> getRegister(Long registerId) {
         Long operatorId = AuthContextHolder.require().getPatientId();
-        return registerRepository.findDetailForOwner(registerId, operatorId)
+        Map<String, Object> reg = registerRepository.findDetailForOwner(registerId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
+        return registerLifecycleService.enrichRegisterRow(reg);
     }
 
     public Map<String, Object> getQueueStatus(Long registerId) {
@@ -51,7 +56,7 @@ public class PatientRegisterQueryService {
         } else if (visitState == VisitState.FINISHED) {
             hint = "看诊已结束";
         }
-        Map<String, Object> result = new HashMap<>(reg);
+        Map<String, Object> result = new HashMap<>(registerLifecycleService.enrichRegisterRow(reg));
         result.put("aheadCount", ahead);
         result.put("queueHint", hint);
         return result;

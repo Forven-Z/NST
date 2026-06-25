@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — 启动、联调与验收手册
 
-> **版本**：v2.11 | 2026-06-04  
+> **版本**：v2.12 | 2026-06-04  
 > **用途**：日常 **开什么、怎么开**；**R-min～R-full 联调验收**（原 INTEGRATION_CHECKLIST 已并入本文 §十二）。  
 > **环境安装**（首次装软件）：见 [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md)  
 > **实现进度**：见 [PROGRESS.md](./PROGRESS.md)  
@@ -145,6 +145,8 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 | `scripts/r-*-acceptance.ps1` | 各模块自动化验收（经 Gateway 9000） |
 | [scripts/seed-demo-check.ps1](../scripts/seed-demo-check.ps1) | 向云/本机 PG 灌影像演示数据（`check_request` #62001） |
 | `docs/sql/seed-demo-patients.sql` | 演示患者 `MR202606040100` + 今日内科挂号（小程序联调） |
+| [DEMO_MEDICAL_RECORD_SAMPLES.md](./DEMO_MEDICAL_RECORD_SAMPLES.md) | **医生站病历/AI 诊断**：三则可直接复制的专业文案 |
+| `docs/sql/seed-dict.sql` §药品/医技 | **20 种药品 + 34 项医技**（对齐 RAG DRUG/TECH 指南，可 AI 开单） |
 | [scripts/miniapp-smoke.ps1](../scripts/miniapp-smoke.ps1) | 患者小程序 API 冒烟（6 项） |
 | [scripts/stop-r-min.ps1](../scripts/stop-r-min.ps1) | 停止 `start-r-min` 拉起的进程 |
 
@@ -575,6 +577,8 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | 挂号无排班 | 未跑 seed 或 `publish_status≠1` |
 | 登录无 patient | his 未 Feign auth 或 auth internal 未启 |
 | 支付后 visit_state 不变 | bill/register 联动事务未提交 |
+| 挂号一直「已挂号」 | 当日 21:00 后 his 定时任务自动关单；重启 his 会补偿执行 |
+| 待支付占号未释放 | 10 分钟未付自动取消；需 **hospital-his** 运行中 |
 
 ---
 
@@ -607,4 +611,4 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | v2.8 | 2026-06-15 | §A.1 `start-his-replica.ps1` / `stop-his-replica.ps1`（his 双实例 LB 答辩演示）；`stop-project` 含 9202 |
 | v2.9 | 2026-06-15 | `start-project.ps1`：local 自动启 MinIO / cloud 远程健康检查；`-SkipMinio`、`-MinioHome` |
 | v2.10 | 2026-06-04 | 测试账号链至 `sql/README.md` §三；§4.5 补充 `seed-demo-patients.sql` / 云库重跑 seed 说明 |
-| v2.11 | 2026-06-04 | 测试账号：检验 `lab01`/`lab02`；检查 `check01`～`check03`（见 `sql/README.md` §三） |
+| v2.12 | 2026-06-04 | 挂号生命周期：未叫号可退号；待支付 10 分钟超时；当日 21:00 自动关单（`remark=AUTO_DAY_CLOSE`） |
