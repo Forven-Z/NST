@@ -43,14 +43,31 @@ public class PacsImagingController {
                 status, patientId, medicalRecordNo, page, pageSize));
     }
 
-    @GetMapping("/requests/{id}/result-detail")
-    public Result<Map<String, Object>> resultDetail(@PathVariable Long id) {
-        return Result.success(imagingService.getResultDetail(id));
-    }
-
     @PostMapping("/requests/{id}/ai-report")
     public Result<Map<String, Object>> aiReport(@PathVariable Long id) {
         return Result.success(imagingService.generateAiReport(id));
+    }
+
+    @PostMapping("/requests/{id}/report-snapshots")
+    public Result<Map<String, Object>> reportSnapshots(
+            @PathVariable Long id,
+            @RequestParam(required = false) MultipartFile axial,
+            @RequestParam(required = false) MultipartFile coronal,
+            @RequestParam(required = false) MultipartFile sagittal,
+            @RequestParam(required = false) String meta) {
+        return Result.success(imagingService.saveReportSnapshots(id, axial, coronal, sagittal, meta));
+    }
+
+    @GetMapping("/imaging/report-preview/{checkRequestId}/{plane}")
+    public void reportPreview(
+            @PathVariable Long checkRequestId,
+            @PathVariable String plane,
+            HttpServletResponse response) throws Exception {
+        try (InputStream in = imagingService.openReportSnapshotStream(checkRequestId, plane)) {
+            response.setContentType("image/png");
+            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + plane + ".png\"");
+            StreamUtils.copy(in, response.getOutputStream());
+        }
     }
 
     @GetMapping("/requests/{id}/imaging-preview")

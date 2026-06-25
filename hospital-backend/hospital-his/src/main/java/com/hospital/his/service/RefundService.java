@@ -43,6 +43,7 @@ public class RefundService {
     private final SchedulingRepository schedulingRepository;
     private final PatientRepository patientRepository;
     private final PatientFamilyService patientFamilyService;
+    private final RegisterLifecycleService registerLifecycleService;
 
     @Transactional
     public Map<String, Object> refundByPatient(Long billId, String reason) {
@@ -121,10 +122,7 @@ public class RefundService {
             case BillBizType.REGISTER -> {
                 Map<String, Object> register = registerRepository.findByIdForUpdate(bizId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
-                int visitState = ((Number) register.get("visitState")).intValue();
-                if (visitState != VisitState.REGISTERED) {
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已挂号未接诊状态可退挂号费，请使用退号");
-                }
+                registerLifecycleService.assertRegisterBillRefundable(register);
             }
             case BillBizType.MEDICAL_BOOK -> {
                 Map<String, Object> register = registerRepository.findById(bizId)

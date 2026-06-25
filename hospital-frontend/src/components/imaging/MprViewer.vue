@@ -925,6 +925,32 @@ watch(
 onBeforeUnmount(() => {
   nvAxial = nvCoronal = nvSagittal = nvRender = nvMask = nvExpand = null;
 });
+
+function canvasToDataUrl(canvas) {
+  if (!canvas || !canvas.width) return null
+  try {
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
+function captureReportSnapshots() {
+  return {
+    axial: canvasToDataUrl(axialRef.value),
+    coronal: canvasToDataUrl(coronalRef.value),
+    sagittal: canvasToDataUrl(sagittalRef.value),
+    meta: {
+      sliceX: sliceX.value,
+      sliceY: sliceY.value,
+      sliceZ: sliceZ.value,
+      maskOverlayReady: maskOverlayReady.value,
+      capturedAt: new Date().toISOString(),
+    },
+  }
+}
+
+defineExpose({ captureReportSnapshots })
 </script>
 
 <style scoped>

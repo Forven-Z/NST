@@ -155,7 +155,6 @@ export function buildRegisterResultsFromOrders(ordersData) {
       typeLabel: item.typeLabel,
       itemName: item.itemName,
       resultText: detail.resultText,
-      resultAttachment: detail.resultAttachment,
       reportTime: detail.resultTime ?? detail.reportTime,
     })
   }

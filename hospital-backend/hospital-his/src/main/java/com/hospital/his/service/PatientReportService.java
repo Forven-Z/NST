@@ -32,6 +32,9 @@ public class PatientReportService {
     private final DisposalRequestRepository disposalRequestRepository;
     private final PatientFamilyService patientFamilyService;
     private final PatientRepository patientRepository;
+    private final LabReportQueryService labReportQueryService;
+    private final CheckReportQueryService checkReportQueryService;
+    private final DisposalRecordQueryService disposalRecordQueryService;
 
     public Map<String, Object> listReports(String type, Long visitPatientId) {
         Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
@@ -73,21 +76,51 @@ public class PatientReportService {
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验报告不存在"));
             assertPatientCanView(operatorId, row);
             assertResultReady(row);
-            return toReportDetail(row, "lab", "检验");
+            Map<String, Object> labReport = labReportQueryService.getLabReportForPatient(requestId);
+            labReport.put("type", "lab");
+            labReport.put("typeLabel", "检验");
+            labReport.put("requestId", requestId);
+            labReport.put("reportName", labReport.get("reportTitle"));
+            labReport.put("registerId", row.get("registerId"));
+            labReport.put("patientId", row.get("patientId"));
+            labReport.put("purpose", row.get("purpose"));
+            labReport.put("bodyPart", row.get("bodyPart"));
+            labReport.put("status", row.get("status"));
+            return labReport;
         }
         if ("exam".equals(type)) {
             Map<String, Object> row = checkRequestRepository.findDetailById(requestId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查报告不存在"));
             assertPatientCanView(operatorId, row);
             assertResultReady(row);
-            return toReportDetail(row, "exam", "检查");
+            Map<String, Object> checkReport = checkReportQueryService.getCheckReportForPatient(requestId);
+            checkReport.put("type", "exam");
+            checkReport.put("typeLabel", "检查");
+            checkReport.put("requestId", requestId);
+            checkReport.put("reportName", checkReport.get("reportTitle"));
+            checkReport.put("registerId", row.get("registerId"));
+            checkReport.put("patientId", row.get("patientId"));
+            checkReport.put("purpose", row.get("purpose"));
+            checkReport.put("bodyPart", row.get("bodyPart"));
+            checkReport.put("status", row.get("status"));
+            return checkReport;
         }
         if ("disposal".equals(type)) {
             Map<String, Object> row = disposalRequestRepository.findById(requestId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处置报告不存在"));
             assertPatientCanView(operatorId, row);
             assertResultReady(row);
-            return toReportDetail(row, "disposal", "处置记录");
+            Map<String, Object> record = disposalRecordQueryService.getDisposalRecordForPatient(requestId);
+            record.put("type", "disposal");
+            record.put("typeLabel", "处置记录");
+            record.put("requestId", requestId);
+            record.put("reportName", record.get("reportTitle"));
+            record.put("registerId", row.get("registerId"));
+            record.put("patientId", row.get("patientId"));
+            record.put("purpose", row.get("purpose"));
+            record.put("bodyPart", row.get("bodyPart"));
+            record.put("status", row.get("status"));
+            return record;
         }
         throw new BusinessException(ErrorCode.BAD_REQUEST, "type 须为 lab、exam 或 disposal");
     }

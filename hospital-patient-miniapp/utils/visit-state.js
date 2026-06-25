@@ -19,8 +19,16 @@ function visitStateLabel(state) {
   return (item && item.label) || String(state)
 }
 
-function canCancel(state) {
-  return state === 1
+/** 优先使用后端 cancellable；否则按未叫号规则推断。 */
+function canCancel(rowOrState, callTime) {
+  if (rowOrState && typeof rowOrState === 'object') {
+    if (typeof rowOrState.cancellable === 'boolean') return rowOrState.cancellable
+    return canCancel(rowOrState.visitState, rowOrState.callTime)
+  }
+  var state = rowOrState
+  if (state === 0) return true
+  if (state === 1) return !callTime
+  return false
 }
 
 function canPayQueue(state) {

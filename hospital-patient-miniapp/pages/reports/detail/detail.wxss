@@ -32,6 +32,79 @@
   white-space: pre-wrap;
 }
 
+.lab-sheet {
+  padding-top: 8rpx;
+}
+
+.lab-title {
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.lab-sub {
+  text-align: center;
+  font-size: 24rpx;
+  color: #64748b;
+  margin: 8rpx 0 20rpx;
+}
+
+.info-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.info-item {
+  width: 46%;
+  font-size: 24rpx;
+  color: #334155;
+}
+
+.label {
+  color: #64748b;
+  margin-right: 8rpx;
+}
+
+.table-head,
+.table-row {
+  display: flex;
+  font-size: 24rpx;
+  border-bottom: 1rpx solid #e2e8f0;
+  padding: 12rpx 0;
+}
+
+.table-head {
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  padding-left: 8rpx;
+  padding-right: 8rpx;
+}
+
+.col-name { flex: 1.2; }
+.col-result { flex: 1; }
+.col-unit { flex: 0.8; }
+.col-ref { flex: 1.2; }
+
+.abnormal {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.analysis {
+  margin-top: 20rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx dashed #e2e8f0;
+}
+
+.lab-footer {
+  margin-top: 20rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
 .empty {
   padding: 48rpx;
   text-align: center;

@@ -59,27 +59,95 @@ ON CONFLICT (username) DO NOTHING;
 SELECT setval('sys_user_id_seq', (SELECT COALESCE(MAX(id), 1) FROM sys_user));
 
 -- 门诊排班：见文件末尾扩展段（各科室每半天 1 名普通医生轮流；专家每周 2 个半天）
--- 疾病字典（示例）
+-- 疾病字典（演示 + RAG 常见诊断）
 INSERT INTO disease (disease_code, disease_name, disease_category) VALUES
     ('J06.9', '急性上呼吸道感染', '呼吸系统'),
-    ('I10', '原发性高血压', '循环系统')
-ON CONFLICT (disease_code) DO NOTHING;
+    ('I10', '原发性高血压', '循环系统'),
+    ('R51', '头痛', '神经系统'),
+    ('R50.9', '发热', '症状体征'),
+    ('E11.9', '2型糖尿病', '内分泌')
+ON CONFLICT (disease_code) DO UPDATE
+SET disease_name = EXCLUDED.disease_name,
+    disease_category = EXCLUDED.disease_category,
+    delmark = 0;
 
--- 医技项目（P2/P3 联调预置）
+-- 医技项目：对齐 RAG TECHNOLOGY_GUIDE / DISPOSAL_GUIDE 与 DEMO_MEDICAL_RECORD_SAMPLES
 INSERT INTO medical_technology (item_code, item_name, tech_type, price, dept_id) VALUES
+    -- 检验 INSPECTION（检验科 dept_id=3）
+    ('INS-BLOOD', '血常规', 'INSPECTION', 35.00, 3),
+    ('INS-CRP', 'C反应蛋白', 'INSPECTION', 45.00, 3),
+    ('INS-PCT', '降钙素原', 'INSPECTION', 80.00, 3),
+    ('INS-URINE', '尿常规', 'INSPECTION', 25.00, 3),
+    ('INS-STOOL', '粪便常规及隐血', 'INSPECTION', 30.00, 3),
+    ('INS-LIVER', '肝功能', 'INSPECTION', 55.00, 3),
+    ('INS-KIDNEY', '肾功能', 'INSPECTION', 50.00, 3),
+    ('INS-GLU', '空腹血糖', 'INSPECTION', 12.00, 3),
+    ('INS-HBA1C', '糖化血红蛋白', 'INSPECTION', 60.00, 3),
+    ('INS-LIPID', '血脂四项', 'INSPECTION', 70.00, 3),
+    ('INS-ELECTROLYTE', '电解质', 'INSPECTION', 40.00, 3),
+    ('INS-COAG', '凝血功能', 'INSPECTION', 65.00, 3),
+    ('INS-THYROID', '甲状腺功能', 'INSPECTION', 90.00, 3),
+    ('INS-CARDIAC', '心肌标志物', 'INSPECTION', 120.00, 3),
+    ('INS-RESP-AG', '呼吸道病原抗原', 'INSPECTION', 85.00, 3),
+    -- 检查 CHECK（放射科 dept_id=2）
     ('CHK-CT-HEAD', '头部 CT', 'CHECK', 280.00, 2),
     ('CHK-CT-LUNG', '胸部 CT', 'CHECK', 320.00, 2),
     ('CHK-TUMOR-SEG', '肿瘤 CT 分割', 'CHECK', 450.00, 2),
-    ('INS-BLOOD', '血常规', 'INSPECTION', 35.00, 3),
+    ('CHK-CXR', '胸部 X 线', 'CHECK', 90.00, 2),
+    ('CHK-MRI-BRAIN', '颅脑 MRI', 'CHECK', 680.00, 2),
+    ('CHK-CT-ABD', '腹部 CT', 'CHECK', 350.00, 2),
+    ('CHK-US-ABD', '腹部超声', 'CHECK', 120.00, 2),
+    ('CHK-US-THYROID', '甲状腺超声', 'CHECK', 100.00, 2),
+    ('CHK-US-URINARY', '泌尿系统超声', 'CHECK', 110.00, 2),
+    ('CHK-ECG', '十二导联心电图', 'CHECK', 30.00, 2),
+    ('CHK-ECHO', '超声心动图', 'CHECK', 180.00, 2),
+    ('CHK-HOLTER', '动态心电图', 'CHECK', 200.00, 2),
+    ('CHK-PFT', '肺功能检查', 'CHECK', 150.00, 2),
+    -- 处置 DISPOSAL（处置科 dept_id=7）
+    ('DIS-INF', '静脉输液', 'DISPOSAL', 45.00, 7),
     ('DIS-WASH', '洗胃', 'DISPOSAL', 120.00, 7),
-    ('DIS-INF', '静脉输液', 'DISPOSAL', 45.00, 7)
-ON CONFLICT (item_code) DO NOTHING;
+    ('DIS-DRESSING', '清创换药', 'DISPOSAL', 80.00, 7),
+    ('DIS-NEB', '雾化吸入', 'DISPOSAL', 35.00, 7),
+    ('DIS-O2', '氧疗', 'DISPOSAL', 50.00, 7),
+    ('DIS-CATH', '导尿', 'DISPOSAL', 40.00, 7)
+ON CONFLICT (item_code) DO UPDATE
+SET item_name = EXCLUDED.item_name,
+    tech_type = EXCLUDED.tech_type,
+    price = EXCLUDED.price,
+    dept_id = EXCLUDED.dept_id,
+    delmark = 0;
 
--- 药品（P3 预置）
+-- 药品：对齐 RAG DRUG_INSTRUCTION DRUG-001～020（演示 AI 处方草稿候选）
 INSERT INTO drug_info (drug_code, drug_name, drug_format, drug_dosage, drug_type, unit, retail_price, stock_qty) VALUES
     ('DRG-001', '阿莫西林胶囊', '0.25g×24粒', '胶囊', '处方药', '盒', 18.50, 100),
-    ('DRG-002', '布洛芬缓释胶囊', '0.3g×20粒', '胶囊', '处方药', '盒', 22.00, 80)
-ON CONFLICT (drug_code) DO NOTHING;
+    ('DRG-002', '布洛芬缓释胶囊', '0.3g×20粒', '胶囊', '处方药', '盒', 22.00, 80),
+    ('DRG-003', '对乙酰氨基酚片', '0.5g×20片', '片剂', '处方药', '盒', 8.50, 200),
+    ('DRG-004', '氯雷他定片', '10mg×6片', '片剂', '处方药', '盒', 16.00, 120),
+    ('DRG-005', '盐酸西替利嗪片', '10mg×12片', '片剂', '处方药', '盒', 14.50, 100),
+    ('DRG-006', '盐酸氨溴索片', '30mg×20片', '片剂', '处方药', '盒', 19.00, 90),
+    ('DRG-007', '乙酰半胱氨酸颗粒', '0.1g×10袋', '颗粒', '处方药', '盒', 28.00, 60),
+    ('DRG-008', '奥美拉唑肠溶胶囊', '20mg×14粒', '胶囊', '处方药', '盒', 25.00, 80),
+    ('DRG-009', '蒙脱石散', '3g×10袋', '散剂', 'OTC', '盒', 12.00, 150),
+    ('DRG-010', '口服补液盐散', '20.5g×3袋', '散剂', 'OTC', '盒', 15.00, 100),
+    ('DRG-011', '二甲双胍片', '0.5g×48片', '片剂', '处方药', '盒', 11.00, 120),
+    ('DRG-012', '苯磺酸氨氯地平片', '5mg×7片', '片剂', '处方药', '盒', 18.00, 100),
+    ('DRG-013', '氯沙坦钾片', '50mg×7片', '片剂', '处方药', '盒', 32.00, 80),
+    ('DRG-014', '阿托伐他汀钙片', '20mg×7片', '片剂', '处方药', '盒', 38.00, 70),
+    ('DRG-015', '硫酸沙丁胺醇吸入气雾剂', '100μg×200揿', '气雾剂', '处方药', '瓶', 42.00, 50),
+    ('DRG-016', '吸入用布地奈德混悬液', '1mg×5支', '混悬液', '处方药', '盒', 68.00, 40),
+    ('DRG-017', '阿奇霉素片', '0.25g×6片', '片剂', '处方药', '盒', 24.00, 90),
+    ('DRG-018', '头孢呋辛酯片', '0.25g×12片', '片剂', '处方药', '盒', 26.50, 85),
+    ('DRG-019', '莫匹罗星软膏', '2% 5g', '软膏', 'OTC', '支', 22.00, 60),
+    ('DRG-020', '复方氨酚烷胺片', '12片', '片剂', 'OTC', '盒', 9.50, 180)
+ON CONFLICT (drug_code) DO UPDATE
+SET drug_name = EXCLUDED.drug_name,
+    drug_format = EXCLUDED.drug_format,
+    drug_dosage = EXCLUDED.drug_dosage,
+    drug_type = EXCLUDED.drug_type,
+    unit = EXCLUDED.unit,
+    retail_price = EXCLUDED.retail_price,
+    stock_qty = EXCLUDED.stock_qty,
+    delmark = 0;
 
 -- ---------------------------------------------------------------------------
 -- 扩展：门诊医生 doctor02～doctor05；处置 disposal01（密码均为 123456）

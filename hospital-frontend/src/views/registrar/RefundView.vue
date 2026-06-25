@@ -233,7 +233,7 @@ function formatGender(gender) {
       <div>
         <h2 class="page-title">退费退号</h2>
         <p class="page-desc">
-          挂号费请通过<strong>退号</strong>办理（待支付可取消、已挂号未接诊可退号退款）；检验/检查/处方/处置等已支付未执行项目在本页<strong>退费</strong>。
+          挂号费请通过<strong>退号</strong>办理（待支付 10 分钟内可取消；<strong>已挂号且医生未叫号</strong>可退号退款）；检验/检查/处方/处置等已支付未执行项目在本页<strong>退费</strong>。
           病历号、身份证号按<strong>完整精确</strong>匹配；姓名按<strong>精确</strong>匹配，重名时需点选患者。
         </p>
       </div>
@@ -320,7 +320,7 @@ function formatGender(gender) {
           <el-table-column label="操作" width="100" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-if="row.cancellable || row.visitState === 0 || row.visitState === 1"
+                v-if="row.cancellable"
                 type="primary"
                 link
                 :loading="cancellingId === row.registerId"

@@ -4,6 +4,9 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { INTEGRATION_ROUTES, TRIAGE_LEVEL_MAP } from '../../config/integrations'
 import ResultReportSections from '../medical/ResultReportSections.vue'
+import LabReportSheet from '../medical/LabReportSheet.vue'
+import CheckReportSheet from '../medical/CheckReportSheet.vue'
+import DisposalRecordSheet from '../medical/DisposalRecordSheet.vue'
 
 const props = defineProps({
   title: { type: String, default: '待执行队列' },
@@ -29,6 +32,23 @@ const useReportSections = computed(
 
 const isPacsCheck = computed(() => props.techType === 'CHECK')
 
+const isLabReport = computed(
+  () => props.techType === 'INSPECTION' && useReportSections.value,
+)
+
+const isCheckReport = computed(
+  () => props.techType === 'CHECK' && useReportSections.value,
+)
+
+const isDisposalRecord = computed(
+  () => props.techType === 'DISPOSAL'
+    && typeof props.fetchResultDetail === 'function',
+)
+
+const structuredEntry = computed(
+  () => isLabReport.value || isCheckReport.value || isDisposalRecord.value || useReportSections.value,
+)
+
 const loading = ref(false)
 const executingId = ref(null)
 const savingId = ref(null)
@@ -39,12 +59,29 @@ const list = ref([])
 
 const resultDialogVisible = ref(false)
 const resultText = ref('')
-const resultAttachment = ref('')
 const instrumentData = ref('')
 const aiReportText = ref('')
 const doctorReportText = ref('')
 const aiReportStatus = ref('PENDING')
+const labReport = ref(null)
+const checkReport = ref(null)
+const disposalRecord = ref(null)
+/** entry=录入可编辑 | review=审阅只读 | readonly=已发布查看 */
+const dialogMode = ref('entry')
 const currentRow = ref(null)
+
+const isEditableEntry = computed(() => dialogMode.value === 'entry')
+
+const resultDialogTitle = computed(() => {
+  const name = currentRow.value?.itemName || ''
+  if (dialogMode.value === 'review') {
+    return `${isDisposalRecord.value ? '审阅处置记录' : isCheckReport.value ? '审阅检查报告' : '审阅检验报告'} · ${name}`
+  }
+  if (dialogMode.value === 'readonly') {
+    return `${isDisposalRecord.value ? '查看处置记录' : isCheckReport.value ? '查看检查报告' : '查看检验报告'} · ${name}`
+  }
+  return `${isDisposalRecord.value ? '录入处置记录' : isCheckReport.value ? '录入检查报告' : '录入结果'} · ${name}`
+})
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
@@ -94,7 +131,8 @@ async function onExecute(row) {
   executingId.value = id
   try {
     await props.executeRequest(id)
-    ElMessage.success('已开始执行，请录入结果')
+    ElMessage.success('已开始执行，请完成报告录入')
+    await openResultDialog({ ...row, status: 30 }, 'entry')
     await loadList()
   } catch (err) {
     ElMessage.error(err.message || '执行失败')
@@ -103,31 +141,66 @@ async function onExecute(row) {
   }
 }
 
-async function openResultDialog(row) {
+function reportHasEntry() {
+  if (isLabReport.value && labReport.value) {
+    const ai = labReport.value.analysis?.aiReportText?.trim() || ''
+    const doctor = labReport.value.analysis?.doctorReportText?.trim() || ''
+    return !!(ai || doctor)
+  }
+  if (isCheckReport.value && checkReport.value) {
+    const ai = checkReport.value.analysis?.aiReportText?.trim() || ''
+    const doctor = checkReport.value.analysis?.doctorReportText?.trim() || ''
+    const findings = checkReport.value.findings?.findingsText?.trim() || ''
+    return !!(ai || doctor || findings)
+  }
+  if (isDisposalRecord.value && disposalRecord.value) {
+    const process = disposalRecord.value.record?.processText?.trim() || ''
+    const outcome = disposalRecord.value.record?.outcomeText?.trim() || ''
+    return !!(process || outcome)
+  }
+  return !!(aiReportText.value.trim() || doctorReportText.value.trim())
+}
+
+async function openResultDialog(row, mode = 'entry') {
   currentRow.value = row
+  dialogMode.value = mode
   resultText.value = row.resultText || ''
-  resultAttachment.value = row.resultAttachment || ''
   instrumentData.value = ''
   aiReportText.value = ''
   doctorReportText.value = ''
   aiReportStatus.value = 'PENDING'
+  labReport.value = null
+  checkReport.value = null
+  disposalRecord.value = null
 
-  if (useReportSections.value) {
+  if (structuredEntry.value) {
     detailLoading.value = true
     try {
       const res = await props.fetchResultDetail(rowId(row))
       const d = res.data || {}
-      instrumentData.value = d.instrumentData || ''
-      aiReportText.value = d.aiReportText || ''
-      doctorReportText.value = d.doctorReportText || ''
-      aiReportStatus.value = d.aiReportStatus || 'PENDING'
-      resultAttachment.value = d.resultAttachment || ''
+      if (isLabReport.value) {
+        labReport.value = { ...d }
+      } else if (isCheckReport.value) {
+        checkReport.value = { ...d }
+      } else if (isDisposalRecord.value) {
+        disposalRecord.value = { ...d }
+      } else {
+        instrumentData.value = d.instrumentData || ''
+        aiReportText.value = d.aiReportText || ''
+        doctorReportText.value = d.doctorReportText || ''
+        aiReportStatus.value = d.aiReportStatus || 'PENDING'
+      }
     } catch (err) {
       ElMessage.error(err.message || '加载报告详情失败')
       return
     } finally {
       detailLoading.value = false
     }
+  }
+
+  if (mode === 'review' && structuredEntry.value && !reportHasEntry()) {
+    ElMessage.warning('报告尚未录入，请先由录入医师完成录入')
+    return
   }
 
   resultDialogVisible.value = true
@@ -156,17 +229,106 @@ async function onGenerateAiSuggestion() {
 async function onGenerateAiReport() {
   if (!props.generateAiReport || !currentRow.value) return
   const id = rowId(currentRow.value)
+  let findingsText
+  if (isCheckReport.value) {
+    findingsText = checkReport.value?.findings?.findingsText?.trim() || ''
+    if (!findingsText) {
+      ElMessage.warning('请先填写 CT 所见')
+      return
+    }
+  }
   generatingAiId.value = id
   try {
-    const res = await props.generateAiReport(id)
+    const res = isCheckReport.value
+      ? await props.generateAiReport(id, findingsText)
+      : await props.generateAiReport(id)
     const d = res.data || {}
-    aiReportText.value = d.aiReportText || ''
-    aiReportStatus.value = d.aiReportStatus || 'READY'
+    if (isLabReport.value) {
+      labReport.value = { ...d }
+    } else if (isCheckReport.value) {
+      checkReport.value = mergeCheckReportAfterLlm(checkReport.value, d)
+    } else {
+      aiReportText.value = d.aiReportText || ''
+      aiReportStatus.value = d.aiReportStatus || 'READY'
+    }
     ElMessage.success('AI 报告已生成')
   } catch (err) {
     ElMessage.error(err.message || 'AI 报告生成失败')
   } finally {
     generatingAiId.value = null
+  }
+}
+
+function mergeCheckReportAfterLlm(current, generated) {
+  const preservedFindings = current?.findings?.findingsText ?? current?.findingsText ?? ''
+  return {
+    ...generated,
+    findings: {
+      ...(generated.findings || {}),
+      findingsText: preservedFindings || generated.findings?.findingsText || '',
+    },
+    findingsText: preservedFindings || generated.findingsText || '',
+  }
+}
+
+function updateCheckFindings(text) {
+  if (!checkReport.value) return
+  checkReport.value = {
+    ...checkReport.value,
+    findings: { ...checkReport.value.findings, findingsText: text },
+    findingsText: text,
+  }
+}
+
+function updateCheckAi(text) {
+  if (!checkReport.value) return
+  checkReport.value = {
+    ...checkReport.value,
+    analysis: { ...checkReport.value.analysis, aiReportText: text },
+    aiReportText: text,
+  }
+}
+
+function updateCheckDoctor(text) {
+  if (!checkReport.value) return
+  checkReport.value = {
+    ...checkReport.value,
+    analysis: { ...checkReport.value.analysis, doctorReportText: text },
+    doctorReportText: text,
+  }
+}
+
+function updateLabAi(text) {
+  if (!labReport.value) return
+  labReport.value = {
+    ...labReport.value,
+    analysis: { ...labReport.value.analysis, aiReportText: text },
+    aiReportText: text,
+  }
+}
+
+function updateLabDoctor(text) {
+  if (!labReport.value) return
+  labReport.value = {
+    ...labReport.value,
+    analysis: { ...labReport.value.analysis, doctorReportText: text },
+    doctorReportText: text,
+  }
+}
+
+function updateDisposalProcess(text) {
+  if (!disposalRecord.value) return
+  disposalRecord.value = {
+    ...disposalRecord.value,
+    record: { ...disposalRecord.value.record, processText: text },
+  }
+}
+
+function updateDisposalOutcome(text) {
+  if (!disposalRecord.value) return
+  disposalRecord.value = {
+    ...disposalRecord.value,
+    record: { ...disposalRecord.value.record, outcomeText: text },
   }
 }
 
@@ -183,35 +345,66 @@ function goImagingAi(row, { view = false } = {}) {
   })
 }
 
-async function onSaveResult() {
+async function onSaveEntry() {
+  await submitResult({ pendingReview: true }, '录入已保存，待审核医师发布')
+}
+
+async function onPublishReview() {
+  await submitResult({ signAsReviewerOnly: true }, '报告已发布')
+}
+
+async function submitResult(signOpts, successMessage) {
   const id = rowId(currentRow.value)
   let payload
 
-  if (useReportSections.value) {
-    if (!aiReportText.value.trim() && !doctorReportText.value.trim()) {
+  if (structuredEntry.value) {
+    if (isLabReport.value) {
+      const ai = labReport.value?.analysis?.aiReportText?.trim() || ''
+      const doctor = labReport.value?.analysis?.doctorReportText?.trim() || ''
+      if (!signOpts.signAsReviewerOnly && !ai && !doctor) {
+        ElMessage.warning('请生成 AI 报告或填写检验医师意见')
+        return
+      }
+      payload = { aiReportText: ai, doctorReportText: doctor, ...signOpts }
+    } else if (isCheckReport.value) {
+      const findings = checkReport.value?.findings?.findingsText?.trim() || ''
+      const ai = checkReport.value?.analysis?.aiReportText?.trim() || ''
+      const doctor = checkReport.value?.analysis?.doctorReportText?.trim() || ''
+      if (!signOpts.signAsReviewerOnly && !ai && !doctor) {
+        ElMessage.warning('请生成 AI 报告或填写检查医师意见')
+        return
+      }
+      payload = { findingsText: findings, aiReportText: ai, doctorReportText: doctor, ...signOpts }
+    } else if (isDisposalRecord.value) {
+      const process = disposalRecord.value?.record?.processText?.trim() || ''
+      const outcome = disposalRecord.value?.record?.outcomeText?.trim() || ''
+      if (!signOpts.signAsReviewerOnly && !process && !outcome) {
+        ElMessage.warning('请填写处置过程或观察与结果')
+        return
+      }
+      payload = { processText: process, outcomeText: outcome, ...signOpts }
+    } else if (!signOpts.signAsReviewerOnly && !aiReportText.value.trim() && !doctorReportText.value.trim()) {
       ElMessage.warning('请生成 AI 报告或填写医师意见')
       return
-    }
-    payload = {
-      aiReportText: aiReportText.value.trim(),
-      doctorReportText: doctorReportText.value.trim(),
-      resultAttachment: resultAttachment.value.trim() || undefined,
+    } else {
+      payload = {
+        aiReportText: aiReportText.value.trim(),
+        doctorReportText: doctorReportText.value.trim(),
+        ...signOpts,
+      }
     }
   } else {
-    if (!resultText.value.trim()) {
+    if (!signOpts.signAsReviewerOnly && !resultText.value.trim()) {
       ElMessage.warning('请填写结果文本')
       return
     }
-    payload = {
-      resultText: resultText.value.trim(),
-      resultAttachment: resultAttachment.value.trim() || undefined,
-    }
+    payload = { resultText: resultText.value.trim(), ...signOpts }
   }
 
   savingId.value = id
   try {
     await props.saveResult(id, payload)
-    ElMessage.success('结果已保存，医生可在工作站查看')
+    ElMessage.success(successMessage)
     resultDialogVisible.value = false
     await loadList()
   } catch (err) {
@@ -273,50 +466,46 @@ async function onSaveResult() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="isPacsCheck ? 160 : 200" fixed="right">
+        <el-table-column label="操作" :width="isPacsCheck ? 200 : 160" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status === 20 && isPacsCheck"
+              v-if="row.status === 20"
               type="primary"
               link
               :loading="executingId === rowId(row)"
-              @click="onExecuteAndGoImaging(row)"
+              @click="isPacsCheck ? onExecuteAndGoImaging(row) : onExecute(row)"
             >
               开始执行
             </el-button>
-            <el-button
-              v-else-if="row.status === 20"
-              type="primary"
-              link
-              :loading="executingId === rowId(row)"
-              @click="onExecute(row)"
-            >
-              开始执行
-            </el-button>
-            <el-button
-              v-if="isPacsCheck && row.status === 30"
-              type="warning"
-              link
-              @click="goImagingAi(row)"
-            >
-              影像 AI 工作台
-            </el-button>
-            <el-button
-              v-if="(!isPacsCheck && row.status === 20) || row.status === 30"
-              type="success"
-              link
-              @click="openResultDialog(row)"
-            >
-              录入结果
-            </el-button>
-            <el-button
-              v-if="isPacsCheck && row.status === 40"
-              type="primary"
-              link
-              @click="goImagingAi(row, { view: true })"
-            >
-              查看影像
-            </el-button>
+            <template v-if="row.status === 30">
+              <el-button
+                v-if="isPacsCheck"
+                type="warning"
+                link
+                @click="goImagingAi(row)"
+              >
+                影像 AI 工作台
+              </el-button>
+              <el-button type="success" link @click="openResultDialog(row, 'entry')">
+                录入
+              </el-button>
+              <el-button type="primary" link @click="openResultDialog(row, 'review')">
+                审阅
+              </el-button>
+            </template>
+            <template v-if="row.status === 40">
+              <el-button type="success" link @click="openResultDialog(row, 'readonly')">
+                查看报告
+              </el-button>
+              <el-button
+                v-if="isPacsCheck"
+                type="primary"
+                link
+                @click="goImagingAi(row, { view: true })"
+              >
+                查看影像
+              </el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -324,27 +513,46 @@ async function onSaveResult() {
 
     <el-dialog
       v-model="resultDialogVisible"
-      :title="`录入结果 · ${currentRow?.itemName || ''}`"
-      :width="useReportSections ? '720px' : '560px'"
+      :title="resultDialogTitle"
+      :width="structuredEntry ? '860px' : '560px'"
       destroy-on-close
     >
-      <div v-if="useReportSections" v-loading="detailLoading">
-        <ResultReportSections
-          v-model:ai-report-text="aiReportText"
-          v-model:doctor-report-text="doctorReportText"
-          :instrument-data="instrumentData"
-          :ai-report-status="aiReportStatus"
-          editable-ai
-          editable-doctor
+      <div v-if="structuredEntry" v-loading="detailLoading" class="report-dialog-wrap">
+        <LabReportSheet
+          v-if="isLabReport && labReport"
+          :report="labReport"
+          :editable-ai="isEditableEntry"
+          :editable-doctor="isEditableEntry"
+          @update:ai-report-text="updateLabAi"
+          @update:doctor-report-text="updateLabDoctor"
         />
-        <el-form label-position="top" style="margin-top: 12px">
-          <el-form-item label="结果附件（resultAttachment，可选）">
-            <el-input
-              v-model="resultAttachment"
-              placeholder="如 minio://bucket/key/report.pdf"
-            />
-          </el-form-item>
-        </el-form>
+        <CheckReportSheet
+          v-else-if="isCheckReport && checkReport"
+          :report="checkReport"
+          :editable-findings="isEditableEntry"
+          :editable-ai="isEditableEntry"
+          :editable-doctor="isEditableEntry"
+          @update:findings-text="updateCheckFindings"
+          @update:ai-report-text="updateCheckAi"
+          @update:doctor-report-text="updateCheckDoctor"
+        />
+        <DisposalRecordSheet
+          v-else-if="isDisposalRecord && disposalRecord"
+          :report="disposalRecord"
+          :editable="isEditableEntry"
+          @update:process-text="updateDisposalProcess"
+          @update:outcome-text="updateDisposalOutcome"
+        />
+        <template v-else>
+          <ResultReportSections
+            v-model:ai-report-text="aiReportText"
+            v-model:doctor-report-text="doctorReportText"
+            :instrument-data="instrumentData"
+            :ai-report-status="aiReportStatus"
+            :editable-ai="isEditableEntry"
+            :editable-doctor="isEditableEntry"
+          />
+        </template>
       </div>
       <el-form v-else label-position="top">
         <el-form-item label="结果文本（resultText）" required>
@@ -352,33 +560,47 @@ async function onSaveResult() {
             v-model="resultText"
             type="textarea"
             :rows="8"
+            :readonly="dialogMode === 'review' || dialogMode === 'readonly'"
             placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
-          />
-        </el-form-item>
-        <el-form-item label="结果附件（resultAttachment，可选）">
-          <el-input
-            v-model="resultAttachment"
-            placeholder="如 minio://bucket/key/report.pdf"
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button
-          v-if="useReportSections"
+          v-if="dialogMode === 'entry' && useReportSections && !isDisposalRecord"
+          type="primary"
+          plain
           :loading="generatingAiId === rowId(currentRow)"
           @click="onGenerateAiReport"
         >
           生成 AI 报告
         </el-button>
         <el-button
-          v-else-if="generateAiSuggestion"
+          v-else-if="dialogMode === 'entry' && generateAiSuggestion && !structuredEntry"
           :loading="generatingAiId === rowId(currentRow)"
           @click="onGenerateAiSuggestion"
         >
           生成 AI 建议填入
         </el-button>
-        <el-button @click="resultDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="!!savingId" @click="onSaveResult">保存并发布</el-button>
+        <el-button @click="resultDialogVisible = false">
+          {{ dialogMode === 'readonly' ? '关闭' : '取消' }}
+        </el-button>
+        <el-button
+          v-if="dialogMode === 'entry'"
+          type="primary"
+          :loading="!!savingId"
+          @click="onSaveEntry"
+        >
+          保存录入
+        </el-button>
+        <el-button
+          v-if="dialogMode === 'review'"
+          type="success"
+          :loading="!!savingId"
+          @click="onPublishReview"
+        >
+          发布
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -411,5 +633,17 @@ async function onSaveResult() {
 .muted {
   color: #94a3b8;
   font-size: 12px;
+}
+
+.sign-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 8px 0;
+}
+
+.report-dialog-wrap {
+  position: relative;
 }
 </style>

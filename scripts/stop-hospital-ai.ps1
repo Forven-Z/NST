@@ -1,5 +1,5 @@
-# 停止 hospital-ai（Python CNN · :8000）
-# 版本：v1.0 | 2026-06-15
+# Stop hospital-ai (Python CNN on :8000)
+# Version: v1.1 | 2026-06-04
 # Usage: .\scripts\stop-hospital-ai.ps1
 
 param(
@@ -31,7 +31,7 @@ function Stop-PortListeners($p) {
 
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host " Stop hospital-ai (port $Port)" -ForegroundColor Cyan
-Write-Host ' Java / frontend not affected — use stop-project.ps1' -ForegroundColor DarkGray
+Write-Host ' Java / frontend not affected - use stop-project.ps1' -ForegroundColor DarkGray
 Write-Host '========================================' -ForegroundColor Cyan
 
 Stop-PortListeners $Port

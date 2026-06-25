@@ -536,7 +536,13 @@ function addExamBillForDemo(registerId) {
 function cancelRegister(registerId) {
   const reg = registers.find((r) => r.registerId === Number(registerId))
   if (!reg) return Promise.reject(new Error('挂号记录不存在'))
-  if (reg.visitState !== 1) return Promise.reject(new Error('仅已挂号未接诊可退号'))
+  if (reg.visitState === 0) {
+    reg.visitState = 4
+    return ok({ registerId, visitState: 4, message: '待支付挂号已取消' })
+  }
+  if (reg.visitState !== 1 || reg.callTime) {
+    return Promise.reject(new Error('仅已挂号且医生未叫号可退号'))
+  }
   reg.visitState = 4
   return ok({ registerId, visitState: 4, message: '退号成功' })
 }
@@ -558,13 +564,40 @@ const REPORTS = [
     type: 'lab',
     typeLabel: '检验',
     reportName: '血常规',
+    reportType: 'lab',
+    reportNo: 'INS-20260604-05001',
     patientName: '微信用户',
     reportTime: '2026-06-04 11:20',
-    summary: '白细胞略高，其余指标未见明显异常。',
+    summary: '白细胞偏高，其余指标未见明显异常。',
     purpose: '发热查因',
     bodyPart: '',
-    resultText: '白细胞 11.2×10^9/L（略高），中性粒细胞比例正常；血红蛋白、血小板均在参考范围内。建议结合临床随访。',
     registerId: 3001,
+    header: {
+      patientName: '微信用户',
+      genderLabel: '男',
+      ageLabel: '35岁',
+      sampleType: '全血',
+      department: '内科',
+      clinicalDiagnosis: '上呼吸道感染',
+    },
+    items: [
+      { code: 'WBC', name: '白细胞', result: '12.8', unit: '×10⁹/L', refRange: '3.5-9.5', flag: 'H' },
+      { code: 'RBC', name: '红细胞', result: '4.65', unit: '×10¹²/L', refRange: '4.3-5.8', flag: 'N' },
+      { code: 'HGB', name: '血红蛋白', result: '138', unit: 'g/L', refRange: '130-175', flag: 'N' },
+      { code: 'PLT', name: '血小板', result: '210', unit: '×10⁹/L', refRange: '125-350', flag: 'N' },
+    ],
+    analysis: {
+      aiReportText: '【AI 智能检验报告 · 血常规】\n异常项目：白细胞 12.8×10⁹/L↑。\nAI 提示：存在偏离参考范围指标，建议结合临床排查感染可能，请检验师审核确认。',
+      doctorReportText: '已镜检复查，结合临床考虑细菌性感染可能。',
+      aiReportStatus: 'READY',
+    },
+    footer: {
+      testTime: '2026-06-04 11:10',
+      reportTime: '2026-06-04 11:20',
+      testerName: '周检验',
+      reviewerName: '周检验',
+    },
+    resultText: '白细胞 12.8×10⁹/L↑，其余指标正常。',
   },
   {
     id: 6001,
@@ -588,13 +621,35 @@ const REPORTS = [
     type: 'disposal',
     typeLabel: '处置记录',
     reportName: '洗胃',
+    reportType: 'disposal',
+    recordNo: 'DIS-20260604-07001',
     patientName: '微信用户',
     reportTime: '2026-06-04 16:10',
     summary: '洗胃完成，患者生命体征平稳。',
     purpose: '急性中毒',
     bodyPart: '',
-    resultText: '洗胃完成，出入量记录完整，洗出液清亮；洗胃后生命体征平稳，未诉明显不适。嘱观察后离院。',
     registerId: 3001,
+    header: {
+      patientName: '微信用户',
+      genderLabel: '男',
+      ageLabel: '35岁',
+      medicalRecordNo: 'MR202606040100',
+      department: '处置科',
+      itemName: '洗胃',
+      clinicalDiagnosis: '急性中毒',
+      purpose: '急性中毒',
+    },
+    record: {
+      processText: '左侧卧位，16Fr 胃管；温盐水 500ml 入/450ml 出（澄清）；过程顺利，未见误吸。',
+      outcomeText: '洗胃后 BP 118/76 mmHg，HR 78 次/分，SpO₂ 98%；患者未诉明显不适，嘱观察。',
+    },
+    footer: {
+      executeTime: '2026-06-04 16:00',
+      recordTime: '2026-06-04 16:10',
+      executorName: '孙处置',
+      recorderName: '孙处置',
+    },
+    resultText: '【处置过程】\n左侧卧位洗胃…\n【观察与结果】\n生命体征平稳…',
   },
 ]
 
@@ -634,12 +689,19 @@ function getReportDetail(type, requestId) {
     type: row.type,
     typeLabel: row.typeLabel,
     reportName: row.reportName,
+    reportType: row.reportType,
+    recordNo: row.recordNo,
     registerId: row.registerId,
     patientId: row.patientId,
     purpose: row.purpose,
     bodyPart: row.bodyPart,
     resultText: row.resultText,
     reportTime: row.reportTime,
+    header: row.header,
+    items: row.items,
+    analysis: row.analysis,
+    record: row.record,
+    footer: row.footer,
     status: 40,
   })
 }

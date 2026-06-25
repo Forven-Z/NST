@@ -36,6 +36,7 @@ public class RegistrarQueryService {
     private final EmployeeRepository employeeRepository;
     private final SchedulingService schedulingService;
     private final FinancialQueryService financialQueryService;
+    private final RegisterLifecycleService registerLifecycleService;
 
     public Map<String, Object> listOutpatientDepartments() {
         requireRegistrar();
@@ -226,10 +227,9 @@ public class RegistrarQueryService {
     }
 
     private Map<String, Object> enrichRegisterRow(Map<String, Object> row) {
-        Map<String, Object> enriched = new HashMap<>(row);
+        Map<String, Object> enriched = registerLifecycleService.enrichRegisterRow(row);
         int visitState = ((Number) row.get("visitState")).intValue();
         enriched.put("visitStateLabel", visitStateLabel(visitState));
-        enriched.put("cancellable", visitState == VisitState.PENDING_PAYMENT || visitState == VisitState.REGISTERED);
         return enriched;
     }
 

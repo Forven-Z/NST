@@ -2,6 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import ResultReportSections from '../medical/ResultReportSections.vue'
+import LabReportSheet from '../medical/LabReportSheet.vue'
+import CheckReportSheet from '../medical/CheckReportSheet.vue'
+import DisposalRecordSheet from '../medical/DisposalRecordSheet.vue'
 import {
   buildRegisterResultsFromOrders,
   fetchOrderResult,
@@ -33,9 +36,16 @@ const resultFetchers = {
   disposal: (id) => fetchOrderResult('disposal', id),
 }
 
+const isLabReport = computed(() => resultDetail.value?.reportType === 'lab')
+const isCheckReport = computed(() => resultDetail.value?.reportType === 'check')
+const isDisposalRecord = computed(() => resultDetail.value?.reportType === 'disposal')
+
 const useReportSections = computed(() => {
   const detail = resultDetail.value
   if (!detail) return false
+  if (detail.reportType === 'lab' || detail.reportType === 'check' || detail.reportType === 'disposal') {
+    return false
+  }
   return !!(detail.instrumentData || detail.aiReportText || detail.doctorReportText)
 })
 
@@ -144,12 +154,24 @@ defineExpose({ reload: loadOrders })
     <el-dialog
       v-model="resultDialogVisible"
       :title="`${resultDetail?.typeLabel || ''} · ${resultDetail?.itemName || ''}`"
-      :width="useReportSections ? '720px' : '560px'"
+      :width="isLabReport || isCheckReport || isDisposalRecord || useReportSections ? '860px' : '560px'"
       destroy-on-close
     >
       <div v-if="resultDetail" v-loading="resultLoading">
+        <LabReportSheet
+          v-if="isLabReport"
+          :report="resultDetail"
+        />
+        <CheckReportSheet
+          v-else-if="isCheckReport"
+          :report="resultDetail"
+        />
+        <DisposalRecordSheet
+          v-else-if="isDisposalRecord"
+          :report="resultDetail"
+        />
         <ResultReportSections
-          v-if="useReportSections"
+          v-else-if="useReportSections"
           :instrument-data="resultDetail.instrumentData"
           :ai-report-text="resultDetail.aiReportText"
           :doctor-report-text="resultDetail.doctorReportText"
@@ -161,10 +183,7 @@ defineExpose({ reload: loadOrders })
           </el-descriptions-item>
         </el-descriptions>
 
-        <el-descriptions v-if="!resultLoading" :column="1" border class="result-meta">
-          <el-descriptions-item v-if="resultDetail.resultAttachment" label="附件">
-            {{ resultDetail.resultAttachment }}
-          </el-descriptions-item>
+        <el-descriptions v-if="!resultLoading && !isLabReport && !isCheckReport && !isDisposalRecord" :column="1" border class="result-meta">
           <el-descriptions-item v-if="resultDetail.reportTime" label="报告时间">
             {{ resultDetail.reportTime }}
           </el-descriptions-item>

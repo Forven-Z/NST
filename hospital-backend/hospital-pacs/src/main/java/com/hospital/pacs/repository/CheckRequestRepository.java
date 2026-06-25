@@ -54,6 +54,48 @@ public class CheckRequestRepository {
                 .list();
     }
 
+    public Optional<Map<String, Object>> findReportContext(Long id) {
+        return jdbcClient.sql("""
+                        SELECT cr.id AS check_request_id,
+                               cr.register_id,
+                               cr.patient_id,
+                               cr.status,
+                               cr.purpose,
+                               cr.body_part,
+                               cr.remark AS order_remark,
+                               cr.result_text,
+                               cr.result_time,
+                               cr.execute_time,
+                               cr.result_input_id,
+                               cr.reviewer_id,
+                               mt.item_name,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               p.gender,
+                               p.age,
+                               d.dept_name AS department_name,
+                               mr.diagnosis AS clinical_diagnosis,
+                               exe.real_name AS executor_name,
+                               e1.real_name AS reporter_name,
+                               e2.real_name AS reviewer_name,
+                               doc.real_name AS ordering_doctor_name
+                        FROM check_request cr
+                        JOIN patient p ON cr.patient_id = p.id
+                        JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+                        JOIN register reg ON cr.register_id = reg.id
+                        JOIN department d ON reg.dept_id = d.id
+                        LEFT JOIN medical_record mr ON mr.register_id = cr.register_id AND mr.delmark = 0
+                        LEFT JOIN employee exe ON cr.executor_id = exe.id
+                        LEFT JOIN employee e1 ON cr.result_input_id = e1.id
+                        LEFT JOIN employee e2 ON cr.reviewer_id = e2.id
+                        LEFT JOIN employee doc ON cr.doctor_id = doc.id
+                        WHERE cr.id = :id AND cr.delmark = 0
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> mapReportContext(rs))
+                .optional();
+    }
+
     public Optional<Map<String, Object>> findDetail(Long id) {
         return jdbcClient.sql("""
                         SELECT cr.id,
@@ -64,7 +106,6 @@ public class CheckRequestRepository {
                                cr.body_part,
                                cr.remark,
                                cr.result_text,
-                               cr.result_attachment,
                                cr.result_time,
                                p.medical_record_no,
                                p.real_name AS patient_name,
@@ -85,7 +126,6 @@ public class CheckRequestRepository {
                     row.put("bodyPart", rs.getString("body_part"));
                     row.put("remark", rs.getString("remark"));
                     row.put("resultText", rs.getString("result_text"));
-                    row.put("resultAttachment", rs.getString("result_attachment"));
                     row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
                     row.put("medicalRecordNo", rs.getString("medical_record_no"));
                     row.put("patientName", rs.getString("patient_name"));
@@ -119,18 +159,64 @@ public class CheckRequestRepository {
                 .update();
     }
 
-    public void saveResult(Long id, Long resultInputId, String resultText, String resultAttachment) {
+    private Map<String, Object> mapReportContext(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("checkRequestId", rs.getLong("check_request_id"));
+        row.put("registerId", rs.getLong("register_id"));
+        row.put("patientId", rs.getLong("patient_id"));
+        row.put("status", rs.getInt("status"));
+        row.put("purpose", rs.getString("purpose"));
+        row.put("bodyPart", rs.getString("body_part"));
+        row.put("orderRemark", rs.getString("order_remark"));
+        row.put("resultText", rs.getString("result_text"));
+        row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+        row.put("executeTime", rs.getObject("execute_time", OffsetDateTime.class));
+        row.put("itemName", rs.getString("item_name"));
+        row.put("medicalRecordNo", rs.getString("medical_record_no"));
+        row.put("patientName", rs.getString("patient_name"));
+        row.put("gender", rs.getObject("gender") != null ? rs.getInt("gender") : null);
+        row.put("age", rs.getObject("age") != null ? rs.getInt("age") : null);
+        row.put("departmentName", rs.getString("department_name"));
+        row.put("clinicalDiagnosis", rs.getString("clinical_diagnosis"));
+        row.put("reporterName", rs.getString("reporter_name"));
+        row.put("reviewerName", rs.getString("reviewer_name"));
+        row.put("executorName", rs.getString("executor_name"));
+        row.put("resultInputId", rs.getObject("result_input_id") != null ? rs.getLong("result_input_id") : null);
+        row.put("reviewerId", rs.getObject("reviewer_id") != null ? rs.getLong("reviewer_id") : null);
+        row.put("orderingDoctorName", rs.getString("ordering_doctor_name"));
+        return row;
+    }
+
+    public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
+        if (reviewOnly) {
+            jdbcClient.sql("""
+                            UPDATE check_request
+                            SET reviewer_id = :reviewerId,
+                                status = 40,
+                                result_time = :now,
+                                update_time = NOW()
+                            WHERE id = :id
+                            """)
+                    .param("id", id)
+                    .param("reviewerId", reviewerId)
+                    .param("now", OffsetDateTime.now())
+                    .update();
+            return;
+        }
+        int status = reviewerId != null ? 40 : 30;
         jdbcClient.sql("""
                         UPDATE check_request
-                        SET status = 40, result_input_id = :resultInputId, result_time = :now,
-                            result_text = :resultText, result_attachment = :resultAttachment, update_time = NOW()
+                        SET status = :status, result_input_id = :resultInputId, reviewer_id = :reviewerId,
+                            result_time = :now,
+                            result_text = :resultText, result_attachment = NULL, update_time = NOW()
                         WHERE id = :id
                         """)
                 .param("id", id)
+                .param("status", status)
                 .param("resultInputId", resultInputId)
+                .param("reviewerId", reviewerId)
                 .param("now", OffsetDateTime.now())
                 .param("resultText", resultText)
-                .param("resultAttachment", resultAttachment)
                 .update();
     }
 }

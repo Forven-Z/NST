@@ -303,29 +303,74 @@ export const MOCK_TECH_DEPARTMENTS = [
 
 export const MOCK_ALL_DEPARTMENTS = [...MOCK_OUTPATIENT_DEPTS, ...MOCK_TECH_DEPARTMENTS]
 
-/** 医技项目（与 seed 一致） */
+/** 医技项目（与 seed-dict.sql / RAG TECHNOLOGY_GUIDE 对齐） */
 export const MOCK_MEDICAL_TECHNOLOGIES = [
   { id: 1, itemCode: 'CHK-CT-HEAD', itemName: '头部 CT', techType: 'CHECK', price: 280, deptId: 2 },
-  { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '胸部 CT', techType: 'CHECK', price: 320, deptId: 2 },
-  { id: 8, itemCode: 'CHK-TUMOR-SEG', itemName: '肿瘤 CT 分割', techType: 'CHECK', price: 450, deptId: 2 },
   { id: 2, itemCode: 'INS-BLOOD', itemName: '血常规', techType: 'INSPECTION', price: 35, deptId: 3 },
-  { id: 3, itemCode: 'INS-GLU', itemName: '空腹血糖', techType: 'INSPECTION', price: 12, deptId: 3 },
-  { id: 4, itemCode: 'CHK-CXR', itemName: '胸部 X 线', techType: 'CHECK', price: 90, deptId: 2 },
+  { id: 3, itemCode: 'INS-CRP', itemName: 'C反应蛋白', techType: 'INSPECTION', price: 45, deptId: 3 },
+  { id: 4, itemCode: 'INS-PCT', itemName: '降钙素原', techType: 'INSPECTION', price: 80, deptId: 3 },
   { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 7 },
   { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 7 },
+  { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '胸部 CT', techType: 'CHECK', price: 320, deptId: 2 },
+  { id: 8, itemCode: 'CHK-TUMOR-SEG', itemName: '肿瘤 CT 分割', techType: 'CHECK', price: 450, deptId: 2 },
+  { id: 9, itemCode: 'INS-URINE', itemName: '尿常规', techType: 'INSPECTION', price: 25, deptId: 3 },
+  { id: 10, itemCode: 'INS-STOOL', itemName: '粪便常规及隐血', techType: 'INSPECTION', price: 30, deptId: 3 },
+  { id: 11, itemCode: 'INS-LIVER', itemName: '肝功能', techType: 'INSPECTION', price: 55, deptId: 3 },
+  { id: 12, itemCode: 'INS-KIDNEY', itemName: '肾功能', techType: 'INSPECTION', price: 50, deptId: 3 },
+  { id: 13, itemCode: 'INS-GLU', itemName: '空腹血糖', techType: 'INSPECTION', price: 12, deptId: 3 },
+  { id: 14, itemCode: 'INS-HBA1C', itemName: '糖化血红蛋白', techType: 'INSPECTION', price: 60, deptId: 3 },
+  { id: 15, itemCode: 'INS-LIPID', itemName: '血脂四项', techType: 'INSPECTION', price: 70, deptId: 3 },
+  { id: 16, itemCode: 'INS-ELECTROLYTE', itemName: '电解质', techType: 'INSPECTION', price: 40, deptId: 3 },
+  { id: 17, itemCode: 'INS-COAG', itemName: '凝血功能', techType: 'INSPECTION', price: 65, deptId: 3 },
+  { id: 18, itemCode: 'INS-THYROID', itemName: '甲状腺功能', techType: 'INSPECTION', price: 90, deptId: 3 },
+  { id: 19, itemCode: 'INS-CARDIAC', itemName: '心肌标志物', techType: 'INSPECTION', price: 120, deptId: 3 },
+  { id: 20, itemCode: 'INS-RESP-AG', itemName: '呼吸道病原抗原', techType: 'INSPECTION', price: 85, deptId: 3 },
+  { id: 21, itemCode: 'CHK-CXR', itemName: '胸部 X 线', techType: 'CHECK', price: 90, deptId: 2 },
+  { id: 22, itemCode: 'CHK-MRI-BRAIN', itemName: '颅脑 MRI', techType: 'CHECK', price: 680, deptId: 2 },
+  { id: 23, itemCode: 'CHK-CT-ABD', itemName: '腹部 CT', techType: 'CHECK', price: 350, deptId: 2 },
+  { id: 24, itemCode: 'CHK-US-ABD', itemName: '腹部超声', techType: 'CHECK', price: 120, deptId: 2 },
+  { id: 25, itemCode: 'CHK-US-THYROID', itemName: '甲状腺超声', techType: 'CHECK', price: 100, deptId: 2 },
+  { id: 26, itemCode: 'CHK-US-URINARY', itemName: '泌尿系统超声', techType: 'CHECK', price: 110, deptId: 2 },
+  { id: 27, itemCode: 'CHK-ECG', itemName: '十二导联心电图', techType: 'CHECK', price: 30, deptId: 2 },
+  { id: 28, itemCode: 'CHK-ECHO', itemName: '超声心动图', techType: 'CHECK', price: 180, deptId: 2 },
+  { id: 29, itemCode: 'CHK-HOLTER', itemName: '动态心电图', techType: 'CHECK', price: 200, deptId: 2 },
+  { id: 30, itemCode: 'CHK-PFT', itemName: '肺功能检查', techType: 'CHECK', price: 150, deptId: 2 },
+  { id: 31, itemCode: 'DIS-DRESSING', itemName: '清创换药', techType: 'DISPOSAL', price: 80, deptId: 7 },
+  { id: 32, itemCode: 'DIS-NEB', itemName: '雾化吸入', techType: 'DISPOSAL', price: 35, deptId: 7 },
+  { id: 33, itemCode: 'DIS-O2', itemName: '氧疗', techType: 'DISPOSAL', price: 50, deptId: 7 },
+  { id: 34, itemCode: 'DIS-CATH', itemName: '导尿', techType: 'DISPOSAL', price: 40, deptId: 7 },
 ]
 
+/** 药品（与 seed / RAG DRUG-001～020 对齐） */
 export const MOCK_DRUGS = [
   { id: 1, drugCode: 'DRG-001', drugName: '阿莫西林胶囊', drugFormat: '0.25g×24粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 18.5, stockQty: 100 },
   { id: 2, drugCode: 'DRG-002', drugName: '布洛芬缓释胶囊', drugFormat: '0.3g×20粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 22, stockQty: 80 },
   { id: 3, drugCode: 'DRG-003', drugName: '对乙酰氨基酚片', drugFormat: '0.5g×20片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 8.5, stockQty: 200 },
+  { id: 4, drugCode: 'DRG-004', drugName: '氯雷他定片', drugFormat: '10mg×6片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 16, stockQty: 120 },
+  { id: 5, drugCode: 'DRG-005', drugName: '盐酸西替利嗪片', drugFormat: '10mg×12片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 14.5, stockQty: 100 },
+  { id: 6, drugCode: 'DRG-006', drugName: '盐酸氨溴索片', drugFormat: '30mg×20片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 19, stockQty: 90 },
+  { id: 7, drugCode: 'DRG-007', drugName: '乙酰半胱氨酸颗粒', drugFormat: '0.1g×10袋', drugDosage: '颗粒', drugType: '处方药', unit: '盒', retailPrice: 28, stockQty: 60 },
+  { id: 8, drugCode: 'DRG-008', drugName: '奥美拉唑肠溶胶囊', drugFormat: '20mg×14粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 25, stockQty: 80 },
+  { id: 9, drugCode: 'DRG-009', drugName: '蒙脱石散', drugFormat: '3g×10袋', drugDosage: '散剂', drugType: 'OTC', unit: '盒', retailPrice: 12, stockQty: 150 },
+  { id: 10, drugCode: 'DRG-010', drugName: '口服补液盐散', drugFormat: '20.5g×3袋', drugDosage: '散剂', drugType: 'OTC', unit: '盒', retailPrice: 15, stockQty: 100 },
+  { id: 11, drugCode: 'DRG-011', drugName: '二甲双胍片', drugFormat: '0.5g×48片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 11, stockQty: 120 },
+  { id: 12, drugCode: 'DRG-012', drugName: '苯磺酸氨氯地平片', drugFormat: '5mg×7片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 18, stockQty: 100 },
+  { id: 13, drugCode: 'DRG-013', drugName: '氯沙坦钾片', drugFormat: '50mg×7片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 32, stockQty: 80 },
+  { id: 14, drugCode: 'DRG-014', drugName: '阿托伐他汀钙片', drugFormat: '20mg×7片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 38, stockQty: 70 },
+  { id: 15, drugCode: 'DRG-015', drugName: '硫酸沙丁胺醇吸入气雾剂', drugFormat: '100μg×200揿', drugDosage: '气雾剂', drugType: '处方药', unit: '瓶', retailPrice: 42, stockQty: 50 },
+  { id: 16, drugCode: 'DRG-016', drugName: '吸入用布地奈德混悬液', drugFormat: '1mg×5支', drugDosage: '混悬液', drugType: '处方药', unit: '盒', retailPrice: 68, stockQty: 40 },
+  { id: 17, drugCode: 'DRG-017', drugName: '阿奇霉素片', drugFormat: '0.25g×6片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 24, stockQty: 90 },
+  { id: 18, drugCode: 'DRG-018', drugName: '头孢呋辛酯片', drugFormat: '0.25g×12片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 26.5, stockQty: 85 },
+  { id: 19, drugCode: 'DRG-019', drugName: '莫匹罗星软膏', drugFormat: '2% 5g', drugDosage: '软膏', drugType: 'OTC', unit: '支', retailPrice: 22, stockQty: 60 },
+  { id: 20, drugCode: 'DRG-020', drugName: '复方氨酚烷胺片', drugFormat: '12片', drugDosage: '片剂', drugType: 'OTC', unit: '盒', retailPrice: 9.5, stockQty: 180 },
 ]
 
 export const MOCK_DISEASES = [
-  { id: 101, diseaseCode: 'G43', diseaseName: '偏头痛' },
-  { id: 102, diseaseCode: 'G44', diseaseName: '紧张性头痛' },
-  { id: 103, diseaseCode: 'J06', diseaseName: '急性上呼吸道感染' },
-  { id: 104, diseaseCode: 'R51', diseaseName: '头痛' },
+  { id: 1, diseaseCode: 'J06.9', diseaseName: '急性上呼吸道感染', diseaseCategory: '呼吸系统' },
+  { id: 2, diseaseCode: 'I10', diseaseName: '原发性高血压', diseaseCategory: '循环系统' },
+  { id: 3, diseaseCode: 'R51', diseaseName: '头痛', diseaseCategory: '神经系统' },
+  { id: 4, diseaseCode: 'R50.9', diseaseName: '发热', diseaseCategory: '症状体征' },
+  { id: 5, diseaseCode: 'E11.9', diseaseName: '2型糖尿病', diseaseCategory: '内分泌' },
 ]
 
 export function getMedicalTechById(id) {

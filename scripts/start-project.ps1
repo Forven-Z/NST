@@ -67,11 +67,15 @@ function Wait-Port($port, $label, $seconds) {
 
 function Wait-NacosReady($seconds) {
     if (-not $seconds) { $seconds = 120 }
-    $url = 'http://127.0.0.1:8848/nacos/v1/console/health/readiness'
-    Write-Host '... waiting Nacos readiness (HTTP + gRPC)' -ForegroundColor Yellow
+    $readinessUrl = 'http://127.0.0.1:8848/nacos/v1/console/health/readiness'
+    Write-Host '... waiting Nacos readiness (HTTP 8848 + gRPC 9848)' -ForegroundColor Yellow
     for ($i = 0; $i -lt $seconds; $i++) {
+        if (-not (Test-Port 8848) -or -not (Test-Port 9848)) {
+            Start-Sleep -Seconds 1
+            continue
+        }
         try {
-            $r = Invoke-RestMethod -Uri $url -TimeoutSec 3
+            $r = Invoke-RestMethod -Uri $readinessUrl -TimeoutSec 3
             if ($r -eq 'OK') {
                 Start-Sleep -Seconds 2
                 Write-Host 'OK  Nacos ready' -ForegroundColor Green
@@ -82,7 +86,28 @@ function Wait-NacosReady($seconds) {
         }
         Start-Sleep -Seconds 1
     }
-    Write-Host 'WARN  Nacos readiness timeout — services may retry registration' -ForegroundColor Yellow
+    Write-Host 'FAIL  Nacos not ready after '${seconds}s' (need HTTP 8848 + gRPC 9848 + readiness OK)' -ForegroundColor Red
+    Write-Host '      try: D:\dev\nacos\bin\shutdown.cmd  then  startup.cmd -m standalone' -ForegroundColor Yellow
+    return $false
+}
+
+function Wait-NacosServiceRegistered($serviceName, $seconds) {
+    if (-not $seconds) { $seconds = 90 }
+    $url = "http://127.0.0.1:8848/nacos/v1/ns/instance/list?serviceName=$serviceName"
+    Write-Host "... waiting Nacos registration: $serviceName" -ForegroundColor Yellow
+    for ($i = 0; $i -lt $seconds; $i++) {
+        try {
+            $r = Invoke-RestMethod -Uri $url -TimeoutSec 3
+            if ($r.hosts -and @($r.hosts).Count -gt 0) {
+                Write-Host "OK  $serviceName registered in Nacos" -ForegroundColor Green
+                return $true
+            }
+        } catch {
+            # registry not ready yet
+        }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host "WARN  $serviceName not registered in Nacos after ${seconds}s" -ForegroundColor Yellow
     return $false
 }
 
@@ -176,7 +201,7 @@ function Ensure-MinioReady {
 }
 
 function Wait-GatewayReady($seconds) {
-    if (-not $seconds) { $seconds = 90 }
+    if (-not $seconds) { $seconds = 120 }
     $url = 'http://127.0.0.1:9000/api/v1/auth/staff/login'
     $body = '{"username":"doctor01","password":"123456"}'
     Write-Host '... waiting Gateway + auth (staff login)' -ForegroundColor Yellow
@@ -198,6 +223,8 @@ function Wait-GatewayReady($seconds) {
         Start-Sleep -Seconds 1
     }
     Write-Host 'FAIL  Gateway not ready - see logs/project/hospital-gateway.log' -ForegroundColor Red
+    Write-Host '      common cause: Nacos gRPC not ready -> hospital-auth not registered (503 on login)' -ForegroundColor Yellow
+    Write-Host '      try: D:\dev\nacos\bin\shutdown.cmd  then re-run .\scripts\start-project.ps1 -Restart' -ForegroundColor Yellow
     return $false
 }
 
@@ -293,8 +320,11 @@ if (-not (Test-Port 8848)) {
     if (-not (Wait-Port 8848 'Nacos' 120)) { exit 1 }
 } else {
     Write-Host 'OK  Nacos 8848 already running' -ForegroundColor Green
+    if (-not (Test-Port 9848)) {
+        Write-Host 'WARN  Nacos gRPC 9848 not listening — waiting for full startup' -ForegroundColor Yellow
+    }
 }
-Wait-NacosReady 60 | Out-Null
+if (-not (Wait-NacosReady 120)) { exit 1 }
 
 if (-not $SkipBuild) {
     Write-Host "... mvn package ($mvnModules)" -ForegroundColor Yellow
@@ -316,7 +346,8 @@ try {
             Start-Sleep -Seconds 3
         }
     }
-    if (-not (Wait-GatewayReady 90)) { exit 1 }
+    Wait-NacosServiceRegistered 'hospital-auth' 90 | Out-Null
+    if (-not (Wait-GatewayReady 120)) { exit 1 }
     if (-not $SkipFrontend) {
         Start-FrontendDev
     }

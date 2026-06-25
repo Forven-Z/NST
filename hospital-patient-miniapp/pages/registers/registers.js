@@ -34,7 +34,7 @@ Page({
       const list = (res.data?.list || []).map((r) => ({
         ...r,
         stateLabel: visitStateLabel(r.visitState),
-        canCancel: canCancel(r.visitState),
+        canCancel: canCancel(r),
         canQueue: canViewQueue(r.visitState),
       }))
       this.setData({ list })

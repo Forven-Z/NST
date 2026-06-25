@@ -113,6 +113,54 @@ public class RegisterRepository {
                 .update();
     }
 
+    public void markAutoDayClosed(Long registerId, String remark) {
+        jdbcClient.sql("""
+                        UPDATE register
+                        SET visit_state = 3,
+                            visit_end_time = :now,
+                            remark = :remark,
+                            update_time = NOW()
+                        WHERE id = :id
+                        """)
+                .param("id", registerId)
+                .param("now", OffsetDateTime.now())
+                .param("remark", remark)
+                .update();
+    }
+
+    public List<Long> findIdsPendingPaymentExpired(OffsetDateTime cutoff) {
+        return jdbcClient.sql("""
+                        SELECT id
+                        FROM register
+                        WHERE delmark = 0
+                          AND visit_state = 0
+                          AND create_time < :cutoff
+                        ORDER BY id
+                        """)
+                .param("cutoff", cutoff)
+                .query(Long.class)
+                .list();
+    }
+
+    /** visit_state 1/2 且 visit_date 已到期终关单（早于今天，或今天且当前时刻 >= 21:00）。 */
+    public List<Long> findIdsDueForDayClose(LocalDate today, java.time.LocalTime dayCloseTime) {
+        return jdbcClient.sql("""
+                        SELECT id
+                        FROM register
+                        WHERE delmark = 0
+                          AND visit_state IN (1, 2)
+                          AND (
+                              visit_date < :today
+                              OR (visit_date = :today AND CURRENT_TIME >= :dayCloseTime)
+                          )
+                        ORDER BY id
+                        """)
+                .param("today", today)
+                .param("dayCloseTime", dayCloseTime)
+                .query(Long.class)
+                .list();
+    }
+
     public Optional<Map<String, Object>> findById(Long registerId) {
         return jdbcClient.sql("""
                         SELECT r.id, r.patient_id, r.employee_id, r.scheduling_id, r.visit_state, r.visit_date,
@@ -137,22 +185,28 @@ public class RegisterRepository {
 
     public Optional<Map<String, Object>> findByIdForUpdate(Long registerId) {
         return jdbcClient.sql("""
-                        SELECT r.id, r.patient_id, r.employee_id, r.scheduling_id, r.visit_state
+                        SELECT r.id, r.patient_id, r.employee_id, r.scheduling_id, r.visit_state,
+                               r.visit_date, r.call_time, r.create_time
                         FROM register r
                         WHERE r.id = :id AND r.delmark = 0
                         FOR UPDATE
                         """)
                 .param("id", registerId)
-                .query((rs, rowNum) -> {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("registerId", rs.getLong("id"));
-                    row.put("patientId", rs.getLong("patient_id"));
-                    row.put("employeeId", rs.getLong("employee_id"));
-                    row.put("schedulingId", rs.getObject("scheduling_id", Long.class));
-                    row.put("visitState", rs.getInt("visit_state"));
-                    return row;
-                })
+                .query((rs, rowNum) -> mapRegisterCoreRow(rs))
                 .optional();
+    }
+
+    private Map<String, Object> mapRegisterCoreRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("registerId", rs.getLong("id"));
+        row.put("patientId", rs.getLong("patient_id"));
+        row.put("employeeId", rs.getLong("employee_id"));
+        row.put("schedulingId", rs.getObject("scheduling_id", Long.class));
+        row.put("visitState", rs.getInt("visit_state"));
+        row.put("visitDate", rs.getObject("visit_date", LocalDate.class));
+        row.put("callTime", rs.getObject("call_time", OffsetDateTime.class));
+        row.put("createTime", rs.getObject("create_time", OffsetDateTime.class));
+        return row;
     }
 
     public Optional<Map<String, Object>> findByIdAndPatientId(Long registerId, Long patientId) {
@@ -184,6 +238,7 @@ public class RegisterRepository {
                                gender,
                                birth_date,
                                visit_state,
+                               noon_type,
                                regist_time,
                                regist_level_name
                         FROM (
@@ -194,6 +249,7 @@ public class RegisterRepository {
                                    p.gender,
                                    p.birth_date,
                                    r.visit_state,
+                                   r.noon_type,
                                    r.create_time AS regist_time,
                                    rl.level_name AS regist_level_name,
                                    ROW_NUMBER() OVER (
@@ -219,7 +275,7 @@ public class RegisterRepository {
                               )
                         ) q
                         WHERE rn = 1
-                        ORDER BY regist_time
+                        ORDER BY noon_type ASC, regist_time ASC
                         LIMIT :limit OFFSET :offset
                         """)
                 .param("employeeId", employeeId)
@@ -237,6 +293,9 @@ public class RegisterRepository {
                     row.put("gender", rs.getObject("gender", Integer.class));
                     row.put("birthDate", rs.getObject("birth_date", LocalDate.class));
                     row.put("visitState", rs.getInt("visit_state"));
+                    int noonType = rs.getInt("noon_type");
+                    row.put("noonType", noonType);
+                    row.put("noonLabel", noonType == 1 ? "上午" : noonType == 2 ? "下午" : "—");
                     row.put("registTime", rs.getObject("regist_time", OffsetDateTime.class));
                     row.put("registLevelName", rs.getString("regist_level_name"));
                     return row;
@@ -252,6 +311,8 @@ public class RegisterRepository {
                                r.visit_date,
                                r.noon_type,
                                r.regist_fee,
+                               r.call_time,
+                               r.remark,
                                r.create_time AS regist_time,
                                d.dept_name,
                                e.real_name AS doctor_name,
@@ -291,6 +352,8 @@ public class RegisterRepository {
                                r.visit_date,
                                r.noon_type,
                                r.regist_fee,
+                               r.call_time,
+                               r.remark,
                                r.create_time AS regist_time,
                                d.dept_name,
                                e.real_name AS doctor_name,
@@ -326,7 +389,10 @@ public class RegisterRepository {
         row.put("noonType", rs.getInt("noon_type"));
         row.put("noonLabel", rs.getInt("noon_type") == 1 ? "上午" : "下午");
         row.put("registFee", rs.getBigDecimal("regist_fee"));
+        row.put("callTime", rs.getObject("call_time", OffsetDateTime.class));
+        row.put("remark", rs.getString("remark"));
         row.put("registTime", rs.getObject("regist_time", OffsetDateTime.class));
+        row.put("createTime", rs.getObject("regist_time", OffsetDateTime.class));
         row.put("deptName", rs.getString("dept_name"));
         row.put("doctorName", rs.getString("doctor_name"));
         row.put("registLevelName", rs.getString("regist_level_name"));
@@ -345,6 +411,8 @@ public class RegisterRepository {
                                r.visit_date,
                                r.noon_type,
                                r.regist_fee,
+                               r.call_time,
+                               r.remark,
                                r.create_time AS regist_time,
                                d.dept_name,
                                e.real_name AS doctor_name,
@@ -389,6 +457,8 @@ public class RegisterRepository {
                                r.visit_date,
                                r.noon_type,
                                r.regist_fee,
+                               r.call_time,
+                               r.remark,
                                r.create_time AS regist_time,
                                d.dept_name,
                                e.real_name AS doctor_name,

@@ -161,3 +161,5 @@ psql -U postgres -d hospital -f docs/sql/seed-dict.sql
 | v1.9 | 2026-06-04 | `DIS-INF` 静脉输液；`inspection01`/`lab02`；新增 `seed-demo-patients.sql` |
 | v1.10 | 2026-06-04 | 检验统一 `lab01`/`lab02`；检查扩展 `check02`/`check03`；废弃 `inspection01` |
 | v1.11 | 2026-06-04 | 新增科室「信息科」`INFO_CENTER`(id=8)；`admin` 由挂号处迁至信息科 |
+| v1.12 | 2026-06-24 | 扩展药品 20 种、医技 34 项、疾病 5 条；对齐 RAG 与 DEMO_MEDICAL_RECORD_SAMPLES |
+| v1.13 | 2026-06-04 | 新增 `inspection_result_item` 检验明细表；增量脚本 `migration-inspection-result-item.sql` |
