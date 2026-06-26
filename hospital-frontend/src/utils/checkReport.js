@@ -38,21 +38,75 @@ export function parseCheckResultText(resultText) {
 }
 
 export function generateCheckAiReportStub(itemName, findingsText = '') {
-  const templates = {
-    '头部 CT': '【AI 智能检查报告】\n颅脑 CT 平扫：脑实质密度未见明显异常；脑室系统大小形态正常；中线结构居中。\nAI 提示：未见明显急性出血或占位征象，请放射科医师结合临床审核。',
-    '胸部 CT': '【AI 智能检查报告】\n双肺野清晰，未见明显实变影；纵隔居中；心影大小在正常范围。\nAI 提示：未见明显急性渗出或占位征象，请放射科医师审核。',
-  }
-  const base = templates[itemName] || templates['头部 CT']
   const findings = (findingsText || '').trim()
-  if (!findings) return base
-  const snippet = findings.length <= 200 ? findings : `${findings.slice(0, 200)}…`
-  return `${base}\n\n【基于检查所见归纳】\n${snippet}`
+  if (!findings) return ''
+
+  const benign =
+    /^(无异常|未见异常|未见明显异常|未见明确异常)$/.test(findings.replace(/\s+/g, '')) ||
+    findings.includes('未见明显异常') ||
+    findings.includes('未见明确异常')
+
+  let body = ''
+  if (benign) {
+    const name = itemName || ''
+    if (/胸|肺/.test(name)) {
+      body =
+        '双肺野清晰，纵隔居中，心影大小在正常范围；未见明显急性渗出或占位征象。'
+    } else if (/头|颅|脑/.test(name)) {
+      body =
+        '颅脑 CT 平扫：脑实质密度未见明显异常；脑室系统大小形态正常；中线结构居中；未见明显急性出血或占位征象。'
+    } else {
+      body = '结合 CT 所见，未见明确异常征象。'
+    }
+  } else {
+    const snippet = findings.length <= 500 ? findings : `${findings.slice(0, 500)}…`
+    body = `结合 CT 所见：${snippet}`
+  }
+
+  const hint = /X线|X 线|DR/.test(itemName || '')
+    ? '请放射科医师结合临床审核签阅。'
+    : '请检查医师结合临床审核签阅。'
+
+  return `${body}\n\nAI 提示：${hint}`
+}
+
+/** 去掉 legacy「【诊断印象】」标题，UI 区块标题已单独展示 */
+export function normalizeCheckAiReportText(text = '') {
+  return (text || '').trim().replace(/^【诊断印象】\s*\n?/, '')
+}
+
+function hasReportImages(images) {
+  if (!images || typeof images !== 'object') return false
+  return ['axial', 'coronal', 'sagittal'].some((plane) => images[plane])
+}
+
+/** 生成 LLM 报告后保留 CT 所见、三视图 URL 与本地采图 */
+export function mergeCheckReportAfterLlm(current, generated) {
+  const preservedFindings = current?.findings?.findingsText ?? current?.findingsText ?? ''
+  const preservedSnapshots = current?.findings?.localSnapshots
+  const preservedMeta = current?.findings?.snapshotMeta
+  const preservedImages = hasReportImages(current?.findings?.reportImages)
+    ? current.findings.reportImages
+    : hasReportImages(generated?.findings?.reportImages)
+      ? generated.findings.reportImages
+      : null
+  return {
+    ...generated,
+    findings: {
+      ...(generated.findings || {}),
+      findingsText: preservedFindings || generated.findings?.findingsText || '',
+      ...(preservedSnapshots ? { localSnapshots: preservedSnapshots } : {}),
+      ...(preservedMeta ? { snapshotMeta: preservedMeta } : {}),
+      ...(preservedImages ? { reportImages: preservedImages } : {}),
+    },
+    findingsText: preservedFindings || generated.findingsText || '',
+  }
 }
 
 export function composeCheckReportView(context = {}, findings = {}, analysis = {}) {
   const itemName = context.itemName || ''
   const findingsText = (findings.findingsText || context.findingsText || '').trim()
-  const ai = (analysis.aiReportText || context.aiReportText || '').trim()
+  const ai = normalizeCheckAiReportText(analysis.aiReportText || context.aiReportText || '')
   const doctor = (analysis.doctorReportText || context.doctorReportText || '').trim()
   const aiReportStatus = analysis.aiReportStatus || context.aiReportStatus || (ai ? 'READY' : 'PENDING')
   const reportTime = context.reportTime || context.resultTime || '—'
@@ -82,7 +136,6 @@ export function composeCheckReportView(context = {}, findings = {}, analysis = {
     },
     findings: {
       findingsText,
-      instrumentData: findings.instrumentData || context.instrumentData || '',
       studyStatus: findings.studyStatus || context.studyStatus,
       hasImaging: findings.hasImaging ?? context.hasImaging ?? false,
       ctPreviewUrl: findings.ctPreviewUrl || context.ctPreviewUrl,

@@ -58,7 +58,7 @@
 | hospital-management · 科室/员工/排班 CRUD | API §9.2–9.3 | ✅ | | `POST/PUT/DELETE /admin/**` + auth 内部开户 |
 | hospital-management · 排班请假 §8.5/§9.5 | API §8.5、§9.5 | ✅ | | `scheduling_leave_request` 表 + 验收脚本 |
 | hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
-| hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
+| hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` / 双字段 `result`；`PacsAiReportCache` |
 | hospital-pacs · 影像任务/CNN | API §6 · §8 | 🟨 | lzr+wsh | taskType 已通；62001 头部 / 62002 胸部（肺部权重已部署，待联调） |
 | hospital-ai-bridge · STUB | API §7 | ✅ | | `/ai/health`, triage/assistant 占位 |
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
@@ -78,7 +78,7 @@
 | PC · 医生队列/病历 | API.md §五 | ✅ | | 开单对话框 + 医嘱面板 + 完整病历字段 |
 | PC · 药师发药 | §2.6 | ✅ | | `/pharmacy/pending` 待发药 + 发药/退药 |
 | PC · 收费员退费 | §2.3 | ✅ | | `/registrar/refund` 按病历号查询 + 退费 |
-| PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + `fetchPacsResultDetail`；对齐 LIS |
+| PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + 录入弹窗 **重新采图**（跳转影像 AI 工作台）+ `mergeCheckReportAfterLlm` 保留三视图 |
 | PC · PACS 影像任务 | §2.5 | 🟨 | zty | `/pacs/imaging` 关 Mock 显示开发中空态；后端 `imaging-studies` ⬜ |
 | PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai` 最小可运行；CNN 由 wsh 后续 |
 | PC · admin | API §9 | ✅ | | 排班页与 Mock 统一；请假联调；AI STUB 50301 |

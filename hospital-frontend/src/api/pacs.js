@@ -72,20 +72,38 @@ export function uploadPacsImaging(checkRequestId, files, onUploadProgress) {
   })
 }
 
+async function assertErrorJsonBlob(blob, label) {
+  const contentType = blob?.type || ''
+  if (!contentType.includes('json') && (blob?.size ?? 0) >= 512) return
+  const text = await blob.text()
+  try {
+    const json = JSON.parse(text)
+    throw new Error(json.message || `${label} 加载失败`)
+  } catch (err) {
+    if (err instanceof SyntaxError) return
+    throw err
+  }
+}
+
 async function assertPreviewBlob(blob, kind) {
   const contentType = blob?.type || ''
   if (contentType.includes('json') || (blob?.size < 2048 && contentType !== 'application/gzip')) {
-    const text = await blob.text()
-    try {
-      const json = JSON.parse(text)
-      throw new Error(json.message || `${kind} 预览加载失败`)
-    } catch (err) {
-      if (err instanceof SyntaxError) throw new Error(`${kind} 预览格式无效`)
-      throw err
-    }
+    await assertErrorJsonBlob(blob, `${kind} 预览`)
+    throw new Error(`${kind} 预览格式无效`)
   }
   if (!blob?.size || blob.size < 2048) {
     throw new Error(`${kind} 预览文件过小，请重新分析`)
+  }
+}
+
+async function assertReportSnapshotBlob(blob, plane) {
+  await assertErrorJsonBlob(blob, `${plane} 报告采图`)
+  const contentType = blob?.type || ''
+  if (contentType.includes('json')) {
+    throw new Error(`${plane} 报告采图格式无效`)
+  }
+  if (!blob?.size) {
+    throw new Error(`${plane} 报告采图为空`)
   }
 }
 
@@ -95,5 +113,15 @@ export async function fetchPacsPreviewBlob(checkRequestId, kind) {
     timeout: 120000,
   })
   await assertPreviewBlob(blob, kind)
+  return URL.createObjectURL(blob)
+}
+
+/** 带 JWT 加载报告三视图采图（供 img 无法携带 Authorization 时使用） */
+export async function fetchPacsReportSnapshotBlob(checkRequestId, plane) {
+  const blob = await request.get(`/pacs/imaging/report-preview/${checkRequestId}/${plane}`, {
+    responseType: 'blob',
+    timeout: 60000,
+  })
+  await assertReportSnapshotBlob(blob, plane)
   return URL.createObjectURL(blob)
 }

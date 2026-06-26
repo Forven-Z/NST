@@ -16,3 +16,15 @@ export function reportSnapshotPreviewUrl(checkRequestId, plane, base = '') {
   const prefix = base || '/api/v1'
   return `${prefix}/pacs/imaging/report-preview/${checkRequestId}/${plane}`
 }
+
+/** 解析需鉴权加载的报告采图 API 路径 */
+export function parseReportSnapshotUrl(src) {
+  if (!src || typeof src !== 'string') return null
+  const match = src.match(/report-preview\/(\d+)\/(axial|coronal|sagittal)/i)
+  if (!match) return null
+  return { checkRequestId: Number(match[1]), plane: match[2].toLowerCase() }
+}
+
+export function isInlineSnapshotSrc(src) {
+  return !!src && (src.startsWith('data:') || src.startsWith('blob:'))
+}

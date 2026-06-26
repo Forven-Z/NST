@@ -4,6 +4,7 @@ import AiReportAnalysisBlock from './AiReportAnalysisBlock.vue'
 import MedReportShell from './MedReportShell.vue'
 import MedReportInfoGrid from './MedReportInfoGrid.vue'
 import MedReportFooter from './MedReportFooter.vue'
+import ReportSnapshotImg from './ReportSnapshotImg.vue'
 
 const props = defineProps({
   report: { type: Object, default: null },
@@ -26,12 +27,7 @@ const findings = computed(() => props.report?.findings || {})
 const analysis = computed(() => props.report?.analysis || {})
 const footer = computed(() => props.report?.footer || {})
 
-const instrumentData = computed(
-  () => findings.value.instrumentData || props.report?.instrumentData || '',
-)
-
-const snapshotPlanes = [
-  { key: 'axial', label: '轴位 Axial' },
+const snapshotPlanes = [  { key: 'axial', label: '轴位 Axial' },
   { key: 'coronal', label: '冠状 Coronal' },
   { key: 'sagittal', label: '矢状 Sagittal' },
 ]
@@ -79,11 +75,10 @@ const hasSnapshots = computed(
       <div v-if="hasSnapshots" class="snapshot-grid">
         <div v-for="plane in snapshotPlanes" :key="plane.key" class="snapshot-cell">
           <div class="snapshot-label">{{ plane.label }}</div>
-          <img
+          <ReportSnapshotImg
             v-if="snapshotSrc(plane.key)"
             :src="snapshotSrc(plane.key)"
             :alt="plane.label"
-            class="snapshot-img"
           />
           <div v-else class="snapshot-empty">未采图</div>
         </div>
@@ -96,15 +91,7 @@ const hasSnapshots = computed(
         <span v-if="findings.snapshotMeta.maskOverlayReady"> · 含 AI 掩码叠加</span>
       </div>
 
-      <div v-if="instrumentData" class="subsection instrument-subsection">
-        <div class="subsection-head">
-          <span class="subsection-title">影像登记数据</span>
-          <el-tag size="small" type="info">只读 · 不可修改</el-tag>
-        </div>
-        <pre class="readonly instrument-readonly">{{ instrumentData }}</pre>
-      </div>
     </section>
-
     <section class="findings-zone">
       <div class="subsection-title">CT 所见</div>
       <el-input
@@ -112,7 +99,7 @@ const hasSnapshots = computed(
         :model-value="findings.findingsText"
         type="textarea"
         :rows="8"
-        placeholder="请结合上方影像与登记参数，描述 CT 所见；填写后再点击「生成 AI 报告」"
+        placeholder="请结合上方三视图影像描述 CT 所见；填写后再点击「生成 AI 报告」"
         @update:model-value="emit('update:findingsText', $event)"
       />
       <pre v-else class="readonly">{{ findings.findingsText || '（检查所见尚未填写）' }}</pre>
@@ -150,23 +137,5 @@ const hasSnapshots = computed(
   padding: 10px 12px;
   background: #fff;
   margin-bottom: 12px;
-}
-
-.subsection-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.instrument-subsection {
-  margin-top: 10px;
-}
-
-.instrument-readonly {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  padding: 8px 10px;
 }
 </style>

@@ -19,6 +19,7 @@ const auth = useAuthStore()
 
 const displayName = computed(() => auth.user?.realName || '职员')
 const deptName = computed(() => auth.user?.deptName || '')
+const immersive = computed(() => route.meta.immersive === true)
 const nowText = computed(() => {
   const d = new Date()
   return d.toLocaleString('zh-CN', { hour12: false })
@@ -31,7 +32,7 @@ function logout() {
 </script>
 
 <template>
-  <div class="staff-shell">
+  <div class="staff-shell" :class="{ 'staff-shell--immersive': immersive }">
     <header class="topbar" :style="{ borderBottomColor: accent }">
       <div class="topbar-left">
         <div class="brand">
@@ -47,7 +48,7 @@ function logout() {
     </header>
 
     <div class="body">
-      <aside v-if="menuItems.length" class="sidebar">
+      <aside v-if="menuItems.length && !immersive" class="sidebar">
         <div class="sidebar-title">功能菜单</div>
         <el-menu
           :default-active="route.path"
@@ -62,7 +63,7 @@ function logout() {
           </el-menu-item>
         </el-menu>
       </aside>
-      <main class="main-pane">
+      <main class="main-pane" :class="{ 'main-pane--immersive': immersive }">
         <router-view />
       </main>
     </div>
@@ -75,6 +76,13 @@ function logout() {
   display: flex;
   flex-direction: column;
   background: #eef2f6;
+}
+
+.staff-shell--immersive {
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .topbar {
@@ -157,5 +165,15 @@ function logout() {
   flex: 1;
   padding: 20px;
   overflow: auto;
+  min-height: 0;
+}
+
+.main-pane--immersive {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 </style>

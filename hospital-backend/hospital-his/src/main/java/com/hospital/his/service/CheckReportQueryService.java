@@ -4,7 +4,6 @@ import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.support.CheckReportComposer;
-import com.hospital.common.support.MedTechReportSupport;
 import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.ImagingStudyRepository;
 import com.hospital.his.support.CheckReportImagingSupport;
@@ -37,7 +36,6 @@ public class CheckReportQueryService {
 
     private Map<String, Object> compose(Map<String, Object> context) {
         Long checkRequestId = ((Number) context.get("checkRequestId")).longValue();
-        String itemName = String.valueOf(context.get("itemName"));
         String resultText = context.get("resultText") != null ? String.valueOf(context.get("resultText")) : "";
         var parsed = CheckReportComposer.parsePublishedText(resultText);
 
@@ -46,7 +44,6 @@ public class CheckReportQueryService {
         String aiStatus = !parsed.aiReportText().isBlank() || !parsed.doctorReportText().isBlank()
                 ? "READY" : "PENDING";
 
-        context.put("instrumentData", MedTechReportSupport.instrumentDataFor(itemName));
         Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
         Map<String, Object> imaging = CheckReportImagingSupport.buildImagingSummary(checkRequestId, study);
 
