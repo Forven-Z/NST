@@ -7,6 +7,7 @@ import ResultReportSections from '../medical/ResultReportSections.vue'
 import LabReportSheet from '../medical/LabReportSheet.vue'
 import CheckReportSheet from '../medical/CheckReportSheet.vue'
 import DisposalRecordSheet from '../medical/DisposalRecordSheet.vue'
+import { mergeCheckReportAfterLlm } from '../../utils/checkReport'
 
 const props = defineProps({
   title: { type: String, default: '待执行队列' },
@@ -259,18 +260,6 @@ async function onGenerateAiReport() {
   }
 }
 
-function mergeCheckReportAfterLlm(current, generated) {
-  const preservedFindings = current?.findings?.findingsText ?? current?.findingsText ?? ''
-  return {
-    ...generated,
-    findings: {
-      ...(generated.findings || {}),
-      findingsText: preservedFindings || generated.findings?.findingsText || '',
-    },
-    findingsText: preservedFindings || generated.findingsText || '',
-  }
-}
-
 function updateCheckFindings(text) {
   if (!checkReport.value) return
   checkReport.value = {
@@ -343,6 +332,13 @@ function goImagingAi(row, { view = false } = {}) {
     path: INTEGRATION_ROUTES.imagingAiWorkbench,
     query,
   })
+}
+
+function onRecaptureCheckSnapshots() {
+  if (!currentRow.value) return
+  resultDialogVisible.value = false
+  ElMessage.info('请在工作台调整层面后保存快照，完成后返回队列继续录入')
+  goImagingAi(currentRow.value)
 }
 
 async function onSaveEntry() {
@@ -532,9 +528,11 @@ async function submitResult(signOpts, successMessage) {
           :editable-findings="isEditableEntry"
           :editable-ai="isEditableEntry"
           :editable-doctor="isEditableEntry"
+          :show-recapture="isEditableEntry"
           @update:findings-text="updateCheckFindings"
           @update:ai-report-text="updateCheckAi"
           @update:doctor-report-text="updateCheckDoctor"
+          @recapture="onRecaptureCheckSnapshots"
         />
         <DisposalRecordSheet
           v-else-if="isDisposalRecord && disposalRecord"

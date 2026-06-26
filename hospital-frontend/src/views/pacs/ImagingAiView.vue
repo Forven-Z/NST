@@ -14,6 +14,7 @@ import {
   uploadPacsImaging,
   uploadPacsReportSnapshots,
 } from '../../api/pacs'
+import { mergeCheckReportAfterLlm } from '../../utils/checkReport'
 
 const route = useRoute()
 const router = useRouter()
@@ -284,9 +285,11 @@ function goBack() {
 }
 
 async function captureAndApplySnapshots() {
-  const captured = mprViewerRef.value?.captureReportSnapshots?.()
+  const captured =
+    (await mprViewerRef.value?.captureReportSnapshotsAsync?.()) ||
+    mprViewerRef.value?.captureReportSnapshots?.()
   if (!captured?.axial && !captured?.coronal && !captured?.sagittal) {
-    ElMessage.warning('请先完成影像加载后再采图')
+    ElMessage.warning('三视图尚未就绪，请待影像加载完成后再采图')
     return null
   }
   if (checkReport.value) {
@@ -332,6 +335,8 @@ async function openResultDialog(mode = 'entry') {
     const res = await fetchPacsResultDetail(checkRequestId.value)
     checkReport.value = { ...res.data }
     if (mountViewer.value && (mode === 'entry' || mode === 'preview')) {
+      await nextTick()
+      await mprViewerRef.value?.waitForCaptureReady?.()
       await captureAndApplySnapshots()
       const refreshed = await fetchPacsResultDetail(checkRequestId.value)
       checkReport.value = {
@@ -380,18 +385,6 @@ async function onGenerateLlmReport() {
     ElMessage.error(err.message || 'AI 报告生成失败')
   } finally {
     generatingLlm.value = false
-  }
-}
-
-function mergeCheckReportAfterLlm(current, generated) {
-  const preservedFindings = current?.findings?.findingsText ?? current?.findingsText ?? ''
-  return {
-    ...generated,
-    findings: {
-      ...(generated.findings || {}),
-      findingsText: preservedFindings || generated.findings?.findingsText || '',
-    },
-    findingsText: preservedFindings || generated.findingsText || '',
   }
 }
 
@@ -642,15 +635,17 @@ onBeforeUnmount(() => {
 .ct-workbench {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 96px);
-  min-height: calc(100vh - 96px);
-  margin: -12px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
   background: #0d1218;
   color: #e2e8f0;
-  border-radius: 8px;
+  border-radius: 0;
   overflow: hidden;
 }
-.header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #243040; background: linear-gradient(135deg, #121a22, #0d1218); flex-shrink: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #243040; background: linear-gradient(135deg, #121a22, #0d1218); flex-shrink: 0; }
 .header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .header h1 { margin: 0; font-size: 20px; }
 .subtitle { margin: 4px 0 0; font-size: 12px; color: #8aa0b4; }
@@ -675,14 +670,14 @@ onBeforeUnmount(() => {
 .primary:disabled, .secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 .error { color: #ff9a9a; font-size: 13px; }
 .viewer-panel {
-  padding: 16px 20px;
+  padding: 10px 14px 12px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
   height: 100%;
 }
-.viewer-panel h2 { margin: 0 0 12px; font-size: 14px; color: #b8c8d8; flex-shrink: 0; }
+.viewer-panel h2 { margin: 0 0 8px; font-size: 13px; color: #b8c8d8; flex-shrink: 0; }
 .progress-wrap { margin-top: 10px; }
 .progress-track { height: 6px; background: #243040; border-radius: 3px; overflow: hidden; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, #2a7bd6, #4ecdc4); transition: width 0.25s ease; }

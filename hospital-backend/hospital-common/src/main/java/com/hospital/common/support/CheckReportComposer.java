@@ -36,13 +36,13 @@ public final class CheckReportComposer {
         int status = toInt(context.get("status"));
 
         String findings = findingsText != null ? findingsText.trim() : "";
-        String ai = aiReportText != null ? aiReportText.trim() : "";
+        String ai = normalizeAiReportBody(aiReportText != null ? aiReportText.trim() : "");
         String doctor = doctorReportText != null ? doctorReportText.trim() : "";
 
         if (findings.isBlank() && ai.isBlank() && doctor.isBlank() && !stored.isBlank()) {
             ParsedRecord parsed = parsePublishedText(stored);
             findings = parsed.findingsText();
-            ai = parsed.aiReportText();
+            ai = normalizeAiReportBody(parsed.aiReportText());
             doctor = parsed.doctorReportText();
         }
 
@@ -71,7 +71,6 @@ public final class CheckReportComposer {
 
         Map<String, Object> findingsBlock = new LinkedHashMap<>();
         findingsBlock.put("findingsText", findings);
-        findingsBlock.put("instrumentData", stringVal(context.get("instrumentData")));
         if (imaging != null) {
             findingsBlock.put("studyId", imaging.get("studyId"));
             findingsBlock.put("studyStatus", imaging.get("studyStatus"));
@@ -111,7 +110,6 @@ public final class CheckReportComposer {
         view.put("resultText", composedText);
 
         view.put("findingsText", findings);
-        view.put("instrumentData", findingsBlock.get("instrumentData"));
         view.put("aiReportText", ai);
         view.put("doctorReportText", doctor);
         view.put("aiReportStatus", resolvedAiStatus);
@@ -168,13 +166,73 @@ public final class CheckReportComposer {
     }
 
     public static String generateAiReportStub(String itemName, String findingsText) {
-        String base = MedTechReportSupport.aiReportFor(itemName);
         String findings = findingsText != null ? findingsText.trim() : "";
         if (findings.isBlank()) {
-            return base;
+            return "";
         }
-        return base + "\n\n【基于检查所见归纳】\n"
-                + (findings.length() <= 200 ? findings : findings.substring(0, 200) + "…");
+        return buildDiagnosticImpression(itemName, findings);
+    }
+
+    /**
+     * 诊断印象：仅基于 CT 所见归纳，不使用检验模板，不与所见原文简单拼接两段标题。
+     */
+    static String buildDiagnosticImpression(String itemName, String findingsText) {
+        String findings = findingsText.trim();
+        StringBuilder sb = new StringBuilder();
+        if (isBenignFindings(findings)) {
+            sb.append(resolveNormalImpression(itemName));
+        } else {
+            sb.append("结合 CT 所见：").append(truncate(findings, 500));
+        }
+        sb.append("\n\nAI 提示：").append(resolveCheckAiHint(itemName));
+        return sb.toString();
+    }
+
+    /** 读端去掉 legacy「【诊断印象】」标题（UI 区块标题已单独展示）。 */
+    static String normalizeAiReportBody(String ai) {
+        if (ai == null || ai.isBlank()) {
+            return "";
+        }
+        return ai.replaceFirst("^【诊断印象】\\s*\\n?", "");
+    }
+
+    private static boolean isBenignFindings(String findings) {
+        if (findings.isBlank()) {
+            return false;
+        }
+        String normalized = findings.replaceAll("\\s+", "");
+        return normalized.equals("无异常")
+                || normalized.equals("未见异常")
+                || normalized.equals("未见明显异常")
+                || normalized.equals("未见明确异常")
+                || normalized.contains("未见明显异常")
+                || normalized.contains("未见明确异常");
+    }
+
+    private static String resolveNormalImpression(String itemName) {
+        String name = itemName != null ? itemName : "";
+        if (name.contains("胸") || name.contains("肺")) {
+            return "双肺野清晰，纵隔居中，心影大小在正常范围；未见明显急性渗出或占位征象。";
+        }
+        if (name.contains("头") || name.contains("颅") || name.contains("脑")) {
+            return "颅脑 CT 平扫：脑实质密度未见明显异常；脑室系统大小形态正常；中线结构居中；未见明显急性出血或占位征象。";
+        }
+        return "结合 CT 所见，未见明确异常征象。";
+    }
+
+    private static String resolveCheckAiHint(String itemName) {
+        String name = itemName != null ? itemName : "";
+        if (name.contains("X线") || name.contains("X 线") || name.contains("DR")) {
+            return "请放射科医师结合临床审核签阅。";
+        }
+        return "请检查医师结合临床审核签阅。";
+    }
+
+    private static String truncate(String text, int maxLen) {
+        if (text.length() <= maxLen) {
+            return text;
+        }
+        return text.substring(0, maxLen) + "…";
     }
 
     private static String formatReviewerName(Object reviewerName) {

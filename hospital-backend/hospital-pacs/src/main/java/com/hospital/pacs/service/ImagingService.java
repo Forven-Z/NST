@@ -13,7 +13,6 @@ import com.hospital.pacs.repository.EmployeeRepository;
 import com.hospital.pacs.repository.ImagingStudyRepository;
 import com.hospital.pacs.security.AuthContextHolder;
 import com.hospital.pacs.support.PacsAiReportCache;
-import com.hospital.pacs.support.PacsReportStubSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -339,7 +338,6 @@ public class ImagingService {
             String aiStatusOverride) {
 
         Long checkRequestId = ((Number) context.get("checkRequestId")).longValue();
-        String itemName = String.valueOf(context.get("itemName"));
         String resultText = context.get("resultText") != null ? String.valueOf(context.get("resultText")) : "";
         var parsed = CheckReportComposer.parsePublishedText(resultText);
 
@@ -367,7 +365,6 @@ public class ImagingService {
             aiStatus = ai.isBlank() ? "PENDING" : "READY";
         }
 
-        context.put("instrumentData", PacsReportStubSupport.instrumentDataFor(itemName));
         return CheckReportComposer.composeView(
                 context, findings, ai, doctor, aiStatus, buildImagingMeta(checkRequestId, study));
     }

@@ -60,6 +60,7 @@ const router = createRouter({
           path: 'imaging-ai',
           name: 'pacs-imaging-ai',
           component: () => import('../views/pacs/ImagingAiView.vue'),
+          meta: { immersive: true },
         },
         {
           path: 'my-schedules',

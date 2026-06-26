@@ -19,6 +19,7 @@ import {
   composeCheckReportView,
   composeCheckResultText,
   generateCheckAiReportStub,
+  normalizeCheckAiReportText,
   parseCheckResultText,
 } from '../utils/checkReport'
 import {
@@ -127,10 +128,9 @@ function buildDisposalRecordRow(row) {
 }
 
 function buildCheckReportRow(row) {
-  ensureInstrumentData(row, 'CHECK')
   const parsed = parseCheckResultText(row.resultText)
   const findings = (row.findingsText || parsed.findingsText || '').trim()
-  const ai = row.aiReportText || parsed.aiReportText
+  const ai = normalizeCheckAiReportText(row.aiReportText || parsed.aiReportText)
   const doctor = row.doctorReportText || parsed.doctorReportText
   return composeCheckReportView(
     {
@@ -158,7 +158,6 @@ function buildCheckReportRow(row) {
     },
     {
       findingsText: findings,
-      instrumentData: row.instrumentData,
       studyStatus: row.studyStatus,
       hasImaging: row.studyStatus === 'COMPLETED' || !!row.reportSnapshots,
       reportImages: row.reportSnapshots
@@ -209,6 +208,7 @@ function buildLabReportRow(row) {
 }
 
 function ensureInstrumentData(row, techType) {
+  if (techType === 'CHECK') return ''
   if (!row.instrumentData) {
     row.instrumentData = mockInstrumentData(techType, row.itemName)
   }
@@ -1076,38 +1076,6 @@ function formatResultPayload(row, idKey) {
   }
 }
 
-function parsePublishedText(resultText) {
-  const text = (resultText || '').trim()
-  if (!text) return { ai: '', doctor: '' }
-  const match = /^AI：([\s\S]*?)(?:\n医师：([\s\S]*))?$/.exec(text)
-  if (match) {
-    return { ai: (match[1] || '').trim(), doctor: (match[2] || '').trim() }
-  }
-  return { ai: text, doctor: '' }
-}
-
-function techTypeForIdKey(idKey) {
-  if (idKey === 'inspectionRequestId') return 'INSPECTION'
-  if (idKey === 'checkRequestId') return 'CHECK'
-  return 'DISPOSAL'
-}
-
-function enrichDoctorResultView(row, idKey) {
-  const parsed = parsePublishedText(row.resultText)
-  const aiReportText = row.aiReportText || parsed.ai
-  const doctorReportText = row.doctorReportText || parsed.doctor
-  const techType = row.techType || techTypeForIdKey(idKey)
-  const instrumentData = row.instrumentData || mockInstrumentData(techType, row.itemName)
-  return {
-    ...formatResultPayload(row, idKey),
-    status: row.status,
-    instrumentData,
-    aiReportText,
-    doctorReportText,
-    aiReportStatus: aiReportText || doctorReportText ? 'READY' : 'PENDING',
-  }
-}
-
 export function getInspectionResult(inspectionRequestId) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(inspectionRequestId))
   if (!row) throw new Error('检验申请不存在')
@@ -1119,7 +1087,6 @@ export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  ensureInstrumentData(row, 'CHECK')
   return buildCheckReportRow(row)
 }
 
@@ -1166,7 +1133,6 @@ export function getTechResultDetail(techType, id) {
     }
   }
   if (techType === 'CHECK') {
-    ensureInstrumentData(row, techType)
     const report = buildCheckReportRow(row)
     return {
       ...report,
@@ -1204,7 +1170,6 @@ export function generateTechAiReport(techType, id, findingsTextFromRequest) {
     return getTechResultDetail(techType, id)
   }
   if (techType === 'CHECK') {
-    ensureInstrumentData(row, techType)
     const findings = (findingsTextFromRequest ?? row.findingsText ?? '').trim()
     if (!findings) throw new Error('请先填写 CT 所见')
     row.findingsText = findings
@@ -1448,7 +1413,6 @@ export function executeCheck(id) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
-  ensureInstrumentData(row, 'CHECK')
   return row
 }
 

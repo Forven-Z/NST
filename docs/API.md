@@ -162,7 +162,7 @@ Mock 数据结构 **与本文件一致**。
 
 | 字段 | 说明 |
 |------|------|
-| `instrumentData` | 仪器原始数据（只读展示） |
+| `instrumentData` | 仪器原始数据（只读；**检验/处置 legacy**；**检查结构化报告不含此字段**） |
 | `aiReportText` | AI 智能报告 |
 | `doctorReportText` | 医师意见 |
 | `aiReportStatus` | `PENDING` / `READY` / `FAILED` |
@@ -599,19 +599,22 @@ Mock 数据结构 **与本文件一致**。
 
 同上，返回 `disposalRequestId`
 
-### GET `/doctor/check-requests/{id}/result` ✅（响应扩展 ⬜）
+### GET `/doctor/check-requests/{id}/result` ✅（结构化检查报告）
 
 ### GET `/doctor/inspection-requests/{id}/result` ✅（响应扩展 ⬜）
 
 ### GET `/doctor/disposal-requests/{id}/result` ✅（响应扩展 ⬜）
 
 **前置**：`status >= 40`  
-**Response `data`**（v2.1，对齐 `ResultReportSections`）：
+
+**检查 `data`**（`reportType=check`）：含 `header`、`findings`（三视图 `reportImages`、CT 所见）、`analysis`（诊断印象/医师意见）、`footer`；**不含** `instrumentData`。`analysis.aiReportText` 为**正文**（归纳语句 + `AI 提示`），不含重复的「【诊断印象】」标题；UI 区块标题单独展示。读端对历史数据会自动去掉 legacy 标题前缀。
+
+**检验/处置 legacy `data`**（v2.1，对齐 `ResultReportSections`）：
 
 ```json
 {
-  "checkRequestId": 62001,
-  "itemName": "头部 CT",
+  "inspectionRequestId": 61001,
+  "itemName": "血常规",
   "instrumentData": "…仪器原始数据…",
   "aiReportText": "…AI 报告…",
   "doctorReportText": "…医师意见…",
@@ -620,8 +623,6 @@ Mock 数据结构 **与本文件一致**。
   "reportTime": "2026-06-09T10:00:00+08:00"
 }
 ```
-
-> 当前后端仅返回 `resultText`；需扩展至完整结构（§1.7）。
 
 ### POST `/doctor/prescriptions` ✅ P3
 
