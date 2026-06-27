@@ -3,6 +3,7 @@ package com.hospital.his.service;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.PrescriptionStatus;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.his.dto.pharmacy.RejectPrescriptionRequest;
 import com.hospital.his.repository.DrugRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.security.AuthContextHolder;
@@ -19,8 +20,17 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PharmacyService {
 
+    private static final Map<Integer, String> STATUS_LABELS = Map.of(
+            PrescriptionStatus.ORDERED, "已开立",
+            PrescriptionStatus.PHARMACY_REJECTED, "药师驳回",
+            PrescriptionStatus.PAID, "已缴费",
+            PrescriptionStatus.DISPENSED, "已发药",
+            PrescriptionStatus.RETURNED, "已退药",
+            PrescriptionStatus.REFUNDED, "已退费");
+
     private final PrescriptionRepository prescriptionRepository;
     private final DrugRepository drugRepository;
+    private final RefundService refundService;
 
     public Map<String, Object> listPending(Integer status, int page, int pageSize) {
         requirePharmacist();
@@ -31,6 +41,41 @@ public class PharmacyService {
                 "page", page,
                 "pageSize", pageSize
         );
+    }
+
+    public Map<String, Object> getPrescriptionDetail(Long prescriptionId) {
+        requirePharmacist();
+        Map<String, Object> detail = prescriptionRepository.findDetailById(prescriptionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处方不存在"));
+        int status = ((Number) detail.get("status")).intValue();
+        detail.put("statusLabel", STATUS_LABELS.getOrDefault(status, String.valueOf(status)));
+        detail.put("items", prescriptionRepository.findItemsWithStockByPrescriptionId(prescriptionId));
+        return detail;
+    }
+
+    @Transactional
+    public Map<String, Object> rejectDispense(Long prescriptionId, RejectPrescriptionRequest request) {
+        Long pharmacistId = requirePharmacist();
+        String reason = request.getReason() != null ? request.getReason().trim() : "";
+        if (reason.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "请填写拒绝原因");
+        }
+
+        prescriptionRepository.findByIdForUpdate(prescriptionId)
+                .filter(p -> ((Number) p.get("status")).intValue() == PrescriptionStatus.PAID)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费未发药处方可拒绝"));
+
+        refundService.refundPrescriptionBillForPharmacyReject(prescriptionId, reason, pharmacistId);
+
+        if (prescriptionRepository.markPharmacyRejected(prescriptionId, pharmacistId, reason) == 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费未发药处方可拒绝");
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("prescriptionId", prescriptionId);
+        result.put("status", PrescriptionStatus.PHARMACY_REJECTED);
+        result.put("message", "已拒绝发药并退费，处方已退回开方医生");
+        return result;
     }
 
     @Transactional

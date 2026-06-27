@@ -5,7 +5,7 @@ import {
   setPharmacyDrugDisabled,
   updatePharmacyDrug,
 } from './dict'
-import { dispensePrescription, getPharmacyQueue, returnPrescription } from './store'
+import { dispensePrescription, getPharmacyQueue, getPrescriptionDetail, rejectPrescription, returnPrescription } from './store'
 
 export function mockPharmacyPending(params) {
   const list = getPharmacyQueue(params?.status ?? 20)
@@ -26,6 +26,19 @@ export function mockReturnDrug(prescriptionId) {
   return mockResult({
     prescriptionId,
     message: '退药成功，请通知患者至收费窗口办理退费',
+  })
+}
+
+export function mockPrescriptionDetail(prescriptionId) {
+  return mockResult(getPrescriptionDetail(prescriptionId))
+}
+
+export function mockRejectPrescription(prescriptionId, data) {
+  const rx = rejectPrescription(prescriptionId, data?.reason)
+  return mockResult({
+    prescriptionId: rx.prescriptionId,
+    status: rx.status,
+    message: '已拒绝发药并退费，处方已退回开方医生',
   })
 }
 

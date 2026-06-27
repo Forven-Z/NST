@@ -462,7 +462,7 @@ function seedDemoPatients() {
     totalAmount: 37,
     status: 20,
     createTime: nowIso(),
-    items: [{ drugName: '阿莫西林胶囊', quantity: 2, dosage: '0.5g tid', days: 7 }],
+    items: [{ drugId: 1, drugName: '阿莫西林胶囊', quantity: 2, dosage: '0.5g', frequency: 'tid', days: 7, usageMethod: '口服', entrust: '饭后服用' }],
   })
   createBill({
     medicalRecordNo: 'MR202606040002',
@@ -1193,6 +1193,7 @@ const ORDER_STATUS_LABEL = {
 
 const RX_STATUS_LABEL = {
   10: '已开立',
+  15: '药师驳回',
   20: '已缴费',
   30: '已发药',
   40: '已退药',
@@ -1234,14 +1235,16 @@ export function getRegisterOrders(registerId) {
     })
   }
   for (const row of state.prescriptions.filter((r) => r.registerId === rid)) {
-    list.push({
+    const item = {
       kind: 'prescription',
       typeLabel: '处方',
       requestId: row.prescriptionId,
       itemName: row.items?.map((i) => i.drugName).join('、') || '处方',
       status: row.status,
       statusLabel: RX_STATUS_LABEL[row.status] ?? String(row.status),
-    })
+    }
+    if (row.status === 15 && row.rejectReason) item.rejectReason = row.rejectReason
+    list.push(item)
   }
 
   return {
@@ -1506,6 +1509,73 @@ export function dispensePrescription(prescriptionId) {
 export function returnPrescription(prescriptionId) {
   const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
   if (!rx || rx.status !== 30) throw new Error('仅已发药处方可退药')
-  rx.status = 10
+  rx.status = 40
   return rx
+}
+
+export function getPrescriptionDetail(prescriptionId) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx) throw new Error('处方不存在')
+  const statusLabels = { 10: '已开立', 15: '药师驳回', 20: '已缴费', 30: '已发药', 40: '已退药', 50: '已退费' }
+  return {
+    ...rx,
+    statusLabel: statusLabels[rx.status] || String(rx.status),
+    items: (rx.items || []).map((it) => ({ ...it, stockQty: 100, amount: rx.totalAmount })),
+  }
+}
+
+export function rejectPrescription(prescriptionId, reason) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx || rx.status !== 20) throw new Error('仅已缴费未发药处方可拒绝')
+  const trimmed = String(reason || '').trim()
+  if (!trimmed) throw new Error('请填写拒绝原因')
+  const bill = state.bills.find((b) => b.bizType === 'PRESCRIPTION' && b.bizId === rx.prescriptionId && b.status === 1)
+  if (bill) bill.status = 2
+  rx.status = 15
+  rx.rejectReason = trimmed
+  return rx
+}
+
+export function updatePrescriptionItems(prescriptionId, items) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx || rx.status !== 15) throw new Error('仅药师驳回处方可修改')
+  const mapped = (items || []).map((it) => {
+    const drug = getDrugById(it.drugId)
+    const unitPrice = drug?.retailPrice ?? 0
+    return {
+      drugId: it.drugId,
+      drugName: drug?.drugName ?? it.drugName ?? '药品',
+      drugFormat: drug?.drugFormat ?? it.drugFormat ?? '',
+      quantity: it.quantity,
+      usageMethod: it.usageMethod,
+      dosage: it.dosage,
+      frequency: it.frequency,
+      days: it.days,
+      entrust: it.entrust,
+      unitPrice,
+    }
+  })
+  rx.items = mapped
+  rx.totalAmount = Math.round(
+    mapped.reduce((s, it) => s + (it.unitPrice ?? 0) * (it.quantity ?? 1), 0) * 100,
+  ) / 100
+  return rx
+}
+
+export function resubmitPrescriptionMock(prescriptionId) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx || rx.status !== 15) throw new Error('仅药师驳回处方可重新提交')
+  rx.status = 10
+  rx.rejectReason = null
+  const bill = createBill({
+    medicalRecordNo: rx.medicalRecordNo,
+    patientId: state.registers.find((r) => r.registerId === rx.registerId)?.patientId,
+    registerId: rx.registerId,
+    bizType: 'PRESCRIPTION',
+    bizId: rx.prescriptionId,
+    itemName: `处方费 #${rx.prescriptionId}`,
+    amount: rx.totalAmount,
+    status: 0,
+  })
+  return { ...rx, billId: bill.billId }
 }

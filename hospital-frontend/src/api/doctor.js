@@ -6,6 +6,8 @@ import {
   mockCreateDisposalOrder,
   mockCreateInspectionOrder,
   mockCreatePrescription,
+  mockResubmitPrescription,
+  mockUpdatePrescription,
   mockDoctorQueue,
   mockFetchCheckResult,
   mockFetchDisposalResult,
@@ -171,6 +173,16 @@ export async function fetchRegisterResults(registerId) {
 export function createPrescription(data) {
   if (useMock()) return mockCreatePrescription(data)
   return request.post('/doctor/prescriptions', data)
+}
+
+export function updatePrescription(prescriptionId, data) {
+  if (useMock()) return mockUpdatePrescription(prescriptionId, data)
+  return request.put(`/doctor/prescriptions/${prescriptionId}`, data)
+}
+
+export function resubmitPrescription(prescriptionId) {
+  if (useMock()) return mockResubmitPrescription(prescriptionId)
+  return request.post(`/doctor/prescriptions/${prescriptionId}/resubmit`)
 }
 
 export function fetchDiagnosisSuggest(data) {

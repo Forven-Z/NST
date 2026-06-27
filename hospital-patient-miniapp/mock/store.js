@@ -739,10 +739,19 @@ function getRegisterOrders(registerId) {
     {
       kind: 'prescription',
       typeLabel: '处方',
+      requestId: 64002,
+      itemName: '布洛芬缓释胶囊',
+      status: 15,
+      statusLabel: '已退费',
+      registerId: rid,
+    },
+    {
+      kind: 'prescription',
+      typeLabel: '处方',
       requestId: 64001,
       itemName: '阿莫西林胶囊',
       status: 20,
-      statusLabel: '已缴费',
+      statusLabel: '待取药',
       registerId: rid,
     },
   ]

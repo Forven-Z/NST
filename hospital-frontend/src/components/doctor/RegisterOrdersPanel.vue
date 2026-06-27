@@ -10,6 +10,7 @@ import {
   fetchOrderResult,
   fetchRegisterOrders,
 } from '../../api/doctor'
+import DoctorPrescriptionEditDialog from './DoctorPrescriptionEditDialog.vue'
 
 const props = defineProps({
   registerId: { type: Number, default: null },
@@ -21,9 +22,13 @@ const orders = ref(null)
 const resultsMap = ref({})
 const resultDialogVisible = ref(false)
 const resultDetail = ref(null)
+const rxEditVisible = ref(false)
+const rxEditId = ref(null)
+const rxRejectReason = ref('')
 
 const statusMap = {
   10: { label: '已开立', type: 'info' },
+  15: { label: '药师驳回', type: 'danger' },
   20: { label: '已缴费', type: 'warning' },
   30: { label: '执行完成', type: 'primary' },
   40: { label: '已出结果', type: 'success' },
@@ -83,6 +88,12 @@ async function loadOrders() {
 
 async function onViewResult(row) {
   if (row.kind === 'prescription') {
+    if (row.status === 15) {
+      rxEditId.value = row.requestId
+      rxRejectReason.value = row.rejectReason || ''
+      rxEditVisible.value = true
+      return
+    }
     return ElMessage.info('处方无文字报告，请至药房查看发药状态')
   }
   if (row.status < 40) {
@@ -136,10 +147,18 @@ defineExpose({ reload: loadOrders })
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100">
+      <el-table-column label="操作" width="120">
         <template #default="{ row }">
           <el-button
-            v-if="row.kind !== 'prescription'"
+            v-if="row.kind === 'prescription' && row.status === 15"
+            link
+            type="danger"
+            @click="onViewResult(row)"
+          >
+            修改处方
+          </el-button>
+          <el-button
+            v-else-if="row.kind !== 'prescription'"
             link
             type="primary"
             :disabled="row.status < 40"
@@ -190,6 +209,14 @@ defineExpose({ reload: loadOrders })
         </el-descriptions>
       </div>
     </el-dialog>
+
+    <DoctorPrescriptionEditDialog
+      v-model="rxEditVisible"
+      :register-id="registerId"
+      :prescription-id="rxEditId"
+      :reject-reason="rxRejectReason"
+      @saved="loadOrders"
+    />
   </el-card>
 </template>
 

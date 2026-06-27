@@ -1,11 +1,13 @@
 package com.hospital.his.service;
 
 import com.hospital.common.constant.BillBizType;
+import com.hospital.common.constant.BillStatus;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.PrescriptionStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.doctor.CreatePrescriptionRequest;
+import com.hospital.his.dto.doctor.UpdatePrescriptionRequest;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.DrugRepository;
 import com.hospital.his.repository.PrescriptionRepository;
@@ -33,12 +35,95 @@ public class PrescriptionService {
 
     @Transactional
     public Map<String, Object> createPrescription(CreatePrescriptionRequest request) {
+        Long doctorId = requireDoctorId();
+        Map<String, Object> register = loadRegisterForDoctor(request.getRegisterId(), doctorId);
+        Long patientId = ((Number) register.get("patientId")).longValue();
+
+        ItemBuildResult built = buildItemSnapshots(request.getItems());
+        long prescriptionId = prescriptionRepository.insertPrescription(
+                request.getRegisterId(), patientId, doctorId, built.totalAmount(), PrescriptionStatus.ORDERED);
+        persistItems(prescriptionId, built.snapshots());
+
+        long billId = billRepository.insertBill(
+                patientId, request.getRegisterId(), BillBizType.PRESCRIPTION, prescriptionId,
+                "处方费 #" + prescriptionId, built.totalAmount());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("prescriptionId", prescriptionId);
+        result.put("totalAmount", built.totalAmount());
+        result.put("status", PrescriptionStatus.ORDERED);
+        result.put("billId", billId);
+        return result;
+    }
+
+    @Transactional
+    public Map<String, Object> updatePrescription(Long prescriptionId, UpdatePrescriptionRequest request) {
+        Long doctorId = requireDoctorId();
+        Map<String, Object> prescription = loadRejectedPrescriptionForDoctor(prescriptionId, doctorId);
+
+        ItemBuildResult built = buildItemSnapshots(request.getItems());
+        prescriptionRepository.deleteItemsByPrescriptionId(prescriptionId);
+        persistItems(prescriptionId, built.snapshots());
+        if (prescriptionRepository.updateTotalAmount(prescriptionId, built.totalAmount()) == 0) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "处方不存在");
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("prescriptionId", prescriptionId);
+        result.put("totalAmount", built.totalAmount());
+        result.put("status", PrescriptionStatus.PHARMACY_REJECTED);
+        result.put("rejectReason", prescription.get("rejectReason"));
+        return result;
+    }
+
+    @Transactional
+    public Map<String, Object> resubmitPrescription(Long prescriptionId) {
+        Long doctorId = requireDoctorId();
+        Map<String, Object> prescription = loadRejectedPrescriptionForDoctor(prescriptionId, doctorId);
+        BigDecimal totalAmount = (BigDecimal) prescription.get("totalAmount");
+        Long patientId = ((Number) prescription.get("patientId")).longValue();
+        Long registerId = ((Number) prescription.get("registerId")).longValue();
+
+        if (prescriptionRepository.clearRejectFieldsAndSetOrdered(prescriptionId, totalAmount) == 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅药师驳回处方可重新提交");
+        }
+
+        String billTitle = "处方费 #" + prescriptionId;
+        long billId = billRepository.findByBiz(BillBizType.PRESCRIPTION, prescriptionId)
+                .map(existing -> {
+                    int status = ((Number) existing.get("status")).intValue();
+                    if (status != BillStatus.REFUNDED) {
+                        throw new BusinessException(ErrorCode.BAD_REQUEST, "处方账单状态异常，无法重新提交");
+                    }
+                    Long existingBillId = ((Number) existing.get("id")).longValue();
+                    if (billRepository.resetForResubmit(existingBillId, billTitle, totalAmount) == 0) {
+                        throw new BusinessException(ErrorCode.BAD_REQUEST, "处方账单重置失败");
+                    }
+                    return existingBillId;
+                })
+                .orElseGet(() -> billRepository.insertBill(
+                        patientId, registerId, BillBizType.PRESCRIPTION, prescriptionId,
+                        billTitle, totalAmount));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("prescriptionId", prescriptionId);
+        result.put("totalAmount", totalAmount);
+        result.put("status", PrescriptionStatus.ORDERED);
+        result.put("billId", billId);
+        result.put("message", "处方已重新提交，请通知患者缴费");
+        return result;
+    }
+
+    private Long requireDoctorId() {
         Long doctorId = AuthContextHolder.require().getEmployeeId();
         if (doctorId == null) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "需要门诊医生身份");
         }
+        return doctorId;
+    }
 
-        Map<String, Object> register = registerRepository.findById(request.getRegisterId())
+    private Map<String, Object> loadRegisterForDoctor(Long registerId, Long doctorId) {
+        Map<String, Object> register = registerRepository.findById(registerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
         if (!doctorId.equals(((Number) register.get("employeeId")).longValue())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只能为本队列患者开立处方");
@@ -47,13 +132,26 @@ public class PrescriptionService {
         if (visitState != VisitState.IN_CONSULTATION && visitState != VisitState.REGISTERED) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "患者尚未进入可开单状态");
         }
+        return register;
+    }
 
-        Long patientId = ((Number) register.get("patientId")).longValue();
-        List<Map<String, Object>> itemSnapshots = new ArrayList<>();
+    private Map<String, Object> loadRejectedPrescriptionForDoctor(Long prescriptionId, Long doctorId) {
+        Map<String, Object> prescription = prescriptionRepository.findDetailById(prescriptionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处方不存在"));
+        if (!doctorId.equals(((Number) prescription.get("doctorId")).longValue())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只能修改本人驳回的处方");
+        }
+        if (((Number) prescription.get("status")).intValue() != PrescriptionStatus.PHARMACY_REJECTED) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅药师驳回处方可修改");
+        }
+        return prescription;
+    }
+
+    private ItemBuildResult buildItemSnapshots(List<CreatePrescriptionRequest.PrescriptionItemRequest> items) {
+        List<Map<String, Object>> snapshots = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
         int sortNo = 0;
-
-        for (CreatePrescriptionRequest.PrescriptionItemRequest item : request.getItems()) {
+        for (CreatePrescriptionRequest.PrescriptionItemRequest item : items) {
             Map<String, Object> drug = drugRepository.findById(item.getDrugId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "药品不存在: " + item.getDrugId()));
             BigDecimal unitPrice = (BigDecimal) drug.get("retailPrice");
@@ -65,13 +163,13 @@ public class PrescriptionService {
             snapshot.put("item", item);
             snapshot.put("amount", amount);
             snapshot.put("sortNo", sortNo++);
-            itemSnapshots.add(snapshot);
+            snapshots.add(snapshot);
         }
+        return new ItemBuildResult(snapshots, totalAmount);
+    }
 
-        long prescriptionId = prescriptionRepository.insertPrescription(
-                request.getRegisterId(), patientId, doctorId, totalAmount, PrescriptionStatus.ORDERED);
-
-        for (Map<String, Object> snapshot : itemSnapshots) {
+    private void persistItems(long prescriptionId, List<Map<String, Object>> snapshots) {
+        for (Map<String, Object> snapshot : snapshots) {
             @SuppressWarnings("unchecked")
             Map<String, Object> drug = (Map<String, Object>) snapshot.get("drug");
             CreatePrescriptionRequest.PrescriptionItemRequest item =
@@ -94,16 +192,8 @@ public class PrescriptionService {
                     item.getEntrust(),
                     (Integer) snapshot.get("sortNo"));
         }
+    }
 
-        long billId = billRepository.insertBill(
-                patientId, request.getRegisterId(), BillBizType.PRESCRIPTION, prescriptionId,
-                "处方费 #" + prescriptionId, totalAmount);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("prescriptionId", prescriptionId);
-        result.put("totalAmount", totalAmount);
-        result.put("status", PrescriptionStatus.ORDERED);
-        result.put("billId", billId);
-        return result;
+    private record ItemBuildResult(List<Map<String, Object>> snapshots, BigDecimal totalAmount) {
     }
 }

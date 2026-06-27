@@ -51,24 +51,38 @@ public class RefundService {
         if (!context.isPatient()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "需要患者身份");
         }
-        return doRefund(billId, reason, context.getPatientId(), null, true);
+        return doRefund(billId, reason, context.getPatientId(), null, true, true);
     }
 
     @Transactional
     public Map<String, Object> refundByRegistrar(Long billId, String reason) {
         requireRegistrar();
-        return doRefund(billId, reason, null, AuthContextHolder.require().getEmployeeId(), false);
+        return doRefund(billId, reason, null, AuthContextHolder.require().getEmployeeId(), false, true);
     }
 
     @Transactional
     public Map<String, Object> refundRegisterBill(Long registerId, String reason, Long operatorEmployeeId) {
         Map<String, Object> bill = billRepository.findPaidByBiz(BillBizType.REGISTER, registerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST, "未找到已支付的挂号账单"));
-        return doRefund(((Number) bill.get("id")).longValue(), reason, null, operatorEmployeeId, false);
+        return doRefund(((Number) bill.get("id")).longValue(), reason, null, operatorEmployeeId, false, true);
+    }
+
+    @Transactional
+    public Map<String, Object> refundPrescriptionBillForPharmacyReject(
+            Long prescriptionId, String reason, Long operatorPharmacistId) {
+        Map<String, Object> bill = billRepository.findPaidByBiz(BillBizType.PRESCRIPTION, prescriptionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST, "未找到已支付的处方账单"));
+        return doRefund(
+                ((Number) bill.get("id")).longValue(),
+                reason,
+                null,
+                operatorPharmacistId,
+                false,
+                false);
     }
 
     private Map<String, Object> doRefund(Long billId, String reason, Long patientId, Long operatorId,
-                                         boolean patientInitiated) {
+                                         boolean patientInitiated, boolean updateBizStatus) {
         Map<String, Object> bill = billRepository.findByIdForUpdate(billId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "账单不存在"));
 
@@ -102,7 +116,9 @@ public class RefundService {
         );
 
         billRepository.markRefunded(billId);
-        updateBizAfterRefund(bizType, bizId, bill);
+        if (updateBizStatus) {
+            updateBizAfterRefund(bizType, bizId, bill);
+        }
 
         if (BillBizType.REGISTER.equals(bizType)) {
             refundPaidMedicalBookBillIfPresent(bizId, reason, operatorId);
@@ -196,7 +212,7 @@ public class RefundService {
 
     public void refundPaidMedicalBookBillIfPresent(Long registerId, String reason, Long operatorId) {
         billRepository.findPaidByBiz(BillBizType.MEDICAL_BOOK, registerId).ifPresent(bill ->
-                doRefund(((Number) bill.get("id")).longValue(), reason, null, operatorId, false));
+                doRefund(((Number) bill.get("id")).longValue(), reason, null, operatorId, false, true));
     }
 
     private void requireRegistrar() {

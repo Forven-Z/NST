@@ -31,7 +31,16 @@ public class RegisterOrdersService {
 
     private static final Map<Integer, String> PRESCRIPTION_STATUS_LABELS = Map.of(
             10, "已开立",
+            15, "药师驳回",
             20, "已缴费",
+            30, "已发药",
+            40, "已退药",
+            50, "已退费");
+
+    private static final Map<Integer, String> PATIENT_PRESCRIPTION_STATUS_LABELS = Map.of(
+            10, "待缴费",
+            15, "已退费",
+            20, "待取药",
             30, "已发药",
             40, "已退药",
             50, "已退费");
@@ -41,6 +50,7 @@ public class RegisterOrdersService {
     private final CheckRequestRepository checkRequestRepository;
     private final DisposalRequestRepository disposalRequestRepository;
     private final PrescriptionRepository prescriptionRepository;
+    private final PatientFamilyService patientFamilyService;
 
     public Map<String, Object> getOrdersForDoctor(Long registerId) {
         Long doctorId = AuthContextHolder.require().getEmployeeId();
@@ -54,10 +64,28 @@ public class RegisterOrdersService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只能查看本队列患者的医嘱");
         }
 
-        return buildOrders(registerId);
+        return buildOrders(registerId, false);
+    }
+
+    public Map<String, Object> getOrdersForPatient(Long registerId) {
+        var context = AuthContextHolder.require();
+        if (!context.isPatient()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "需要患者身份");
+        }
+        Map<String, Object> register = registerRepository.findById(registerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
+        Long patientId = ((Number) register.get("patientId")).longValue();
+        if (!patientFamilyService.canAccessVisitPatient(context.getPatientId(), patientId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看该就诊医嘱");
+        }
+        return buildOrders(registerId, true);
     }
 
     public Map<String, Object> buildOrders(Long registerId) {
+        return buildOrders(registerId, false);
+    }
+
+    public Map<String, Object> buildOrders(Long registerId, boolean patientView) {
         List<Map<String, Object>> inspections = inspectionRequestRepository.findByRegisterId(registerId);
         List<Map<String, Object>> checks = checkRequestRepository.findByRegisterId(registerId);
         List<Map<String, Object>> disposals = disposalRequestRepository.findByRegisterId(registerId);
@@ -91,14 +119,11 @@ public class RegisterOrdersService {
                     ((Number) row.get("status")).intValue(),
                     MEDICAL_ORDER_STATUS_LABELS));
         }
+        Map<Integer, String> prescriptionLabels = patientView
+                ? PATIENT_PRESCRIPTION_STATUS_LABELS
+                : PRESCRIPTION_STATUS_LABELS;
         for (Map<String, Object> row : prescriptions) {
-            list.add(toListItem(
-                    "prescription",
-                    "处方",
-                    ((Number) row.get("prescriptionId")).longValue(),
-                    prescriptionItemName(row),
-                    ((Number) row.get("status")).intValue(),
-                    PRESCRIPTION_STATUS_LABELS));
+            list.add(toPrescriptionListItem(row, prescriptionLabels, patientView));
         }
 
         Map<String, Object> result = new HashMap<>();
@@ -120,6 +145,23 @@ public class RegisterOrdersService {
         item.put("itemName", itemName);
         item.put("status", status);
         item.put("statusLabel", statusLabels.getOrDefault(status, String.valueOf(status)));
+        return item;
+    }
+
+    private Map<String, Object> toPrescriptionListItem(Map<String, Object> row,
+                                                       Map<Integer, String> statusLabels,
+                                                       boolean patientView) {
+        int status = ((Number) row.get("status")).intValue();
+        Map<String, Object> item = toListItem(
+                "prescription",
+                "处方",
+                ((Number) row.get("prescriptionId")).longValue(),
+                prescriptionItemName(row),
+                status,
+                statusLabels);
+        if (!patientView && status == 15) {
+            item.put("rejectReason", row.get("rejectReason"));
+        }
         return item;
     }
 

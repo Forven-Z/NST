@@ -1,9 +1,9 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.5 | 2026-06-04  
+> **版本**：v2.6 | 2026-06-27  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
-> **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14**（业务 ID 即各表 `id`）  
+> **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.15**（业务 ID 即各表 `id`）  
 > **关联**：[MICROSERVICES.md](./MICROSERVICES.md) · [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md)
 
 ---
@@ -25,6 +25,9 @@
 | `GET /admin/scheduling` | `GET /admin/schedules` |
 | `POST/PUT /admin/scheduling` | `POST/PUT /admin/schedules` |
 | `POST /pharmacy/prescriptions/{id}/dispense` | `/pharmacy/dispense/{id}` |
+| `POST /pharmacy/prescriptions/{id}/reject` | — |
+| `PUT /doctor/prescriptions/{id}` | — |
+| `POST /doctor/prescriptions/{id}/resubmit` | — |
 | `POST /lis\|pacs\|disposal/requests/{id}/result` | `PUT .../result`（Method 错误） |
 | `POST /patient/payments`（Mock 批量支付） | 首期演示用；真微信支付见 §4.3.2 预留 |
 | 医技执行 | `GET/POST /lis/**`、`/pacs/**`、`/disposal/**`（非 `/doctor` 下执行） |
@@ -55,7 +58,8 @@
 | `doctor.js` | `WorkspaceView`、`RegisterOrdersPanel` | ⚠️ 部分 | 病历/叫号/orders/submit 已对齐；`finish` 后端 ⬜；医嘱结果见 §5.5 |
 | `registrar.js` | 挂号/收费/退费 | ⚠️ | 核心路径 ✅；号别暂调 `GET /admin/regist-levels`（§8.1） |
 | `lis.js` / `pacs.js` / `disposal.js` | `TechQueuePanel`、影像页 | ⚠️ | 队列/execute ✅；**保存结果 Method 应为 POST**（前端仍 PUT，见附录 G） |
-| `pharmacy.js` | 待发药 | ✅ | |
+| `pharmacy.js` | 待发药 / 处方详情 / 驳回 | ✅ | 含 `reject`、`prescriptions/{id}` |
+| `doctor.js` | 处方修改重提 | ✅ | `updatePrescription` / `resubmitPrescription` |
 | `admin.js` | 字典/员工/排班 | ✅ | 字典 GET ✅；科室/员工/排班 CRUD 路径 `/admin/scheduling/**` |
 | `scheduling.js` | `MyScheduleView`、`SchedulingView` | ✅ | §8.5 / §9.5 已联调；AI STUB 50301 |
 
@@ -150,13 +154,18 @@ Mock 数据结构 **与本文件一致**。
 
 **处方**（`prescription`）：
 
-| status | 含义 | 前端 statusLabel |
-|--------|------|------------------|
-| 10 | 已开立 | 已开立 |
-| 20 | 已缴费 | 已缴费 |
-| 30 | 已发药 | 已发药 |
-| 40 | 已退药 | 已退药 |
-| 50 | 已退费 | 已退费 |
+| status | 含义 | 医生端 statusLabel | 患者端 statusLabel |
+|--------|------|--------------------|--------------------|
+| 10 | 已开立 | 已开立 | 待缴费 |
+| 15 | 药师驳回 | 药师驳回 | 已退费 |
+| 20 | 已缴费 | 已缴费 | 待取药 |
+| 30 | 已发药 | 已发药 | 已发药 |
+| 40 | 已退药 | 已退药 | 已退药 |
+| 50 | 已退费 | 已退费 | 已退费 |
+
+**流转（驳回闭环）**：10 开立 → 患者缴费 → 20 → 药师驳回退费 → **15** → 医生修改明细（仍 15）→ `resubmit` → 10 → 患者再缴费 → 20 → 发药 30。
+
+> 药师驳回时写入 `reject_reason` / `reject_pharmacist_id` / `reject_time`；医生 `resubmit` 后清空上述字段。同一 `bill(biz_type=PRESCRIPTION, biz_id=处方id)` **复用**：驳回退费后 `status=2`，重提时重置为待支付 `0` 并更新金额（不新建 bill 行）。
 
 **医技结果报告结构**（医生站 / LIS / PACS / 处置 共用，见 §5.4、§6）：
 
@@ -227,6 +236,8 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P2+ | GET | `/doctor/inspection-requests/{id}/result` | his | OUTPATIENT_DOCTOR |
 | ✅ | P2+ | GET | `/doctor/disposal-requests/{id}/result` | his | OUTPATIENT_DOCTOR |
 | ✅ | P3 | POST | `/doctor/prescriptions` | his | OUTPATIENT_DOCTOR |
+| ✅ | P3 | PUT | `/doctor/prescriptions/{id}` | his | OUTPATIENT_DOCTOR |
+| ✅ | P3 | POST | `/doctor/prescriptions/{id}/resubmit` | his | OUTPATIENT_DOCTOR |
 | STUB | P4 | POST | `/doctor/*/ai-draft` 等 | his | OUTPATIENT_DOCTOR |
 | ✅ | P2 | GET | `/lis/queue` | lis | LAB_DOCTOR |
 | ✅ | P2 | POST | `/lis/requests/{id}/execute` | lis | LAB_DOCTOR |
@@ -246,6 +257,8 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P3 | GET | `/disposal/requests/{id}/result-detail` | disposal | DISPOSAL_DOCTOR |
 | STUB | P3 | POST | `/disposal/requests/{id}/ai-report` | disposal | DISPOSAL_DOCTOR |
 | ✅ | P3 | GET | `/pharmacy/pending` | his | PHARMACIST |
+| ✅ | P3 | GET | `/pharmacy/prescriptions/{id}` | his | PHARMACIST |
+| ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/reject` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/dispense` | his | PHARMACIST |
 | ✅ | P3 | POST | `/pharmacy/prescriptions/{id}/return-drug` | his | PHARMACIST |
 | ✅ | P3 | GET | `/pharmacy/drugs` | his | PHARMACIST |
@@ -436,7 +449,7 @@ Mock 数据结构 **与本文件一致**。
 | inspection | `inspection_request` | 10/20/30/40/50 | 医技 |
 | check | `check_request` | 同上 | 医技 |
 | disposal | `disposal_request` | 同上 | 医技 |
-| prescription | `prescription` | 10/20/30/40/50 | **处方**（30=已发药） |
+| prescription | `prescription` | 10/15/20/30/40/50 | **处方**；`list[]` 中 `status=15` 时医生端含 `rejectReason`；明细 `prescriptions[]` 含 `items[]` |
 
 ### GET `/patient/bills` ✅ P1
 
@@ -644,7 +657,24 @@ Mock 数据结构 **与本文件一致**。
 }
 ```
 
-**Response `data`**：`prescriptionId`, `totalAmount`, `status`（10）, `message?`
+**Response `data`**：`prescriptionId`, `totalAmount`, `status`（10）, `billId`, `message?`
+
+**`items[]` 字段**：`drugId`（必填）, `quantity`（必填，盒数）, `usageMethod`, `dosage`, `frequency`, `days`, `entrust`；后端按 `drugId` 快照 `drug_name` / `drug_format` / 单价。
+
+### PUT `/doctor/prescriptions/{id}` ✅ P3
+
+**页面**：医生工作台「修改驳回处方」（`DoctorPrescriptionEditDialog`）  
+**前置**：处方 `status=15`（药师驳回），且为当前医生开立  
+**Request**：`{ "items": [ … ] }`（结构同 POST，**可增删换药品**，全量替换明细）  
+**Response `data`**：`prescriptionId`, `totalAmount`, `status`（15）, `rejectReason`
+
+### POST `/doctor/prescriptions/{id}/resubmit` ✅ P3
+
+**页面**：同上，「重新提交」  
+**前置**：处方 `status=15`；建议先 PUT 保存最新 `items`  
+**Request**：无 Body  
+**Response `data`**：`prescriptionId`, `totalAmount`, `status`（10）, `billId`, `message`（通知患者缴费）  
+**说明**：将驳回处方置为已开立；**复用**原处方 bill 并重置为待支付（见 §1.7）。
 
 ### 5.1 AI 辅助诊疗（P4 · ADR-015）STUB/⬜
 
@@ -788,14 +818,41 @@ Mock 数据结构 **与本文件一致**。
 
 | 状态 | Method | 路径 | 说明 |
 |------|--------|------|------|
-| ✅ | GET | `/pharmacy/pending?status=20` | 待发药处方 |
-| ✅ | POST | `/pharmacy/prescriptions/{id}/dispense` | status→30 |
+| ✅ | GET | `/pharmacy/pending?status=20` | 处方列表（待发药/已发药）；`status` 默认 20 |
+| ✅ | GET | `/pharmacy/prescriptions/{id}` | 处方详情（含库存） |
+| ✅ | POST | `/pharmacy/prescriptions/{id}/reject` | 驳回发药：退费 + status→15 |
+| ✅ | POST | `/pharmacy/prescriptions/{id}/dispense` | 发药 status→30 |
 | ✅ | POST | `/pharmacy/prescriptions/{id}/return-drug` | 退药 → 窗口退费 |
 | ✅ | GET | `/pharmacy/drugs` | 药品目录；Query `keyword`, `page`, `pageSize`, `includeDisabled` |
 | ✅ | POST | `/pharmacy/drugs` | 新增药品（编码自动生成 `DRG-NNN`） |
 | ✅ | PUT | `/pharmacy/drugs/{id}` | 编辑名称/价格/库存及选填字段 |
 | ✅ | POST | `/pharmacy/drugs/{id}/disable` | 软停用（`delmark=1`） |
 | ✅ | POST | `/pharmacy/drugs/{id}/enable` | 重新启用 |
+
+### GET `/pharmacy/pending` ✅ P3
+
+**页面**：药房「处方发药」列表（`PendingView`）  
+**Query**：`status`（20 待发药 / 30 已发药）, `page`, `pageSize`  
+**Response `data.list[]`**：`prescriptionId`, `registerId`, `medicalRecordNo`, `patientName`, `doctorName`, `totalAmount`, `status`, `createTime`, **`items[]`**（药品明细，供列表展示药品名）
+
+**`items[]`**：`drugId`, `drugCode`, `drugName`, `drugFormat`, `quantity`, `unitPrice`, `amount`, `usageMethod`, `dosage`, `frequency`, `days`, `entrust`, `sortNo`
+
+### GET `/pharmacy/prescriptions/{id}` ✅ P3
+
+**页面**：药房处方详情抽屉（`PrescriptionDetailDrawer`）  
+**Response `data`**：同列表头字段 + `rejectReason`, `rejectTime`, `rejectPharmacistName`（若曾驳回）+ **`items[]`**（每项多 **`stockQty`** 当前库存）
+
+### POST `/pharmacy/prescriptions/{id}/reject` ✅ P3
+
+**页面**：详情抽屉「拒绝发药」  
+**前置**：处方 `status=20`（已缴费未发药）  
+**Request**：`{ "reason": "没药了" }`（必填，≤256 字）  
+**Response `data`**：`prescriptionId`, `status`（15）, `message`  
+**副作用**：对该处方已支付 bill 模拟退费（`bill.status=2`）；处方退回开方医生；**不**改 `prescription.status` 为 50（与窗口退费不同）。
+
+### POST `/pharmacy/prescriptions/{id}/dispense` / `return-drug`
+
+与上表一致；发药前扣减 `drug_info.stock_qty`。
 
 **POST `/pharmacy/drugs` Request（必填 + 选填）**
 
@@ -1042,12 +1099,12 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 角色 | 页面 | 主要接口（定稿） | Mock |
 |------|------|------------------|------|
-| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/registers/{id}/orders`（§5.5 组装结果）, `/registers/{id}/finish` ✅, `/medical-records/{id}/submit` ✅, `/*-requests` 开单 | 部分 |
+| 医生 | 工作台 | `/doctor/queues`, `/call/{id}`, `/medical-records/*`, `/registers/{id}/orders`, `/prescriptions`（开立/修改/重提）, `/registers/{id}/finish` ✅, `/medical-records/{id}/submit` ✅, `/*-requests` 开单 | 部分 |
 | 医生 | 我的排班 | §8.5 `/staff/**` | 🎭 |
 | 医生 | AI 辅助 | `/ai/diagnosis/suggest` STUB, `/*/ai-draft` STUB | 🎭 |
 | LIS/PACS/处置 | 队列 | `/lis/**`, `/pacs/**`, `/disposal/**`；result 用 **POST** | 部分 |
 | PACS | 影像任务 | `GET /pacs/imaging-studies` ⬜ | 🎭 |
-| 药师 | 发药 / 药品管理 | `/pharmacy/pending`, `.../dispense`, `.../return-drug`, `/pharmacy/drugs` | ✅ |
+| 药师 | 发药 / 药品管理 | `/pharmacy/pending`, `/pharmacy/prescriptions/{id}`, `.../reject`, `.../dispense`, `.../return-drug`, `/pharmacy/drugs` | ✅ |
 | 收费员 | 挂号/收费/退费 | §8 `/registrar/**` | ✅ |
 | 管理员 | 员工/科室 | `/admin/employees` CRUD ⬜, `/admin/departments` GET ✅ | 部分 |
 | 管理员 | 排班/请假 | §9.2 `/admin/scheduling/**` ⬜, §9.5 leave 🎭 | 🎭 |
@@ -1065,7 +1122,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `inspection_request` | doctor POST | 缴费/refund; lis 执行/结果 | lis |
 | `check_request` | doctor POST | 缴费; pacs 执行/结果 | pacs |
 | `disposal_request` | doctor POST | 缴费; disposal 执行/结果 | disposal |
-| `prescription` | doctor POST | 缴费; pharmacy 发药 | — |
+| `prescription` | doctor POST | 缴费；pharmacy 发药 / **驳回(15)**；doctor PUT+resubmit 闭环 | — |
 | `bill` / `payment_record` | 开单/挂号 | patient/registrar 支付 | — |
 
 ---
@@ -1113,6 +1170,14 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `doctor.js` | `fetchRegisterResults` | §5.5（无 HTTP 聚合） | ✅ 客户端组装 | — |
 | `doctor.js` | `fetchMedicalTechnologies` | `GET /doctor/medical-technologies` | ✅ | ✅ |
 | `doctor.js` | `fetchDrugs` | `GET /doctor/drugs` | ✅ | ✅ |
+| `doctor.js` | `createPrescription` | `POST /doctor/prescriptions` | ✅ | ✅ |
+| `doctor.js` | `updatePrescription` | `PUT /doctor/prescriptions/{id}` | ✅ | ✅ |
+| `doctor.js` | `resubmitPrescription` | `POST /doctor/prescriptions/{id}/resubmit` | ✅ | ✅ |
+| `pharmacy.js` | `fetchPendingPrescriptions` | `GET /pharmacy/pending` | ✅ | ✅ |
+| `pharmacy.js` | `fetchPrescriptionDetail` | `GET /pharmacy/prescriptions/{id}` | ✅ | ✅ |
+| `pharmacy.js` | `rejectPrescription` | `POST /pharmacy/prescriptions/{id}/reject` | ✅ | ✅ |
+| `pharmacy.js` | `dispensePrescription` | `POST /pharmacy/prescriptions/{id}/dispense` | ✅ | ✅ |
+| `pharmacy.js` | `returnDrug` | `POST /pharmacy/prescriptions/{id}/return-drug` | ✅ | ✅ |
 | `registrar.js` | `fetchRegistLevels` | `GET /registrar/regist-levels` | ❌ `/admin/regist-levels` | ⬜ |
 | `lis.js` | `saveLisResult` | `POST /lis/requests/{id}/result` | ❌ PUT | ✅ POST |
 | `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ❌ PUT | ✅ POST |
@@ -1141,6 +1206,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.6 | 2026-06-27 | 处方药师驳回闭环：status **15**；`PUT/POST /doctor/prescriptions/{id}`（修改/重提）；`GET/POST /pharmacy/prescriptions/{id}`（详情/驳回）；`GET /pharmacy/pending` 列表含 `items[]`；bill 重提复用说明 |
 | v2.5 | 2026-06-04 | §3.1 账号：检验 `lab01`/`lab02`；检查 `check01`～`check03`；移除 `inspection01` |
 | v2.4 | 2026-06-04 | §3.1 Mock 账号链至 `sql/README.md` §三；补充 doctor02～06、inspection01、lab02 |
 | v2.3 | 2026-06-10 | 医生工作台字典只读：`GET /doctor/medical-technologies`、`GET /doctor/drugs`；附录 G8 |
