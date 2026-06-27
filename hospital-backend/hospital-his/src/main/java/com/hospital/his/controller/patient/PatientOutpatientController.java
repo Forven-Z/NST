@@ -7,6 +7,7 @@ import com.hospital.his.dto.registrar.CancelRegisterRequest;
 import com.hospital.his.dto.registrar.RefundRequest;
 import com.hospital.his.service.FinancialQueryService;
 import com.hospital.his.service.PatientFamilyService;
+import com.hospital.his.service.RegisterOrdersService;
 import com.hospital.his.service.PaymentService;
 import com.hospital.his.service.RefundService;
 import com.hospital.his.service.RegisterCancelService;
@@ -44,6 +45,7 @@ public class PatientOutpatientController {
     private final com.hospital.his.service.PatientReportService patientReportService;
     private final FinancialQueryService financialQueryService;
     private final PatientFamilyService patientFamilyService;
+    private final RegisterOrdersService registerOrdersService;
 
     @GetMapping("/departments")
     public Result<Map<String, Object>> listDepartments() {
@@ -69,6 +71,11 @@ public class PatientOutpatientController {
     @GetMapping("/registers/{registerId}/queue-status")
     public Result<Map<String, Object>> queueStatus(@PathVariable Long registerId) {
         return Result.success(patientRegisterQueryService.getQueueStatus(registerId));
+    }
+
+    @GetMapping("/registers/{registerId}/orders")
+    public Result<Map<String, Object>> getRegisterOrders(@PathVariable Long registerId) {
+        return Result.success(registerOrdersService.getOrdersForPatient(registerId));
     }
 
     @GetMapping("/schedules")

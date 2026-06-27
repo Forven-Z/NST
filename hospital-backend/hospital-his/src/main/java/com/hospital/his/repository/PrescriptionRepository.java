@@ -6,6 +6,8 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -104,7 +106,7 @@ public class PrescriptionRepository {
     }
 
     public List<Map<String, Object>> findPending(Integer status, int offset, int limit) {
-        return jdbcClient.sql("""
+        List<Map<String, Object>> list = jdbcClient.sql("""
                         SELECT p.id AS prescription_id,
                                p.register_id,
                                p.total_amount,
@@ -137,6 +139,11 @@ public class PrescriptionRepository {
                     return row;
                 })
                 .list();
+        for (Map<String, Object> prescription : list) {
+            Long prescriptionId = ((Number) prescription.get("prescriptionId")).longValue();
+            prescription.put("items", findItemsByPrescriptionId(prescriptionId));
+        }
+        return list;
     }
 
     public List<Map<String, Object>> findByRegisterId(Long registerId) {
@@ -147,6 +154,7 @@ public class PrescriptionRepository {
                                p.doctor_id,
                                p.total_amount,
                                p.status,
+                               p.reject_reason,
                                p.create_time,
                                pt.medical_record_no,
                                pt.real_name AS patient_name,
@@ -166,6 +174,7 @@ public class PrescriptionRepository {
                     row.put("doctorId", rs.getLong("doctor_id"));
                     row.put("totalAmount", rs.getBigDecimal("total_amount"));
                     row.put("status", rs.getInt("status"));
+                    row.put("rejectReason", rs.getString("reject_reason"));
                     row.put("createTime", rs.getObject("create_time", OffsetDateTime.class));
                     row.put("medicalRecordNo", rs.getString("medical_record_no"));
                     row.put("patientName", rs.getString("patient_name"));
@@ -182,22 +191,152 @@ public class PrescriptionRepository {
 
     public List<Map<String, Object>> findItemsByPrescriptionId(Long prescriptionId) {
         return jdbcClient.sql("""
-                        SELECT drug_id, drug_name, quantity, unit_price, amount
+                        SELECT drug_id, drug_code, drug_name, drug_format, drug_dosage, drug_type,
+                               quantity, unit_price, amount, usage_method, dosage, frequency, days,
+                               entrust, sort_no
                         FROM prescription_item
                         WHERE prescription_id = :prescriptionId
                         ORDER BY sort_no, id
                         """)
                 .param("prescriptionId", prescriptionId)
+                .query((rs, rowNum) -> mapPrescriptionItemRow(rs))
+                .list();
+    }
+
+    public Optional<Map<String, Object>> findDetailById(Long id) {
+        return jdbcClient.sql("""
+                        SELECT p.id AS prescription_id,
+                               p.register_id,
+                               p.patient_id,
+                               p.doctor_id,
+                               p.total_amount,
+                               p.status,
+                               p.create_time,
+                               p.reject_reason,
+                               p.reject_time,
+                               pt.medical_record_no,
+                               pt.real_name AS patient_name,
+                               e.real_name AS doctor_name,
+                               rejecter.real_name AS reject_pharmacist_name
+                        FROM prescription p
+                        JOIN patient pt ON p.patient_id = pt.id
+                        JOIN employee e ON p.doctor_id = e.id
+                        LEFT JOIN employee rejecter ON p.reject_pharmacist_id = rejecter.id
+                        WHERE p.id = :id AND p.delmark = 0
+                        """)
+                .param("id", id)
                 .query((rs, rowNum) -> {
                     Map<String, Object> row = new HashMap<>();
-                    row.put("drugId", rs.getLong("drug_id"));
-                    row.put("drugName", rs.getString("drug_name"));
-                    row.put("quantity", rs.getBigDecimal("quantity"));
-                    row.put("unitPrice", rs.getBigDecimal("unit_price"));
-                    row.put("amount", rs.getBigDecimal("amount"));
+                    row.put("prescriptionId", rs.getLong("prescription_id"));
+                    row.put("registerId", rs.getLong("register_id"));
+                    row.put("patientId", rs.getLong("patient_id"));
+                    row.put("doctorId", rs.getLong("doctor_id"));
+                    row.put("totalAmount", rs.getBigDecimal("total_amount"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("createTime", rs.getObject("create_time", OffsetDateTime.class));
+                    row.put("medicalRecordNo", rs.getString("medical_record_no"));
+                    row.put("patientName", rs.getString("patient_name"));
+                    row.put("doctorName", rs.getString("doctor_name"));
+                    row.put("rejectReason", rs.getString("reject_reason"));
+                    row.put("rejectTime", rs.getObject("reject_time", OffsetDateTime.class));
+                    row.put("rejectPharmacistName", rs.getString("reject_pharmacist_name"));
+                    return row;
+                })
+                .optional();
+    }
+
+    public List<Map<String, Object>> findItemsWithStockByPrescriptionId(Long prescriptionId) {
+        return jdbcClient.sql("""
+                        SELECT pi.drug_id, pi.drug_code, pi.drug_name, pi.drug_format, pi.drug_dosage, pi.drug_type,
+                               pi.quantity, pi.unit_price, pi.amount, pi.usage_method, pi.dosage, pi.frequency,
+                               pi.days, pi.entrust, pi.sort_no,
+                               d.stock_qty
+                        FROM prescription_item pi
+                        JOIN drug_info d ON pi.drug_id = d.id
+                        WHERE pi.prescription_id = :prescriptionId
+                        ORDER BY pi.sort_no, pi.id
+                        """)
+                .param("prescriptionId", prescriptionId)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = mapPrescriptionItemRow(rs);
+                    row.put("stockQty", rs.getBigDecimal("stock_qty"));
                     return row;
                 })
                 .list();
+    }
+
+    /** Sets status to 15 (PHARMACY_REJECTED); only from status 20 (PAID). */
+    public int markPharmacyRejected(Long id, Long pharmacistId, String reason) {
+        return jdbcClient.sql("""
+                        UPDATE prescription
+                        SET status = 15,
+                            reject_reason = :reason,
+                            reject_pharmacist_id = :pharmacistId,
+                            reject_time = NOW(),
+                            update_time = NOW()
+                        WHERE id = :id AND status = 20 AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("pharmacistId", pharmacistId)
+                .param("reason", reason)
+                .update();
+    }
+
+    /** Clears reject fields and sets status to 10 (ORDERED); only from status 15 (PHARMACY_REJECTED). */
+    public int clearRejectFieldsAndSetOrdered(Long id, BigDecimal totalAmount) {
+        return jdbcClient.sql("""
+                        UPDATE prescription
+                        SET status = 10,
+                            reject_reason = NULL,
+                            reject_pharmacist_id = NULL,
+                            reject_time = NULL,
+                            total_amount = :totalAmount,
+                            update_time = NOW()
+                        WHERE id = :id AND status = 15 AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("totalAmount", totalAmount)
+                .update();
+    }
+
+    public void deleteItemsByPrescriptionId(Long prescriptionId) {
+        jdbcClient.sql("""
+                        DELETE FROM prescription_item
+                        WHERE prescription_id = :prescriptionId
+                        """)
+                .param("prescriptionId", prescriptionId)
+                .update();
+    }
+
+    public int updateTotalAmount(Long id, BigDecimal totalAmount) {
+        return jdbcClient.sql("""
+                        UPDATE prescription
+                        SET total_amount = :totalAmount, update_time = NOW()
+                        WHERE id = :id AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("totalAmount", totalAmount)
+                .update();
+    }
+
+    private Map<String, Object> mapPrescriptionItemRow(ResultSet rs) throws SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("drugId", rs.getLong("drug_id"));
+        row.put("drugCode", rs.getString("drug_code"));
+        row.put("drugName", rs.getString("drug_name"));
+        row.put("drugFormat", rs.getString("drug_format"));
+        row.put("drugDosage", rs.getString("drug_dosage"));
+        row.put("drugType", rs.getString("drug_type"));
+        row.put("quantity", rs.getBigDecimal("quantity"));
+        row.put("unitPrice", rs.getBigDecimal("unit_price"));
+        row.put("amount", rs.getBigDecimal("amount"));
+        row.put("usageMethod", rs.getString("usage_method"));
+        row.put("dosage", rs.getString("dosage"));
+        row.put("frequency", rs.getString("frequency"));
+        row.put("days", rs.getObject("days", Integer.class));
+        row.put("entrust", rs.getString("entrust"));
+        row.put("sortNo", rs.getInt("sort_no"));
+        return row;
     }
 
     public void markDispensed(Long prescriptionId, Long pharmacistId) {

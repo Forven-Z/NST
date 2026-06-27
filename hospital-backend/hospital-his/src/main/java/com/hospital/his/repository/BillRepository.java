@@ -129,6 +129,35 @@ public class BillRepository {
                 .optional();
     }
 
+    public Optional<Map<String, Object>> findByBiz(String bizType, Long bizId) {
+        return jdbcClient.sql("""
+                        SELECT id, patient_id, register_id, biz_type, biz_id, bill_title, amount, status
+                        FROM bill
+                        WHERE biz_type = :bizType AND biz_id = :bizId
+                        """)
+                .param("bizType", bizType)
+                .param("bizId", bizId)
+                .query((rs, rowNum) -> mapBillRow(rs))
+                .optional();
+    }
+
+    /** 药师驳回退费后，医生重新提交处方：复用原账单，重置为待支付并更新金额。 */
+    public int resetForResubmit(Long billId, String billTitle, BigDecimal amount) {
+        return jdbcClient.sql("""
+                        UPDATE bill
+                        SET status = 0,
+                            bill_title = :billTitle,
+                            amount = :amount,
+                            paid_time = NULL,
+                            update_time = NOW()
+                        WHERE id = :id AND status = 2
+                        """)
+                .param("id", billId)
+                .param("billTitle", billTitle)
+                .param("amount", amount)
+                .update();
+    }
+
     public void markRefunded(Long billId) {
         jdbcClient.sql("""
                         UPDATE bill SET status = 2, update_time = NOW()

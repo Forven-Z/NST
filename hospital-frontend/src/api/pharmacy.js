@@ -7,6 +7,8 @@ import {
   mockEnablePharmacyDrug,
   mockPharmacyDrugs,
   mockPharmacyPending,
+  mockPrescriptionDetail,
+  mockRejectPrescription,
   mockReturnDrug,
   mockUpdatePharmacyDrug,
 } from '../mock/pharmacy'
@@ -14,6 +16,16 @@ import {
 export function fetchPendingPrescriptions(params) {
   if (useMock()) return mockPharmacyPending(params)
   return request.get('/pharmacy/pending', { params })
+}
+
+export function fetchPrescriptionDetail(prescriptionId) {
+  if (useMock()) return mockPrescriptionDetail(prescriptionId)
+  return request.get(`/pharmacy/prescriptions/${prescriptionId}`)
+}
+
+export function rejectPrescription(prescriptionId, data) {
+  if (useMock()) return mockRejectPrescription(prescriptionId, data)
+  return request.post(`/pharmacy/prescriptions/${prescriptionId}/reject`, data)
 }
 
 export function dispensePrescription(prescriptionId) {

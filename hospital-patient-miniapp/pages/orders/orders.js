@@ -36,7 +36,13 @@ Page({
       return
     }
     if (item.kind === 'prescription') {
-      wx.showToast({ title: '处方请至药房取药', icon: 'none' })
+      var tips = {
+        10: '请前往缴费',
+        15: '处方费用已退回，请等待医生修改后重新缴费',
+        20: '请至药房取药',
+        30: '处方已发药',
+      }
+      wx.showToast({ title: tips[item.status] || '请稍后查看或联系窗口', icon: 'none' })
       return
     }
     var type = item.kind === 'inspection' ? 'lab' : item.kind === 'check' ? 'exam' : 'disposal'

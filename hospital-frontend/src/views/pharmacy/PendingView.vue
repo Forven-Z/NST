@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import PrescriptionDetailDrawer from '../../components/pharmacy/PrescriptionDetailDrawer.vue'
 import { dispensePrescription, fetchPendingPrescriptions, returnDrug } from '../../api/pharmacy'
 
 const loading = ref(false)
@@ -8,9 +9,12 @@ const dispensingId = ref(null)
 const returningId = ref(null)
 const statusFilter = ref(20)
 const list = ref([])
+const drawerVisible = ref(false)
+const selectedPrescriptionId = ref(null)
 
 const statusMap = {
   10: { label: '待缴费', type: 'info' },
+  15: { label: '药师驳回', type: 'danger' },
   20: { label: '待发药', type: 'warning' },
   30: { label: '已发药', type: 'success' },
 }
@@ -82,6 +86,15 @@ function formatItems(row) {
   if (!row.items?.length) return '—'
   return row.items.map((i) => `${i.drugName}×${i.quantity}`).join('、')
 }
+
+function openDetail(row) {
+  selectedPrescriptionId.value = row.prescriptionId
+  drawerVisible.value = true
+}
+
+function onDrawerChanged() {
+  loadList()
+}
 </script>
 
 <template>
@@ -107,7 +120,13 @@ function formatItems(row) {
         </div>
       </template>
 
-      <el-table v-loading="loading" :data="list" empty-text="暂无处方（Mock：李小红 MR202606040002 有待发药处方）">
+      <el-table
+        v-loading="loading"
+        :data="list"
+        empty-text="暂无处方（Mock：李小红 MR202606040002 有待发药处方）"
+        class="rx-table"
+        @row-click="openDetail"
+      >
         <el-table-column prop="prescriptionId" label="处方ID" width="100" />
         <el-table-column prop="medicalRecordNo" label="病历号" width="140" />
         <el-table-column prop="patientName" label="患者" width="100" />
@@ -125,14 +144,15 @@ function formatItems(row) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
+            <el-button link type="primary" @click.stop="openDetail(row)">查看</el-button>
             <el-button
               v-if="row.status === 20"
               type="primary"
               link
               :loading="dispensingId === row.prescriptionId"
-              @click="onDispense(row)"
+              @click.stop="onDispense(row)"
             >
               发药
             </el-button>
@@ -141,7 +161,7 @@ function formatItems(row) {
               type="warning"
               link
               :loading="returningId === row.prescriptionId"
-              @click="onReturn(row)"
+              @click.stop="onReturn(row)"
             >
               退药
             </el-button>
@@ -149,6 +169,12 @@ function formatItems(row) {
         </el-table-column>
       </el-table>
     </el-card>
+
+    <PrescriptionDetailDrawer
+      v-model="drawerVisible"
+      :prescription-id="selectedPrescriptionId"
+      @changed="onDrawerChanged"
+    />
   </div>
 </template>
 
@@ -190,5 +216,9 @@ function formatItems(row) {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.rx-table :deep(.el-table__row) {
+  cursor: pointer;
 }
 </style>

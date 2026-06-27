@@ -96,6 +96,7 @@
 | 值 | 含义 |
 |----|------|
 | 10 | 已开立 |
+| 15 | 药师驳回 |
 | 20 | 已缴费 |
 | 30 | 已发药 |
 | 40 | 已退药 |
@@ -614,8 +615,11 @@ disease ──N:M── medical_record (medical_record_disease)
 | patient_id | BIGINT | N | — | — | 患者 ID；冗余便于按患者查处方，须与 register.patient_id 一致。 |
 | doctor_id | BIGINT | N | — | — | FK → employee(id)；开立医生；门诊医生确认提交后写入，用于审计。 |
 | total_amount | NUMERIC(10,2) | N | 0 | — | 处方合计金额（元）；明细行 amount 汇总，生成待缴单依据。 |
-| status | SMALLINT | N | 10 | IX | 处方流转状态；10 已开立 20 已缴费 30 已发药 40 已退药 50 已退费，见 §1.5。 |
+| status | SMALLINT | N | 10 | IX | 处方流转状态；10 已开立 15 药师驳回 20 已缴费 30 已发药 40 已退药 50 已退费，见 §1.5。 |
 | pharmacist_id | BIGINT | Y | NULL | — | FK → employee(id)；发药药师；发药核对通过时写入。 |
+| reject_reason | VARCHAR(256) | Y | NULL | — | 药师驳回原因；`status=15` 时由药房填写。 |
+| reject_pharmacist_id | BIGINT | Y | NULL | — | FK → employee(id)；执行驳回的药师。 |
+| reject_time | TIMESTAMPTZ | Y | NULL | — | 药师驳回时间。 |
 | ai_draft_id | BIGINT | Y | NULL | — | FK → ai_prescription_draft(id)；来源 AI 草稿 ID；追溯 AI 辅助开立链路（补-25）。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 处方创建时间（医生确认提交 INSERT 时写入）；待缴列表按开立时间排序可用本字段。 |

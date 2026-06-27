@@ -55,6 +55,7 @@ public class PaymentRepository {
                 .update();
     }
 
+    /** 取该账单最近一次尚未退款的支付记录（驳回重缴后同一 bill 可能有多条 payment_bill）。 */
     public Optional<Map<String, Object>> findPaymentLinkByBillId(Long billId) {
         return jdbcClient.sql("""
                         SELECT pb.payment_id, pb.amount AS bill_amount,
@@ -62,6 +63,15 @@ public class PaymentRepository {
                         FROM payment_bill pb
                         JOIN payment_record pr ON pb.payment_id = pr.id
                         WHERE pb.bill_id = :billId
+                          AND pr.status = 1
+                          AND NOT EXISTS (
+                              SELECT 1 FROM refund_record rr
+                              WHERE rr.payment_id = pb.payment_id
+                                AND rr.bill_id = pb.bill_id
+                                AND rr.status = 1
+                          )
+                        ORDER BY pr.pay_time DESC, pr.id DESC
+                        LIMIT 1
                         """)
                 .param("billId", billId)
                 .query((rs, rowNum) -> {
