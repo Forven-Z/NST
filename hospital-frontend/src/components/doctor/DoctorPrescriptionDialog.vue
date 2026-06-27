@@ -51,7 +51,23 @@ function onClose() {
   emit('update:modelValue', false)
 }
 
+function isSelected(drugId) {
+  return selectedDrugIds.value.includes(drugId)
+}
+
+function quantityFor(drugId) {
+  return selectedQuantities.value[drugId] ?? 1
+}
+
+function setQuantity(drugId, val) {
+  selectedQuantities.value = {
+    ...selectedQuantities.value,
+    [drugId]: val ?? 1,
+  }
+}
+
 function buildDrugItem(drug) {
+  const qty = quantityFor(drug.id)
   return {
     drugId: drug.id,
     drugName: drug.drugName,
@@ -231,12 +247,22 @@ function onSubmit() {
   padding: 4px 0;
 }
 
-.checkbox-item {
+.drug-row {
   display: flex;
   align-items: flex-start;
   width: 100%;
   margin-bottom: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fafbfc;
+}
+
+.checkbox-item {
+  flex: 1;
+  min-width: 0;
   height: auto;
+  margin-right: 0;
 }
 
 .item-name {
