@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.pacs.client.AiBridgeReportClient;
 import com.hospital.pacs.client.HospitalAiClient;
 import com.hospital.common.support.CheckReportComposer;
 import com.hospital.pacs.config.HospitalAiProperties;
@@ -36,6 +37,7 @@ public class ImagingService {
     private final ObjectMapper objectMapper;
     private final PacsAiReportCache pacsAiReportCache;
     private final EmployeeRepository employeeRepository;
+    private final AiBridgeReportClient aiBridgeReportClient;
 
     @Transactional
     public Map<String, Object> uploadImaging(Long checkRequestId, MultipartFile[] files) {
@@ -161,8 +163,7 @@ public class ImagingService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
         Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
 
-        String itemName = String.valueOf(context.get("itemName"));
-        String aiText = CheckReportComposer.generateAiReportStub(itemName, findings);
+        String aiText = aiBridgeReportClient.generateHeadCtImpression(context, findings);
         pacsAiReportCache.put(checkRequestId, aiText, "READY");
 
         return enrichCheckReport(context, study, findings, aiText, null, "READY");

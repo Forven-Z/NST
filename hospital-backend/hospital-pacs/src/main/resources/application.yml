@@ -36,3 +36,6 @@ hospital:
     base-url: ${HOSPITAL_AI_BASE_URL:http://127.0.0.1:8000}
     callback-url: ${HOSPITAL_AI_CALLBACK_URL:http://127.0.0.1:9104/internal/imaging/callback}
     inference-timeout-seconds: 180
+  ai-bridge:
+    base-url: ${HOSPITAL_AI_BRIDGE_BASE_URL:http://127.0.0.1:9106}
+    report-timeout-seconds: ${HOSPITAL_AI_BRIDGE_REPORT_TIMEOUT_SECONDS:180}

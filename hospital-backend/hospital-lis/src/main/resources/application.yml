@@ -20,3 +20,6 @@ hospital:
   auth:
     jwt:
       secret: ${JWT_SECRET:hospital-dev-secret-key-change-in-production-min-32-chars!!}
+  ai-bridge:
+    base-url: ${HOSPITAL_AI_BRIDGE_BASE_URL:http://127.0.0.1:9106}
+    report-timeout-seconds: ${HOSPITAL_AI_BRIDGE_REPORT_TIMEOUT_SECONDS:180}
