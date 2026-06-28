@@ -65,7 +65,8 @@ public class SchedulingRepository {
     }
 
     public List<Map<String, Object>> findRegistrarSchedules(Long deptId, Long employeeId, Long registLevelId,
-                                                             java.time.LocalDate fromDate, java.time.LocalDate toDate) {
+                                                             java.time.LocalDate fromDate, java.time.LocalDate toDate,
+                                                             Integer noonType) {
         return jdbcClient.sql("""
                         SELECT s.id AS scheduling_id,
                                e.dept_id,
@@ -89,6 +90,7 @@ public class SchedulingRepository {
                           AND s.work_date >= :fromDate
                           AND s.work_date <= :toDate
                           AND e.delmark = 0
+                          AND (CAST(:noonType AS INTEGER) IS NULL OR s.noon_type >= CAST(:noonType AS INTEGER))
                           AND (CAST(:deptId AS BIGINT) IS NULL OR e.dept_id = CAST(:deptId AS BIGINT))
                           AND (CAST(:employeeId AS BIGINT) IS NULL OR s.employee_id = CAST(:employeeId AS BIGINT))
                           AND (CAST(:registLevelId AS BIGINT) IS NULL OR s.regist_level_id = CAST(:registLevelId AS BIGINT))
@@ -96,6 +98,7 @@ public class SchedulingRepository {
                         """)
                 .param("fromDate", fromDate)
                 .param("toDate", toDate)
+                .param("noonType", noonType)
                 .param("deptId", deptId)
                 .param("employeeId", employeeId)
                 .param("registLevelId", registLevelId)

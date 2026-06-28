@@ -1,9 +1,12 @@
 package com.hospital.his.service;
 
+import com.hospital.his.support.NoonTypeSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,20 +23,25 @@ public class SchedulingService {
         return Map.of("list", list);
     }
 
-    public Map<String, Object> listRegistrarSchedules(Long deptId, Long employeeId, Long registLevelId,
-                                                      LocalDate workDate) {
-        LocalDate fromDate = workDate != null ? workDate : LocalDate.now();
-        LocalDate toDate = fromDate.plusDays(6);
+    public Map<String, Object> listRegistrarSchedules(Long deptId, Long employeeId, Long registLevelId) {
+        // 窗口挂号：固定当天 + 当前午别及以后（上午含下午/晚上，下午含晚上，晚上仅晚上）
+        LocalDate queryDate = LocalDate.now();
+        int noonType = NoonTypeSupport.resolveCurrentNoonType(LocalTime.now());
         List<Map<String, Object>> raw = schedulingRepository.findRegistrarSchedules(
-                deptId, employeeId, registLevelId, fromDate, toDate);
+                deptId, employeeId, registLevelId, queryDate, queryDate, noonType);
         List<Map<String, Object>> list = raw.stream().map(this::enrichRegistrarScheduleRow).toList();
-        return Map.of("list", list);
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("workDate", queryDate);
+        result.put("noonType", noonType);
+        result.put("noonLabel", NoonTypeSupport.label(noonType));
+        return result;
     }
 
     private Map<String, Object> enrichRegistrarScheduleRow(Map<String, Object> row) {
         int noonType = ((Number) row.get("noonType")).intValue();
-        row.put("noonLabel", noonType == 1 ? "上午" : "下午");
-        row.put("timeRange", noonType == 1 ? "08:00-12:00" : "13:00-17:00");
+        row.put("noonLabel", NoonTypeSupport.label(noonType));
+        row.put("timeRange", NoonTypeSupport.timeRange(noonType));
         return row;
     }
 }

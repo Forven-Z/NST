@@ -69,7 +69,7 @@ public class RegistrarQueryService {
 
     public Map<String, Object> listSchedules(Long deptId, Long employeeId, Long registLevelId, LocalDate workDate) {
         requireRegistrar();
-        return schedulingService.listRegistrarSchedules(deptId, employeeId, registLevelId, workDate);
+        return schedulingService.listRegistrarSchedules(deptId, employeeId, registLevelId);
     }
 
     public Map<String, Object> listBillsByMedicalRecordNo(String medicalRecordNo, Integer status) {

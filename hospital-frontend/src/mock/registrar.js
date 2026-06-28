@@ -1,4 +1,5 @@
 import { mockResult } from '../utils/mock'
+import { getWindowSessionContext } from '../utils/window-session'
 import {
   countExpertSessions,
   getDeptById,
@@ -46,8 +47,12 @@ export function mockDoctors(deptId) {
 export function mockSchedules(params) {
   const { deptId, employeeId, registLevelId } = params || {}
   const levelId = registLevelId ? Number(registLevelId) : undefined
+  const ctx = getWindowSessionContext()
   return mockResult({
-    list: getSchedules(deptId, employeeId, levelId),
+    list: getSchedules(deptId, employeeId, levelId, ctx.workDate, ctx.noonType),
+    workDate: ctx.workDate,
+    noonType: ctx.noonType,
+    noonLabel: ctx.noonLabel,
     page: 1,
     pageSize: 50,
   })
