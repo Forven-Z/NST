@@ -76,6 +76,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_scheduling_active_slot
     ON scheduling (work_date, employee_id, noon_type, regist_level_id)
     WHERE publish_status <> 2;
 
+CREATE TABLE IF NOT EXISTS scheduling_template (
+    id              BIGSERIAL PRIMARY KEY,
+    employee_id     BIGINT       NOT NULL REFERENCES employee(id),
+    weekday         SMALLINT     NOT NULL,
+    noon_type       SMALLINT     NOT NULL,
+    regist_level_id BIGINT       NOT NULL REFERENCES regist_level(id),
+    total_quota     INTEGER      NOT NULL,
+    enabled         SMALLINT     NOT NULL DEFAULT 1,
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_scheduling_template_weekday CHECK (weekday BETWEEN 1 AND 7),
+    CONSTRAINT ck_scheduling_template_noon CHECK (noon_type IN (1, 2, 3))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_scheduling_template_slot
+    ON scheduling_template (employee_id, weekday, noon_type);
+
 CREATE TABLE IF NOT EXISTS scheduling_leave_request (
     id                      BIGSERIAL PRIMARY KEY,
     scheduling_id           BIGINT       NOT NULL REFERENCES scheduling(id),

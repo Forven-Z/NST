@@ -989,11 +989,19 @@ Mock 数据结构 **与本文件一致**。
 | ✅ POST | `/admin/scheduling` | 创建 |
 | ✅ PUT | `/admin/scheduling/{id}` | 更新（含替班：改 `employeeId`） |
 | ✅ POST | `/admin/scheduling/{id}/publish` | 发布 |
+| ✅ GET | `/admin/scheduling/week-grid` | 周排班网格（Query: `deptId`, `weekStart`） |
+| ✅ POST | `/admin/scheduling/batch-upsert` | 批量保存网格变更 |
+| ✅ POST | `/admin/scheduling/copy-week` | 复制上周（仅填空） |
+| ✅ POST | `/admin/scheduling/apply-template` | 应用固定模板（仅填空） |
+| ✅ POST | `/admin/scheduling/batch-publish` | 批量发布该科室该周草稿 |
+| ✅ GET | `/admin/scheduling/templates` | 模板列表（Query: `deptId?`, `employeeId?`） |
+| ✅ GET | `/admin/scheduling/templates/{employeeId}` | 某医生固定模板 |
+| ✅ PUT | `/admin/scheduling/templates/{employeeId}` | 整表替换某医生模板 |
 | STUB | POST | `/admin/scheduling/ai-suggest` | 返回 code=50301，AI 未接入 |
 | STUB | POST | `/admin/scheduling/{id}/ai-replace` | 返回 code=50301，AI 替班未接入 |
 | P5 | POST | `/admin/scheduling/solve` | Timefold 求解 |
 
-> **前端**：`SchedulingView.vue` 与 Mock 布局统一；关 Mock 可联调排班 CRUD + 请假；AI 按钮保留，STUB 期提示 50301。
+> **前端**：`SchedulingView.vue` 以周排班网格为主编辑区，下方保留本周列表与请假/AI 替班；关 Mock 可联调批量 API + 单条 CRUD。
 
 **Query**：`workDate`, `deptId`, `employeeId`  
 **Request 示例**：`{ "deptId", "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  

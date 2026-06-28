@@ -5,7 +5,6 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.management.dto.EmployeeWriteRequest;
 import com.hospital.management.repository.DepartmentRepository;
 import com.hospital.management.repository.EmployeeRepository;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -36,5 +35,11 @@ public class EmployeePersistenceService {
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "工号已存在");
         }
+    }
+
+    /** 独立事务物理删除，用于账号创建失败时补偿（insert 已 REQUIRES_NEW 提交，外层回滚删不掉）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deleteByIdInNewTransaction(long employeeId) {
+        employeeRepository.deleteById(employeeId);
     }
 }
