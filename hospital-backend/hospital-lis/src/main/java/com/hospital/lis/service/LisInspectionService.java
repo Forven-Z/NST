@@ -6,6 +6,7 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.common.support.LabReportComposer;
 import com.hospital.common.support.LabReportItemTemplates;
 import com.hospital.common.support.MedTechSignSupport;
+import com.hospital.lis.client.AiBridgeLabReportClient;
 import com.hospital.lis.dto.InspectionResultRequest;
 import com.hospital.lis.repository.InspectionRequestRepository;
 import com.hospital.lis.repository.InspectionResultItemRepository;
@@ -26,6 +27,7 @@ public class LisInspectionService {
     private final InspectionRequestRepository inspectionRequestRepository;
     private final InspectionResultItemRepository inspectionResultItemRepository;
     private final LisAiReportCache lisAiReportCache;
+    private final AiBridgeLabReportClient aiBridgeLabReportClient;
 
     public Map<String, Object> listQueue(Integer status, int page, int pageSize) {
         int offset = Math.max(page - 1, 0) * pageSize;
@@ -70,7 +72,7 @@ public class LisInspectionService {
         requirePaidOrLater(context);
 
         List<Map<String, Object>> items = loadItems(inspectionRequestId, (String) context.get("itemName"));
-        String aiText = LabReportComposer.generateAiReportStub((String) context.get("itemName"), items);
+        String aiText = aiBridgeLabReportClient.generateLabAnalysis(context, items);
         lisAiReportCache.put(inspectionRequestId, aiText, "READY");
         return enrichLabReport(context);
     }
