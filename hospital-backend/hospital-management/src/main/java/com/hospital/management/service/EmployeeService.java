@@ -68,7 +68,7 @@ public class EmployeeService {
                         authResult != null ? authResult.getMessage() : "账号服务不可用");
             }
         } catch (FeignException | BusinessException ex) {
-            employeeRepository.deleteById(employeeId);
+            employeePersistenceService.deleteByIdInNewTransaction(employeeId);
             if (ex instanceof BusinessException businessException) {
                 throw businessException;
             }
@@ -129,9 +129,11 @@ public class EmployeeService {
         } catch (FeignException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "账号服务不可用");
         }
-        if (authResult == null || authResult.getCode() != 200) {
+        if (authResult != null
+                && authResult.getCode() != 200
+                && authResult.getCode() != ErrorCode.NOT_FOUND) {
             throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    authResult != null ? authResult.getMessage() : "账号服务不可用");
+                    authResult.getMessage() != null ? authResult.getMessage() : "账号服务不可用");
         }
         if (employeeRepository.softDelete(id) == 0) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "员工不存在");

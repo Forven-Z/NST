@@ -1,9 +1,16 @@
 package com.hospital.management.controller;
 
 import com.hospital.common.Result;
+import com.hospital.management.dto.ApplyTemplateRequest;
+import com.hospital.management.dto.BatchPublishRequest;
+import com.hospital.management.dto.BatchUpsertRequest;
+import com.hospital.management.dto.CopyWeekRequest;
 import com.hospital.management.dto.SchedulingUpdateRequest;
 import com.hospital.management.dto.SchedulingWriteRequest;
+import com.hospital.management.dto.TemplateReplaceRequest;
 import com.hospital.management.service.SchedulingService;
+import com.hospital.management.service.SchedulingTemplateService;
+import com.hospital.management.service.SchedulingWeekService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -25,6 +32,8 @@ import java.util.Map;
 public class AdminSchedulingController {
 
     private final SchedulingService schedulingService;
+    private final SchedulingWeekService schedulingWeekService;
+    private final SchedulingTemplateService schedulingTemplateService;
 
     @GetMapping
     public Result<Map<String, Object>> list(
@@ -49,5 +58,50 @@ public class AdminSchedulingController {
     @PostMapping("/{id}/publish")
     public Result<Map<String, Object>> publish(@PathVariable Long id) {
         return Result.success(schedulingService.publish(id));
+    }
+
+    @GetMapping("/week-grid")
+    public Result<Map<String, Object>> weekGrid(
+            @RequestParam Long deptId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
+        return Result.success(schedulingWeekService.getWeekGrid(deptId, weekStart));
+    }
+
+    @PostMapping("/batch-upsert")
+    public Result<Map<String, Object>> batchUpsert(@Valid @RequestBody BatchUpsertRequest request) {
+        return Result.success(schedulingWeekService.batchUpsert(request));
+    }
+
+    @PostMapping("/copy-week")
+    public Result<Map<String, Object>> copyWeek(@Valid @RequestBody CopyWeekRequest request) {
+        return Result.success(schedulingWeekService.copyWeek(request));
+    }
+
+    @PostMapping("/apply-template")
+    public Result<Map<String, Object>> applyTemplate(@Valid @RequestBody ApplyTemplateRequest request) {
+        return Result.success(schedulingWeekService.applyTemplate(request));
+    }
+
+    @PostMapping("/batch-publish")
+    public Result<Map<String, Object>> batchPublish(@Valid @RequestBody BatchPublishRequest request) {
+        return Result.success(schedulingWeekService.batchPublish(request));
+    }
+
+    @GetMapping("/templates")
+    public Result<Map<String, Object>> listTemplates(
+            @RequestParam(required = false) Long deptId,
+            @RequestParam(required = false) Long employeeId) {
+        return Result.success(schedulingTemplateService.listTemplates(deptId, employeeId));
+    }
+
+    @GetMapping("/templates/{employeeId}")
+    public Result<Map<String, Object>> getTemplate(@PathVariable Long employeeId) {
+        return Result.success(schedulingTemplateService.getTemplate(employeeId));
+    }
+
+    @PutMapping("/templates/{employeeId}")
+    public Result<Map<String, Object>> replaceTemplate(@PathVariable Long employeeId,
+                                                       @Valid @RequestBody TemplateReplaceRequest request) {
+        return Result.success(schedulingTemplateService.replaceTemplate(employeeId, request));
     }
 }
