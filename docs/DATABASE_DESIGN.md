@@ -319,6 +319,30 @@ disease ──N:M── medical_record (medical_record_disease)
 
 **请假关联**：职员对某排班申请请假写入 **`scheduling_leave_request`**（§3.9）；本表结构不变。批准待替班时 `employee_id` 仍为原医生；替班完成后更新 `employee_id` 并将请假置 **已替班(4)**。
 
+**周模板预填**：管理员维护的固定周模板见 **`scheduling_template`**（§3.5.1）；模板仅作批量排班时的预填来源，应用后仍写入本表（草稿/发布流程不变）。
+
+---
+
+### 3.5.1 `scheduling_template` — 排班周模板表
+
+> **业务定位**：管理员为职员维护「每周固定」出诊模板（职员 × 星期 × 午别）；用于管理端周网格批量排班时的 **预填**，不承载实际出诊记录。设计见 `docs/superpowers/specs/2026-06-28-scheduling-batch-design.md`。
+
+| 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
+|--------|----------|----|--------|-----|------|
+| id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
+| employee_id | BIGINT | N | — | — | FK → employee(id)；模板所属职员；出诊科室经 `employee.dept_id` 推导（与 `scheduling` 一致，本表不存 `dept_id`）。 |
+| weekday | SMALLINT | N | — | — | 星期；**ISO 8601 约定**：**1=周一** … **7=周日**；与周网格列对应。 |
+| noon_type | SMALLINT | N | — | — | 午别：1 上午 2 下午 3 晚上；与 `scheduling.noon_type` 一致。 |
+| regist_level_id | BIGINT | N | — | — | FK → regist_level(id)；号别；决定预填时的号别与默认号源规则。 |
+| total_quota | INTEGER | N | — | — | 总号源数；应用模板写入 `scheduling` 草稿时的 `total_quota` 预填值。 |
+| enabled | SMALLINT | N | 1 | — | 是否启用；**1 启用**、**0 停用**；停用模板不参与「应用模板」预填。 |
+| create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
+| update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
+
+**建议唯一约束**：同一职员、同一星期、同一午别仅一条模板——`UNIQUE (employee_id, weekday, noon_type)`（`ux_scheduling_template_slot`）。
+
+**与 `scheduling` 的关系**：模板 **仅作预填来源**；「应用模板」或周网格编辑后，实际排班仍 **INSERT/UPDATE `scheduling`**（含 `work_date`、`publish_status` 等），发布、挂号、请假闭环均以 `scheduling` 为准，本表不参与患者端查询。
+
 ---
 
 ### 3.6 `drug_info` — 药品信息表
