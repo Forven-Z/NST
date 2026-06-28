@@ -5,6 +5,7 @@
  * - 普通号：含周日；同一半天可多名医生同时出诊；每人固定休 1 天/周（上 6 天）
  * - 专家号：每周 2 个上午
  */
+import { getWindowSessionContext, isWindowNoonVisible } from '../utils/window-session'
 
 export const MOCK_SETTLE_CATEGORIES = [
   { id: 1, categoryCode: 'SELF_PAY', categoryName: '自费' },
@@ -60,7 +61,7 @@ const NOON_SESSIONS = [
 const NORMAL_QUOTA = 40
 const EXPERT_QUOTA = 12
 
-function formatDate(d) {
+export function formatDate(d) {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -263,11 +264,30 @@ export function getDoctorsByDept(deptId) {
   return MOCK_DOCTORS.filter((d) => d.deptId === deptId)
 }
 
-export function getSchedules(deptId, employeeId, registLevelId) {
+export function resolveCurrentNoonType(date = new Date()) {
+  const h = date.getHours()
+  if (h < 13) return 1
+  if (h < 18) return 2
+  return 3
+}
+
+const NOON_LABEL = { 1: '上午', 2: '下午', 3: '晚上' }
+
+export function resolveCurrentNoonLabel(date = new Date()) {
+  return NOON_LABEL[resolveCurrentNoonType(date)] ?? '—'
+}
+
+export function getSchedules(deptId, employeeId, registLevelId, workDate, noonType) {
+  const ctx = getWindowSessionContext()
+  const targetDate = workDate || ctx.workDate
+  const targetNoon = noonType ?? ctx.noonType
+  const dept = Number(deptId)
   return MOCK_SCHEDULES.filter((s) => {
-    if (s.deptId !== deptId) return false
-    if (employeeId && s.employeeId !== employeeId) return false
-    if (registLevelId && s.registLevelId !== registLevelId) return false
+    if (Number(s.deptId) !== dept) return false
+    if (s.workDate !== targetDate) return false
+    if (!isWindowNoonVisible(s.noonType, targetNoon)) return false
+    if (employeeId != null && Number(s.employeeId) !== Number(employeeId)) return false
+    if (registLevelId != null && Number(s.registLevelId) !== Number(registLevelId)) return false
     return true
   })
 }

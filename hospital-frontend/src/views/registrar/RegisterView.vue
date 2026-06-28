@@ -16,6 +16,7 @@ import {
   isValidIdCard,
   parseIdCard,
 } from '../../utils/id-card'
+import { filterWindowSchedules, getWindowSessionContext } from '../../utils/window-session'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -27,6 +28,7 @@ const selectedSchedulingId = ref(null)
 const lastReceipt = ref(null)
 const receiptVisible = ref(false)
 const registLevelFilter = ref(null)
+const sessionMeta = ref({ workDate: '', noonLabel: '' })
 const router = useRouter()
 const scheduleTableWrap = ref(null)
 const scheduleTableHeight = ref(280)
@@ -124,14 +126,27 @@ async function loadDeptContext(deptId) {
   registLevelFilter.value = null
   doctors.value = []
   schedules.value = []
+  sessionMeta.value = { workDate: '', noonLabel: '' }
   if (!deptId) return
   const [docRes, schedRes] = await Promise.all([
     fetchDoctorsByDept(deptId),
     fetchRegistrarSchedules({ deptId }),
   ])
   doctors.value = docRes.data?.list ?? []
-  schedules.value = schedRes.data?.list ?? []
+  applyScheduleResponse(schedRes)
   syncScheduleTableHeight()
+}
+
+function applyScheduleResponse(res) {
+  const ctx = getWindowSessionContext()
+  sessionMeta.value = {
+    workDate: res.data?.workDate ?? ctx.workDate,
+    noonLabel: res.data?.noonLabel ?? ctx.noonLabel,
+  }
+  schedules.value = filterWindowSchedules(res.data?.list ?? [], ctx, {
+    employeeId: form.employeeId,
+    registLevelId: registLevelFilter.value,
+  })
 }
 
 async function reloadSchedules() {
@@ -141,7 +156,7 @@ async function reloadSchedules() {
     employeeId: form.employeeId || undefined,
     registLevelId: registLevelFilter.value || undefined,
   })
-  schedules.value = res.data?.list ?? []
+  applyScheduleResponse(res)
   syncScheduleTableHeight()
 }
 
@@ -335,11 +350,14 @@ function rowClassName({ row }) {
       <div>
         <h2 class="page-title">窗口挂号</h2>
         <p class="page-desc">
-          录入患者信息 → 选择科室与排班 → 生成挂号单。各科室每个开诊半天均有普通号（医生轮流）；
-          专家号仅副高及以上在固定时段出诊，非每时段都有。
+          录入患者信息 → 选择科室与排班 → 生成挂号单。仅展示当天当前午别及以后号源；
+          各科室每个开诊半天均有普通号（医生轮流）；专家号仅副高及以上在固定时段出诊，非每时段都有。
         </p>
       </div>
-      <el-tag type="info" effect="plain">今日 {{ new Date().toLocaleDateString('zh-CN') }}</el-tag>
+      <el-tag type="info" effect="plain">
+        今日 {{ sessionMeta.workDate || new Date().toLocaleDateString('zh-CN') }}
+        <template v-if="sessionMeta.noonLabel"> · {{ sessionMeta.noonLabel }}</template>
+      </el-tag>
     </div>
 
     <el-row :gutter="16" class="main-row">
@@ -490,11 +508,10 @@ function rowClassName({ row }) {
               highlight-current-row
               :height="scheduleTableHeight"
               class="schedule-table"
-              empty-text="请选择科室查看排班"
+              empty-text="当前及以后暂无号源，请确认科室排班或稍后再试"
               :row-class-name="rowClassName"
               @row-click="onScheduleRowClick"
             >
-              <el-table-column prop="workDate" label="日期" width="110" />
               <el-table-column prop="noonLabel" label="午别" width="72" />
               <el-table-column prop="timeRange" label="时段" width="110" />
               <el-table-column prop="employeeName" label="医生" width="88" />
