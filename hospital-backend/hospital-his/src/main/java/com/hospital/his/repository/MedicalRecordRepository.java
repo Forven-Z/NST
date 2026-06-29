@@ -5,7 +5,10 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -119,5 +122,49 @@ public class MedicalRecordRepository {
                 .param("registerId", registerId)
                 .param("status", status)
                 .update();
+    }
+
+    /** 患者端：已确诊提交（status=2）的病历摘要列表 */
+    public List<Map<String, Object>> findSubmittedSummariesByPatientId(Long patientId) {
+        return jdbcClient.sql("""
+                        SELECT mr.register_id,
+                               mr.diagnosis,
+                               mr.readme,
+                               mr.update_time AS record_time,
+                               r.visit_date,
+                               r.noon_type,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name
+                        FROM medical_record mr
+                        JOIN register r ON r.id = mr.register_id AND r.delmark = 0
+                        JOIN patient p ON p.id = mr.patient_id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        WHERE mr.patient_id = :patientId
+                          AND mr.status = 2
+                          AND mr.delmark = 0
+                        ORDER BY r.visit_date DESC NULLS LAST, mr.update_time DESC NULLS LAST
+                        """)
+                .param("patientId", patientId)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("registerId", rs.getLong("register_id"));
+                    row.put("diagnosis", rs.getString("diagnosis"));
+                    row.put("readme", rs.getString("readme"));
+                    row.put("recordTime", rs.getObject("record_time", OffsetDateTime.class));
+                    row.put("visitDate", rs.getObject("visit_date", LocalDate.class));
+                    int noonType = rs.getInt("noon_type");
+                    row.put("noonType", noonType);
+                    row.put("noonLabel", noonType == 1 ? "上午" : noonType == 2 ? "下午" : "—");
+                    row.put("deptName", rs.getString("dept_name"));
+                    row.put("doctorName", rs.getString("doctor_name"));
+                    row.put("registLevelName", rs.getString("regist_level_name"));
+                    row.put("patientName", rs.getString("patient_name"));
+                    return row;
+                })
+                .list();
     }
 }

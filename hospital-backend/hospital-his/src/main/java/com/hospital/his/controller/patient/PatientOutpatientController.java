@@ -13,7 +13,10 @@ import com.hospital.his.service.RefundService;
 import com.hospital.his.service.RegisterCancelService;
 import com.hospital.his.service.RegisterService;
 import com.hospital.his.repository.DepartmentRepository;
+import com.hospital.his.service.PatientMedicalRecordQueryService;
+import com.hospital.his.service.PatientPrescriptionQueryService;
 import com.hospital.his.service.PatientRegisterQueryService;
+import com.hospital.his.service.VisitRecordQueryService;
 import com.hospital.his.service.SchedulingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -43,9 +46,12 @@ public class PatientOutpatientController {
     private final PatientRegisterQueryService patientRegisterQueryService;
     private final DepartmentRepository departmentRepository;
     private final com.hospital.his.service.PatientReportService patientReportService;
+    private final PatientMedicalRecordQueryService patientMedicalRecordQueryService;
     private final FinancialQueryService financialQueryService;
     private final PatientFamilyService patientFamilyService;
     private final RegisterOrdersService registerOrdersService;
+    private final PatientPrescriptionQueryService patientPrescriptionQueryService;
+    private final VisitRecordQueryService visitRecordQueryService;
 
     @GetMapping("/departments")
     public Result<Map<String, Object>> listDepartments() {
@@ -155,9 +161,39 @@ public class PatientOutpatientController {
         return Result.success(registerCancelService.cancelByPatient(registerId, reason));
     }
 
+    @GetMapping("/medical-records")
+    public Result<Map<String, Object>> listMedicalRecords(
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(patientMedicalRecordQueryService.listRecords(visitId));
+    }
+
+    /** 就诊记录列表（一次挂号一条，含医嘱/报告计数；替代仅已提交病历的列表场景） */
+    @GetMapping("/visits")
+    public Result<Map<String, Object>> listVisits(
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(visitRecordQueryService.listVisits(visitId, page, pageSize));
+    }
+
+    /** 就诊 Hub：registerSummary + medicalRecord（可空）+ orders */
+    @GetMapping("/visits/{registerId}/hub")
+    public Result<Map<String, Object>> getVisitHub(@PathVariable Long registerId) {
+        return Result.success(visitRecordQueryService.getVisitHub(registerId));
+    }
+
     @GetMapping("/medical-records/{registerId}")
     public Result<Map<String, Object>> getMedicalRecord(@PathVariable Long registerId) {
         return Result.success(doctorMedicalRecordService.getPatientMedicalRecord(registerId));
+    }
+
+    @GetMapping("/prescriptions/{prescriptionId}")
+    public Result<Map<String, Object>> getPrescription(@PathVariable Long prescriptionId) {
+        return Result.success(patientPrescriptionQueryService.getDetail(prescriptionId));
     }
 
     @GetMapping("/reports")

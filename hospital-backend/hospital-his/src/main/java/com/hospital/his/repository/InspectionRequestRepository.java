@@ -208,6 +208,17 @@ public class InspectionRequestRepository {
                 .list();
     }
 
+    public int countPendingResultsByPatient(Long patientId) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM inspection_request
+                        WHERE patient_id = :patientId AND status >= 20 AND status < 40 AND delmark = 0
+                        """)
+                .param("patientId", patientId)
+                .query(Integer.class)
+                .single();
+        return count != null ? count : 0;
+    }
+
     private Map<String, Object> mapRow(java.sql.ResultSet rs) throws java.sql.SQLException {
         Map<String, Object> row = new HashMap<>();
         row.put("inspectionRequestId", rs.getLong("id"));

@@ -12,10 +12,14 @@
     "pages/cards/cards",
     "pages/cards/add/add",
     "pages/bills/bills",
+    "pages/bills/detail/detail",
     "pages/refunds/refunds",
     "pages/profile/profile",
     "pages/medical-record/medical-record",
-    "pages/orders/orders"
+    "pages/medical-record/detail/detail",
+    "pages/orders/orders",
+    "pages/prescription/detail/detail",
+    "pages/refunds/detail/detail"
   ],
   "window": {
     "navigationBarTitleText": "智慧云脑诊疗",

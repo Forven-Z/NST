@@ -6,7 +6,7 @@
         <view class="welcome-sub muted">病历号 {{currentMedicalRecordNo}}</view>
       </view>
       <view wx:if="{{loggedIn}}" class="member-switch" bindtap="onSwitchAccount">
-        <text class="member-switch-label">账户</text>
+        <text class="member-switch-label">就诊账户</text>
         <text class="member-switch-name">切换</text>
         <text class="member-arrow">▼</text>
       </view>
@@ -49,7 +49,7 @@
         {{item.label}}
       </view>
     </view>
-    <view class="service-grid">
+    <view class="service-grid {{gridColClass}}">
       <view
         wx:for="{{gridItems}}"
         wx:key="id"
@@ -59,12 +59,13 @@
       >
         <view class="service-icon">{{item.icon}}</view>
         <view class="service-name">{{item.name}}</view>
+        <view class="service-soon" wx:if="{{item.comingSoon}}">敬请期待</view>
       </view>
     </view>
   </view>
 
   <view class="tip card">
     <view class="tip-title">就医提示</view>
-    <view class="tip-text muted">切换账户后再挂号，费用与报告均归属当前登录的病人账户。支付时将绑定微信用于收银。</view>
+    <view class="tip-text muted">当前登录的是病人账户。切换就诊账户后再挂号，费用与报告均归属该账户。为家属代办请先添加家属并切换登录。支付时将绑定微信用于收银。</view>
   </view>
 </view>

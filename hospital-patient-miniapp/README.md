@@ -6,9 +6,14 @@
 
 | Tab | 内容 |
 |-----|------|
-| **首页** | 「您好，{账号名}」+ **就诊人切换** · **当前就医行程卡** · **门诊 / 住院 / 检查 / 其它** 四 Tab · 就医提示 |
-| **报告** | 检验/检查报告列表（按当前就诊人 · Tab 栏入口） |
+| **首页** | 「您好，{账号名}」+ **就诊人切换** · **当前就医行程卡** · **门诊 / 住院 / 报告 / 其它** 四 Tab（门诊 5 格：挂号/待缴费用/挂号记录/分诊/病历；报告 4 格纯查结果） · 就医提示 |
+| **报告** | 检验/检查/处置报告（首页报告分区 + 底部 Tab；日期分组 · 含影像角标 · 下拉刷新） |
 | **个人中心** | 档案 · 就诊人/挂号/待缴/缴费记录/报告/病历 · 退出 |
+
+## 支付说明
+
+- 当前为 **演示级微信支付**：调起确认弹窗 + 后端 `POST /patient/payments` 模拟入账，**不产生真实扣款**。
+- 已缴记录可点进 **缴费详情**；待缴账单可展开 **明细行**（处方药品/医技项目等）。
 
 ## 运行模式
 
@@ -35,9 +40,10 @@ psql -U postgres -d hospital -f docs\sql\patch-family-link.sql
 psql -U postgres -d hospital -f docs\sql\patch-family-link-guardian.sql
 psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 psql -U postgres -d hospital -f docs\sql\patch-scheduling-refresh.sql
+psql -U postgres -d hospital -f docs\sql\patch-pharmacy-reject.sql
 ```
 
-（新库已跑过 `schema.sql` 且含 `patient_family_link` 时，前两步可跳过。）
+（新库已跑过 `schema.sql` 且含 `patient_family_link`、prescription 驳回字段时，对应 patch 可跳过。）
 
 ### 2. 启动 R-min 后端
 
@@ -95,8 +101,18 @@ module.exports = {
 ## 患者端能力（与 PC Mock 闭环一致）
 
 ```
-登录 → 切换就诊人 → 挂号 → 待缴/支付 → 排队候诊
-     → 行程卡引导 → 报告/病历
+登录 → 切换就诊人 → 挂号 → 待缴/演示微信支付 → 候诊进度
+     → 行程卡引导 → 报告/病历/处方详情
 ```
+
+### 联调演示数据提示
+
+| 能力 | 条件 |
+|------|------|
+| **电子病历** | 医生端对该次挂号 **确诊并提交**（`medical_record.status=2`） |
+| **检查三视图** | PACS 为检查单写入 `imaging_study.report_json.reportSnapshots` 并重采 PNG；详见 `docs/IMAGING_DATA_ACCESS.md` |
+| **报告空态** | 有进行中检验/检查时 `pendingCount>0`，列表显示「报告尚未出具」 |
+
+验收脚本扩展：`scripts/miniapp-smoke.ps1`（挂号/账单/报告/病历/缴费详情）。
 
 详见 `docs/API.md`（附录 A）、`docs/RUNBOOK.md` §6.2、`scripts/start-r-min.ps1`。

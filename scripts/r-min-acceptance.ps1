@@ -82,6 +82,11 @@ $d3b = Invoke-RestMethod -Uri "$base/patient/medical-records/$registerId" -Heade
 $d3bOk = ($d3b.code -ne 200)
 Test-Step 'D3b patient blocked before submit' $d3bOk ($d3b | ConvertTo-Json -Compress)
 
+# D3d - finish blocked before submit
+$d3d = Invoke-RestMethod -Uri "$base/doctor/registers/$registerId/finish" -Method POST -Headers $doctorHeaders
+$d3dOk = ($d3d.code -ne 200)
+Test-Step 'D3d finish blocked before submit' $d3dOk ($d3d | ConvertTo-Json -Compress)
+
 # D3c - submit diagnosis
 $d3c = Invoke-RestMethod -Uri "$base/doctor/medical-records/$registerId/submit" -Method POST -Headers $doctorHeaders -ContentType 'application/json' -Body $recBody
 Test-Step 'D3c submit medical record' ($d3c.code -eq 200 -and $d3c.data.status -eq 2) ($d3c | ConvertTo-Json -Compress)

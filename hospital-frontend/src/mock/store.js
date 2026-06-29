@@ -929,6 +929,10 @@ export function callRegister(registerId) {
 export function finishRegister(registerId) {
   const reg = state.registers.find((r) => r.registerId === Number(registerId))
   if (!reg) throw new Error('挂号记录不存在')
+  const record = state.medicalRecords[Number(registerId)]
+  if (!record || record.status !== 2) {
+    throw new Error('请先确诊提交病历后再结束看诊')
+  }
   reg.visitState = 3
   return reg
 }

@@ -27,4 +27,17 @@ function nextDays(count) {
   return list
 }
 
-module.exports = { formatDate, nextDays }
+/** 兼容后端 LocalDate 字符串或 [y,m,d] 数组 */
+function formatDisplayDate(value) {
+  if (value == null || value === '') return '—'
+  if (typeof value === 'string') return value.slice(0, 10)
+  if (Array.isArray(value) && value.length >= 3) {
+    return `${value[0]}-${pad(value[1])}-${pad(value[2])}`
+  }
+  if (typeof value === 'object' && value.year != null) {
+    return `${value.year}-${pad(value.monthValue || value.month)}-${pad(value.dayOfMonth || value.day)}`
+  }
+  return String(value)
+}
+
+module.exports = { formatDate, formatDisplayDate, nextDays }

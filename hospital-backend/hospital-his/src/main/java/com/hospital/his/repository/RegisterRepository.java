@@ -398,7 +398,21 @@ public class RegisterRepository {
         row.put("registLevelName", rs.getString("regist_level_name"));
         row.put("patientName", rs.getString("patient_name"));
         row.put("medicalRecordNo", rs.getString("medical_record_no"));
+        Integer mrStatus = readOptionalColumnInt(rs, "medical_record_status");
+        row.put("medicalRecordStatus", mrStatus);
+        row.put("hasMedicalRecord", mrStatus != null && mrStatus == 2);
         return row;
+    }
+
+    private Integer readOptionalColumnInt(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        java.sql.ResultSetMetaData meta = rs.getMetaData();
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            if (column.equalsIgnoreCase(meta.getColumnLabel(i))) {
+                Object val = rs.getObject(i);
+                return val != null ? ((Number) val).intValue() : null;
+            }
+        }
+        return null;
     }
 
     /** 方案 A：仅返回指定就诊人的挂号，且操作者须为本人或 link 授权 */
@@ -418,12 +432,14 @@ public class RegisterRepository {
                                e.real_name AS doctor_name,
                                rl.level_name AS regist_level_name,
                                p.real_name AS patient_name,
-                               p.medical_record_no
+                               p.medical_record_no,
+                               mr.status AS medical_record_status
                         FROM register r
                         JOIN patient p ON r.patient_id = p.id
                         JOIN department d ON r.dept_id = d.id
                         LEFT JOIN employee e ON r.employee_id = e.id
                         JOIN regist_level rl ON r.regist_level_id = rl.id
+                        LEFT JOIN medical_record mr ON mr.register_id = r.id AND mr.delmark = 0
                         WHERE r.delmark = 0
                           AND r.patient_id = :visitPatientId
                           AND (
@@ -445,6 +461,83 @@ public class RegisterRepository {
                 .param("limit", limit)
                 .param("offset", offset)
                 .query((rs, rowNum) -> mapRegisterRow(rs))
+                .list();
+    }
+
+    /**
+     * 患者就诊记录列表：有效门诊（已挂号/接诊中/看诊结束），含医嘱与报告计数。
+     */
+    public List<Map<String, Object>> findVisitSummariesForOperator(Long operatorPatientId, Long visitPatientId,
+                                                                    int offset, int limit) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.call_time,
+                               r.remark,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no,
+                               mr.status AS medical_record_status,
+                               mr.diagnosis,
+                               mr.readme,
+                               (
+                                   (SELECT COUNT(*) FROM inspection_request ir
+                                    WHERE ir.register_id = r.id AND ir.delmark = 0)
+                                   + (SELECT COUNT(*) FROM check_request cr
+                                      WHERE cr.register_id = r.id AND cr.delmark = 0)
+                                   + (SELECT COUNT(*) FROM disposal_request dr
+                                      WHERE dr.register_id = r.id AND dr.delmark = 0)
+                                   + (SELECT COUNT(*) FROM prescription pr
+                                      WHERE pr.register_id = r.id AND pr.delmark = 0)
+                               )::int AS order_count,
+                               (
+                                   (SELECT COUNT(*) FROM inspection_request ir
+                                    WHERE ir.register_id = r.id AND ir.delmark = 0 AND ir.status >= 40)
+                                   + (SELECT COUNT(*) FROM check_request cr
+                                      WHERE cr.register_id = r.id AND cr.delmark = 0 AND cr.status >= 40)
+                                   + (SELECT COUNT(*) FROM disposal_request dr
+                                      WHERE dr.register_id = r.id AND dr.delmark = 0 AND dr.status >= 40)
+                               )::int AS report_ready_count
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        LEFT JOIN medical_record mr ON mr.register_id = r.id AND mr.delmark = 0
+                        WHERE r.delmark = 0
+                          AND r.visit_state IN (1, 2, 3)
+                          AND r.patient_id = :visitPatientId
+                          AND (
+                              :visitPatientId = :operatorId
+                              OR EXISTS (
+                                  SELECT 1 FROM patient_family_link l
+                                  WHERE l.owner_patient_id = :operatorId
+                                    AND l.member_patient_id = :visitPatientId
+                                    AND l.delmark = 0
+                              )
+                          )
+                        ORDER BY r.visit_date DESC NULLS LAST, r.create_time DESC
+                        LIMIT :limit OFFSET :offset
+                        """)
+                .param("operatorId", operatorPatientId)
+                .param("visitPatientId", visitPatientId)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = mapRegisterRow(rs);
+                    row.put("orderCount", rs.getInt("order_count"));
+                    row.put("reportReadyCount", rs.getInt("report_ready_count"));
+                    row.put("diagnosis", rs.getString("diagnosis"));
+                    row.put("readme", rs.getString("readme"));
+                    return row;
+                })
                 .list();
     }
 

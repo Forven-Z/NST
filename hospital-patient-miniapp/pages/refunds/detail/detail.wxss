@@ -1,0 +1,14 @@
+.refunds-detail .title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.refunds-detail .line {
+  padding: 12rpx 0;
+  font-size: 28rpx;
+}
+
+.refunds-detail .label {
+  color: #64748b;
+  margin-right: 16rpx;
+}

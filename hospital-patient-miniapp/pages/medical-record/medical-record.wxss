@@ -1,30 +1,101 @@
-.query-row {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 20rpx;
+.records-page {
+  padding-bottom: 32rpx;
 }
 
-.query-row .input {
-  flex: 1;
-  background: #f9fafb;
-  border-radius: 12rpx;
-  padding: 20rpx 24rpx;
+.member-bar {
+  margin-bottom: 16rpx;
+  padding: 24rpx 28rpx;
 }
 
-.query-btn {
-  min-width: 160rpx;
-  padding: 0 24rpx !important;
-  line-height: 80rpx !important;
-  height: 80rpx !important;
+.member-label {
+  font-size: 24rpx;
 }
 
-.record-block {
-  margin-bottom: 24rpx;
+.member-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-top: 8rpx;
 }
 
-.block-title {
+.member-link {
   font-size: 26rpx;
   color: #1677ff;
+}
+
+.empty {
+  padding: 48rpx 32rpx;
+  text-align: center;
+}
+
+.empty-title {
+  font-size: 30rpx;
   font-weight: 600;
-  margin-bottom: 8rpx;
+  margin-bottom: 12rpx;
+}
+
+.guest-login-btn {
+  margin-top: 32rpx;
+}
+
+.visit-date {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.tag {
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.dept-line {
+  margin-top: 12rpx;
+  font-size: 28rpx;
+  color: #334155;
+}
+
+.meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+}
+
+.summary {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.badge {
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.row-link {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #1677ff;
+}
+
+.record-row:active {
+  opacity: 0.92;
 }

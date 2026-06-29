@@ -65,6 +65,16 @@ function fetchPayments(params) {
   return get('/patient/payments', params)
 }
 
+function fetchPaymentDetail(paymentId, params) {
+  if (useMock()) return store.getPaymentDetail(paymentId, params)
+  return get('/patient/payments/' + paymentId, params)
+}
+
+function fetchPrescription(prescriptionId) {
+  if (useMock()) return store.getPrescriptionDetail(prescriptionId)
+  return get('/patient/prescriptions/' + prescriptionId)
+}
+
 function fetchRefunds(params) {
   if (useMock()) return store.listRefunds(params)
   return get('/patient/refunds', params)
@@ -78,6 +88,11 @@ function mockPayment(billIds) {
 function cancelRegister(registerId, reason) {
   if (useMock()) return store.cancelRegister(registerId)
   return post(`/patient/registers/${registerId}/cancel`, { reason })
+}
+
+function fetchMedicalRecords(params) {
+  if (useMock()) return store.listMedicalRecords(params)
+  return get('/patient/medical-records', params)
 }
 
 function fetchMedicalRecord(registerId) {
@@ -120,10 +135,13 @@ module.exports = {
   fetchBills,
   fetchPendingBills,
   fetchPayments,
+  fetchPaymentDetail,
+  fetchPrescription,
   fetchRefunds,
   mockPayment,
   cancelRegister,
   fetchMedicalRecord,
+  fetchMedicalRecords,
   fetchReports,
   fetchReportDetail,
   triageChat,

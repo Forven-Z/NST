@@ -179,6 +179,14 @@
   box-sizing: border-box;
 }
 
+.service-grid--five .service-cell {
+  width: 20%;
+}
+
+.service-grid--few .service-cell {
+  width: 33.33%;
+}
+
 .service-icon {
   width: 72rpx;
   height: 72rpx;
@@ -198,6 +206,12 @@
   color: #334155;
   text-align: center;
   line-height: 1.35;
+}
+
+.service-soon {
+  font-size: 18rpx;
+  color: #94a3b8;
+  margin-top: 4rpx;
 }
 
 .tip-title {

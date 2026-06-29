@@ -429,7 +429,8 @@ function formatGender(gender) {
             <el-button
               type="success"
               :loading="finishingId === currentRegisterId"
-              :disabled="!currentRegisterId"
+              :disabled="!currentRegisterId || recordStatus !== 2"
+              :title="recordStatus !== 2 ? '请先点击「确诊提交」后再结束看诊' : ''"
               @click="onFinishVisit"
             >
               结束看诊

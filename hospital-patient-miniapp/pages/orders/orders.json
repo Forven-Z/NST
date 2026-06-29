@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "医嘱进度"
+  "navigationBarTitleText": "医嘱进度",
+  "enablePullDownRefresh": true
 }

@@ -1,13 +1,23 @@
 <view class="container refunds-page">
   <view class="card">
     <view class="card-title">退款记录</view>
-    <view class="muted">窗口或线上退费的到账记录（演示环境）</view>
+    <view class="muted">窗口或线上退费的到账记录</view>
   </view>
 
   <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{loadError}}" class="empty card">
+    <view class="empty-title">加载失败</view>
+    <button class="btn-primary" size="mini" bindtap="onRetry">重试</button>
+  </view>
   <view wx:elif="{{!refunds.length}}" class="empty">暂无退款记录</view>
 
-  <view wx:for="{{refunds}}" wx:key="refundId" class="card refund-item">
+  <view
+    wx:for="{{refunds}}"
+    wx:key="refundId"
+    class="card refund-item"
+    data-item="{{item}}"
+    bindtap="onDetail"
+  >
     <view class="row-between">
       <view class="bill-title">{{item.billTitle || '退费项目'}}</view>
       <view class="price">¥{{item.amount || item.refundAmount}}</view>
@@ -15,5 +25,6 @@
     <view class="muted">退款流水 #{{item.refundId}}</view>
     <view class="muted">{{item.refundTime}} · {{item.channelLabel || item.channel}}</view>
     <view wx:if="{{item.reason}}" class="reason">{{item.reason}}</view>
+    <view class="row-link muted">查看详情 ›</view>
   </view>
 </view>

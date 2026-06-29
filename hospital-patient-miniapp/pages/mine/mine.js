@@ -1,15 +1,16 @@
 const { clearSession, readAccounts, removeAccount, switchAccount } = require('../../utils/auth')
 const accountStore = require('../../utils/account-store')
 const { fetchProfile } = require('../../api/patient')
+const { openReportsTab } = require('../../utils/report-nav')
 
 const MENUS = [
-  { id: 'cards', name: '就诊人管理', url: '/pages/cards/cards' },
+  { id: 'cards', name: '家属管理', url: '/pages/cards/cards' },
   { id: 'registers', name: '挂号记录', url: '/pages/registers/registers' },
   { id: 'pending', name: '待缴费用', url: '/pages/bills/bills?tab=pending' },
   { id: 'paid', name: '缴费记录', url: '/pages/bills/bills?tab=paid' },
   { id: 'refunds', name: '退款记录', url: '/pages/refunds/refunds' },
   { id: 'reports', name: '报告查询', url: '/pages/reports/reports' },
-  { id: 'record', name: '电子病历', url: '/pages/medical-record/medical-record' },
+  { id: 'record', name: '就诊记录', url: '/pages/medical-record/medical-record' },
   { id: 'profile', name: '个人档案', url: '/pages/profile/profile' },
 ]
 
@@ -103,7 +104,8 @@ Page({
       return
     }
     if (url.indexOf('/pages/reports/reports') === 0) {
-      wx.switchTab({ url: '/pages/reports/reports' })
+      var match = url.match(/[?&]type=([^&]+)/)
+      openReportsTab(match ? match[1] : 'all')
       return
     }
     wx.navigateTo({ url: url })

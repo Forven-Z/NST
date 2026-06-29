@@ -45,7 +45,7 @@ public class CheckReportQueryService {
                 ? "READY" : "PENDING";
 
         Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
-        Map<String, Object> imaging = CheckReportImagingSupport.buildImagingSummary(checkRequestId, study);
+        Map<String, Object> imaging = CheckReportImagingSupport.buildImagingSummary(checkRequestId, study, true);
 
         return CheckReportComposer.composeView(
                 context,

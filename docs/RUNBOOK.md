@@ -147,7 +147,7 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 | `docs/sql/seed-demo-patients.sql` | 演示患者 `MR202606040100` + 今日内科挂号（小程序联调） |
 | [DEMO_MEDICAL_RECORD_SAMPLES.md](./DEMO_MEDICAL_RECORD_SAMPLES.md) | **医生站病历/AI 诊断**：三则可直接复制的专业文案 |
 | `docs/sql/seed-dict.sql` §药品/医技 | **20 种药品 + 34 项医技**（对齐 RAG DRUG/TECH 指南，可 AI 开单） |
-| [scripts/miniapp-smoke.ps1](../scripts/miniapp-smoke.ps1) | 患者小程序 API 冒烟（6 项） |
+| [scripts/miniapp-smoke.ps1](../scripts/miniapp-smoke.ps1) | 患者小程序 API 冒烟（含 orders） |
 | [scripts/stop-r-min.ps1](../scripts/stop-r-min.ps1) | 停止 `start-r-min` 拉起的进程 |
 
 **运维改云 IP**：只改 `scripts/env-cloud.ps1` 里的 `$script:HospitalCloudHost`。
@@ -444,7 +444,8 @@ npm run dev
 5. **详情 → 本地设置** → 勾选「不校验合法域名」
 6. 登录页填写本人档案 → 微信授权并登录
 
-号源为空时执行：`psql -U postgres -d hospital -f docs\sql\patch-scheduling-refresh.sql`
+号源为空时执行：`psql -U postgres -d hospital -f docs\sql\patch-scheduling-refresh.sql`  
+医嘱进度 500（缺 `reject_reason` 列）时执行：`psql -U postgres -d hospital -f docs\sql\patch-pharmacy-reject.sql`
 
 详见 [hospital-patient-miniapp/README.md](../hospital-patient-miniapp/README.md)、[DEV_ENV_SETUP.md §九](./DEV_ENV_SETUP.md)
 

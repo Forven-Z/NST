@@ -200,7 +200,7 @@ WHERE cr.id = :checkRequestId;
 | 模块 | 典型场景 | 做法 |
 |------|----------|------|
 | **hospital-his** | 门诊医生看某次就诊的检查 AI 报告 | Feign/HTTP 调 pacs `result-detail`；或 JOIN `check_request` + `imaging_study` |
-| **患者小程序** | 患者看本人检查报告 | JWT 取 `patient_id` → `imaging-studies?patientId=` → `result-detail`；**禁止**越权传他人 ID |
+| **患者小程序** | 患者看本人检查报告文字 + 三视图 | `GET /patient/reports/exam/{id}` 取文字；三视图 PNG 走 **`GET /patient/reports/exam/{id}/snapshot/{plane}`**（his 代理 pacs）；**禁止**直连 pacs / MinIO |
 | **hospital-management** | 任务监控 | `imaging-studies` 列表 + `imaging_study.status` 统计 |
 | **hospital-lis / disposal** | 一般不读 CT 文件 | 仅需文字结果时读 `check_request.result_text` |
 | **hospital-ai** | CNN 推理 | 仅内网；源路径由 pacs 下发 `source.objectKeyPrefix`，不面向业务模块 |
@@ -215,8 +215,19 @@ WHERE cr.id = :checkRequestId;
 | 各服务各自配 MinIO AK/SK 扫 bucket | 破坏微服务边界，无法做权限隔离 |
 | 把 MinIO 对象 URL 暴露给患者浏览器 | 应经 pacs 鉴权后代理下载 |
 | 在业务库再建一张「MinIO 文件表」 | 与 `imaging_study` 重复；路径已在 `source_object_key` / `report_json` |
+| 患者小程序直连 `/pacs/imaging/report-preview` | pacs 仅允许 STAFF Token；须走 **his `/patient/reports/exam/.../snapshot`** |
 
 ---
+
+## 八点五、his 内网采图接口（患者代理用）
+
+`hospital-pacs` 提供（**不经 Gateway**，仅服务间调用）：
+
+```http
+GET /internal/imaging/report-preview/{checkRequestId}/{plane}
+```
+
+返回 `image/png`。由 `hospital-his` 在校验患者归属后代理给小程序。
 
 ## 八、联调示例（curl）
 
