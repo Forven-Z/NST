@@ -6,8 +6,10 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
+import com.hospital.his.repository.ImagingStudyRepository;
 import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.security.AuthContextHolder;
+import com.hospital.his.support.CheckReportImagingSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -35,6 +37,7 @@ public class PatientReportService {
     private final LabReportQueryService labReportQueryService;
     private final CheckReportQueryService checkReportQueryService;
     private final DisposalRecordQueryService disposalRecordQueryService;
+    private final ImagingStudyRepository imagingStudyRepository;
 
     public Map<String, Object> listReports(String type, Long visitPatientId) {
         Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
@@ -66,7 +69,14 @@ public class PatientReportService {
         Map<String, Object> result = new HashMap<>();
         result.put("list", list);
         result.put("visitPatientId", visitId);
+        result.put("pendingCount", countPendingResults(visitId));
         return result;
+    }
+
+    private int countPendingResults(Long visitId) {
+        return inspectionRequestRepository.countPendingResultsByPatient(visitId)
+                + checkRequestRepository.countPendingResultsByPatient(visitId)
+                + disposalRequestRepository.countPendingResultsByPatient(visitId);
     }
 
     public Map<String, Object> getReportDetail(String type, Long requestId) {
@@ -165,6 +175,16 @@ public class PatientReportService {
         item.put("reportTimeSort", resultTime != null ? resultTime.toString() : "");
         item.put("summary", summarize(resultText));
         item.put("registerId", row.get("registerId"));
+        if ("exam".equals(type)) {
+            long checkRequestId = requestId;
+            boolean hasSnapshots = imagingStudyRepository.findByCheckRequestId(checkRequestId)
+                    .map(study -> CheckReportImagingSupport.buildImagingSummary(checkRequestId, study, true))
+                    .map(imaging -> Boolean.TRUE.equals(imaging.get("hasSnapshots")))
+                    .orElse(false);
+            item.put("hasSnapshots", hasSnapshots);
+        } else {
+            item.put("hasSnapshots", false);
+        }
         return item;
     }
 

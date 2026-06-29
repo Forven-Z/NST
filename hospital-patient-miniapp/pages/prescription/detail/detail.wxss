@@ -1,0 +1,81 @@
+.rx-detail-page {
+  padding: 24rpx 32rpx 48rpx;
+  min-height: 100vh;
+  background: #f5f7fa;
+  box-sizing: border-box;
+}
+
+.head-card .title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.status-tag {
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 8rpx;
+  background: #e6f4ff;
+  color: #1677ff;
+}
+
+.hint {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #ea580c;
+  line-height: 1.5;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.drug-row {
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.drug-row:last-child {
+  border-bottom: none;
+}
+
+.drug-name {
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.price {
+  font-size: 28rpx;
+  color: #1677ff;
+  font-weight: 600;
+}
+
+.total-card {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.empty {
+  text-align: center;
+  padding: 48rpx;
+  color: #94a3b8;
+}
+
+.pay-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  box-shadow: 0 -4rpx 20rpx rgba(15, 23, 42, 0.06);
+}
+
+.pay-btn {
+  width: 100%;
+}
+
+.retry-btn {
+  margin-top: 16rpx;
+}

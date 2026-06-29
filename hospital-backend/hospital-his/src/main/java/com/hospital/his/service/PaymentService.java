@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,6 +129,95 @@ public class PaymentService {
                     .filter(row -> FinancialQueryService.matchesBillScope((String) row.get("bizType"), scope))
                     .toList();
         }
-        return Map.of("list", list);
+        List<Map<String, Object>> enriched = list.stream().map(this::enrichBillRow).toList();
+        return Map.of("list", enriched);
+    }
+
+    private Map<String, Object> enrichBillRow(Map<String, Object> bill) {
+        Map<String, Object> row = new HashMap<>(bill);
+        String bizType = (String) bill.get("bizType");
+        row.put("bizTypeLabel", bizTypeLabel(bizType));
+        row.put("lineItems", buildLineItems(bill));
+        return row;
+    }
+
+    private List<Map<String, Object>> buildLineItems(Map<String, Object> bill) {
+        String bizType = (String) bill.get("bizType");
+        long bizId = ((Number) bill.get("bizId")).longValue();
+        List<Map<String, Object>> items = new ArrayList<>();
+
+        if (BillBizType.PRESCRIPTION.equals(bizType)) {
+            for (Map<String, Object> drug : prescriptionRepository.findItemsByPrescriptionId(bizId)) {
+                Map<String, Object> line = new HashMap<>();
+                line.put("name", drug.get("drugName"));
+                line.put("spec", drug.get("drugFormat"));
+                line.put("qty", drug.get("quantity"));
+                line.put("amount", drug.get("amount"));
+                line.put("usage", formatDrugUsage(drug));
+                items.add(line);
+            }
+            return items;
+        }
+
+        if (BillBizType.REGISTER.equals(bizType) || "REGIST".equals(bizType)) {
+            items.add(singleLine(bill.get("billTitle"), "门诊挂号", bill.get("amount")));
+            return items;
+        }
+
+        if (BillBizType.INSPECTION.equals(bizType)) {
+            inspectionRequestRepository.findById(bizId).ifPresent(req ->
+                    items.add(singleLine(req.get("itemName"), req.get("purpose"), bill.get("amount"))));
+        } else if (BillBizType.CHECK.equals(bizType)) {
+            checkRequestRepository.findById(bizId).ifPresent(req ->
+                    items.add(singleLine(req.get("itemName"), req.get("bodyPart"), bill.get("amount"))));
+        } else if (BillBizType.DISPOSAL.equals(bizType)) {
+            disposalRequestRepository.findById(bizId).ifPresent(req ->
+                    items.add(singleLine(req.get("itemName"), req.get("purpose"), bill.get("amount"))));
+        }
+
+        if (items.isEmpty()) {
+            items.add(singleLine(bill.get("billTitle"), null, bill.get("amount")));
+        }
+        return items;
+    }
+
+    private Map<String, Object> singleLine(Object name, Object sub, Object amount) {
+        Map<String, Object> line = new HashMap<>();
+        line.put("name", name);
+        line.put("spec", sub);
+        line.put("amount", amount);
+        return line;
+    }
+
+    private String formatDrugUsage(Map<String, Object> drug) {
+        List<String> parts = new ArrayList<>();
+        if (drug.get("usageMethod") != null) {
+            parts.add(String.valueOf(drug.get("usageMethod")));
+        }
+        if (drug.get("dosage") != null) {
+            parts.add(String.valueOf(drug.get("dosage")));
+        }
+        if (drug.get("frequency") != null) {
+            parts.add(String.valueOf(drug.get("frequency")));
+        }
+        if (drug.get("days") != null) {
+            parts.add(drug.get("days") + "天");
+        }
+        return parts.isEmpty() ? null : String.join(" · ", parts);
+    }
+
+    private static String bizTypeLabel(String bizType) {
+        if (bizType == null) {
+            return "—";
+        }
+        return switch (bizType) {
+            case BillBizType.REGISTER, "REGIST" -> "挂号";
+            case BillBizType.INSPECTION -> "检验";
+            case BillBizType.CHECK -> "检查";
+            case BillBizType.PRESCRIPTION -> "处方";
+            case BillBizType.DISPOSAL -> "处置";
+            case BillBizType.MEDICAL_BOOK -> "病历本";
+            default -> bizType;
+        };
     }
 }

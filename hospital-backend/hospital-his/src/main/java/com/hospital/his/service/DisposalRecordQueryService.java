@@ -31,6 +31,13 @@ public class DisposalRecordQueryService {
         return DisposalRecordComposer.composeView(context, null, null);
     }
 
+    public Map<String, Object> getDisposalRecordForStaffReadonly(Long disposalRequestId) {
+        Map<String, Object> context = disposalRequestRepository.findDisposalRecordContext(disposalRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处置申请不存在"));
+        assertResultReady(context);
+        return DisposalRecordComposer.composeView(context, null, null);
+    }
+
     private void assertResultReady(Map<String, Object> row) {
         int status = ((Number) row.get("status")).intValue();
         if (status < InspectionRequestStatus.RESULT_READY) {

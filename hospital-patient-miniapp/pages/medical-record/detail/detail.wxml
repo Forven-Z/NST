@@ -1,0 +1,68 @@
+<view class="hub-page">
+  <view wx:if="{{loading}}" class="empty card">加载中…</view>
+  <view wx:elif="{{loadError}}" class="empty card">
+    <view class="empty-title">加载失败</view>
+    <button class="btn-primary" size="mini" bindtap="onRetry">重试</button>
+  </view>
+  <view wx:elif="{{summary}}" class="hub-body">
+    <view class="card head-card sticky-head">
+      <view class="title">{{summary.visitDateLabel || '—'}} · {{summary.noonLabel || ''}}</view>
+      <view class="sub">{{summary.deptName}} · {{summary.doctorName}}</view>
+      <view class="muted meta">{{summary.patientName}} · {{summary.visitStateLabel}}</view>
+      <view class="anchor-bar">
+        <view
+          class="anchor-chip {{activeAnchor === 'record' ? 'active' : ''}}"
+          data-anchor="record"
+          bindtap="onAnchorTap"
+        >病历文书</view>
+        <view
+          class="anchor-chip {{activeAnchor === 'orders' ? 'active' : ''}}"
+          data-anchor="orders"
+          bindtap="onAnchorTap"
+        >本次医嘱</view>
+      </view>
+    </view>
+
+    <view id="section-record" class="hub-section">
+      <view class="section-head">病历文书</view>
+      <view wx:if="{{hasMedicalRecord && sections.length}}">
+        <view class="card" wx:if="{{diseaseNames}}">
+          <view class="section-title">ICD 诊断</view>
+          <view class="body-text">{{diseaseNames}}</view>
+        </view>
+        <view class="card" wx:for="{{sections}}" wx:key="label">
+          <view class="section-title">{{item.label}}</view>
+          <view class="body-text">{{item.value}}</view>
+        </view>
+      </view>
+      <view wx:else class="card empty-section">
+        <view class="empty-title">{{hasMedicalRecord ? '暂无文书内容' : '医生尚未提交病历'}}</view>
+        <view class="muted">病历提交后将显示主诉、诊断等文书内容</view>
+      </view>
+    </view>
+
+    <view id="section-orders" class="hub-section">
+      <view class="section-head">本次医嘱</view>
+      <view wx:if="{{!orders.length}}" class="card empty-section">
+        <view class="empty-title">暂无医嘱单</view>
+        <view class="muted">检验/检查/处置/处方开立后将显示于此</view>
+      </view>
+      <view wx:else>
+        <view wx:for="{{orders}}" wx:key="requestId" class="card order-row">
+          <view class="row-between">
+            <text class="item-name">{{item.itemName}}</text>
+            <text class="tag tag-{{item.kind}}">{{item.typeLabel}}</text>
+          </view>
+          <view class="muted">状态：{{item.statusLabel}}</view>
+          <button
+            wx:if="{{item.actionLabel}}"
+            class="order-action-btn"
+            size="mini"
+            data-item="{{item}}"
+            bindtap="onOrderAction"
+          >{{item.actionLabel}}</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -89,7 +89,7 @@ public class CheckRequestRepository {
     public java.util.List<Map<String, Object>> findResultsByPatient(Long patientId) {
         return jdbcClient.sql("""
                         SELECT cr.id, cr.register_id, cr.patient_id, cr.status,
-                               cr.purpose, cr.body_part,
+                               cr.purpose, cr.body_part, cr.remark,
                                cr.result_text, cr.result_time, mt.item_name
                         FROM check_request cr
                         JOIN medical_technology mt ON cr.medical_technology_id = mt.id
@@ -102,6 +102,18 @@ public class CheckRequestRepository {
                 .param("resultReady", com.hospital.common.constant.InspectionRequestStatus.RESULT_READY)
                 .query((rs, rowNum) -> mapDetailRow(rs))
                 .list();
+    }
+
+    /** 患者端：已缴费但未出结果的检查单数量 */
+    public int countPendingResultsByPatient(Long patientId) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM check_request
+                        WHERE patient_id = :patientId AND status >= 20 AND status < 40 AND delmark = 0
+                        """)
+                .param("patientId", patientId)
+                .query(Integer.class)
+                .single();
+        return count != null ? count : 0;
     }
 
     private Map<String, Object> mapDetailRow(java.sql.ResultSet rs) throws java.sql.SQLException {

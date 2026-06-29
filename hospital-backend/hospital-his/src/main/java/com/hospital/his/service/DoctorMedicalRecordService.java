@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
@@ -97,11 +98,39 @@ public class DoctorMedicalRecordService {
 
     public Map<String, Object> getPatientMedicalRecord(Long registerId) {
         Long operatorId = AuthContextHolder.require().getPatientId();
-        registerRepository.findDetailForOwner(registerId, operatorId)
+        Map<String, Object> register = registerRepository.findDetailForOwner(registerId, operatorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "无权查看该病历"));
-        return medicalRecordRepository.findByRegisterId(registerId, true)
+        Map<String, Object> record = medicalRecordRepository.findByRegisterId(registerId, true)
                 .map(this::enrichWithDiseases)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "病历不存在或未提交"));
+        record.put("visitDate", register.get("workDate"));
+        record.put("visitDateLabel", formatVisitDate(register.get("workDate")));
+        record.put("noonLabel", register.get("noonLabel"));
+        record.put("deptName", register.get("deptName"));
+        record.put("doctorName", register.get("doctorName"));
+        record.put("registLevelName", register.get("registLevelName"));
+        record.put("patientName", register.get("patientName"));
+        record.put("medicalRecordNo", register.get("medicalRecordNo"));
+        return record;
+    }
+
+    /** 医生只读查阅患者某次就诊病历（含已保存未提交） */
+    public Map<String, Object> getMedicalRecordForPatientVisit(Long registerId, Long patientId) {
+        if (AuthContextHolder.require().getEmployeeId() == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "需要门诊医生身份");
+        }
+        registerRepository.findDetailByPatient(registerId, patientId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "就诊记录不存在"));
+        return medicalRecordRepository.findByRegisterId(registerId)
+                .map(this::enrichWithDiseases)
+                .orElse(Map.of());
+    }
+
+    private String formatVisitDate(Object visitDate) {
+        if (visitDate instanceof LocalDate localDate) {
+            return localDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        }
+        return visitDate != null ? String.valueOf(visitDate) : "—";
     }
 
     private Map<String, Object> enrichWithDiseases(Map<String, Object> record) {

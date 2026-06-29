@@ -79,6 +79,7 @@ public final class CheckReportComposer {
             findingsBlock.put("maskPreviewUrl", imaging.get("maskPreviewUrl"));
             findingsBlock.put("reportImages", imaging.get("reportImages"));
             findingsBlock.put("snapshotMeta", imaging.get("snapshotMeta"));
+            findingsBlock.put("hasSnapshots", imaging.get("hasSnapshots"));
         }
 
         Map<String, Object> analysis = new LinkedHashMap<>();

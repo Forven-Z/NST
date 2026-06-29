@@ -17,6 +17,8 @@ import {
   getRegisterById,
   getRegisterOrders,
   getRegisterResults,
+  getPatientVisits,
+  getPatientVisitHub,
   resubmitPrescriptionMock,
   saveMedicalRecord,
   updatePrescriptionItems,
@@ -92,6 +94,22 @@ export function mockFetchDisposalResult(id) {
 
 export function mockFetchRegisterOrders(registerId) {
   return mockResult(getRegisterOrders(registerId))
+}
+
+export function mockFetchPatientVisits(patientId, params) {
+  return mockResult(getPatientVisits(patientId, params))
+}
+
+export function mockFetchPatientVisitHub(patientId, registerId) {
+  return mockResult(getPatientVisitHub(patientId, registerId))
+}
+
+export function mockFetchPatientVisitOrderResult(patientId, kind, requestId) {
+  void patientId
+  if (kind === 'inspection') return mockFetchInspectionResult(requestId)
+  if (kind === 'check') return mockFetchCheckResult(requestId)
+  if (kind === 'disposal') return mockFetchDisposalResult(requestId)
+  return Promise.reject(new Error('不支持的结果类型'))
 }
 
 export function mockFetchRegisterResults(registerId) {

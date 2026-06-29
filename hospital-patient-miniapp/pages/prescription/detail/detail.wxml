@@ -1,0 +1,46 @@
+<view class="rx-detail-page">
+  <view wx:if="{{loading}}" class="empty card">加载中…</view>
+  <view wx:elif="{{loadError}}" class="empty card">
+    <view class="empty-title">加载失败</view>
+    <view class="muted">请稍后重试</view>
+    <button class="btn-primary retry-btn" size="mini" bindtap="onRetry">重试</button>
+  </view>
+  <view wx:elif="{{!detail}}" class="empty card">处方不存在</view>
+  <block wx:else>
+    <view class="card head-card">
+      <view class="row-between">
+        <view class="title">处方 #{{detail.prescriptionId}}</view>
+        <view class="status-tag">{{detail.statusLabel}}</view>
+      </view>
+      <view class="muted">{{detail.patientName}} · {{detail.doctorName}}</view>
+      <view class="hint">{{detail.pickupHint}}</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">药品明细</view>
+      <view wx:for="{{items}}" wx:key="drugId" class="drug-row">
+        <view class="row-between">
+          <view class="drug-name">{{item.drugName}}</view>
+          <view class="price">¥{{item.amount}}</view>
+        </view>
+        <view class="muted" wx:if="{{item.drugFormat}}">{{item.drugFormat}} · {{item.drugDosage}}</view>
+        <view class="usage muted" wx:if="{{item.usageMethod || item.frequency}}">
+          {{item.usageMethod}} {{item.dosage}} {{item.frequency}}
+          <text wx:if="{{item.days}}"> · {{item.days}}天</text>
+        </view>
+        <view class="muted">数量 {{item.quantity}}</view>
+        <view class="entrust muted" wx:if="{{item.entrust}}">嘱托：{{item.entrust}}</view>
+      </view>
+    </view>
+
+    <view class="card total-card row-between">
+      <text>合计</text>
+      <text class="price">¥{{detail.totalAmount}}</text>
+    </view>
+
+    <view class="pay-bar" wx:if="{{showPayBar}}">
+      <button class="btn-primary pay-btn" bindtap="onGoPay">去缴费 ¥{{detail.totalAmount}}</button>
+    </view>
+  </block>
+</view>
+

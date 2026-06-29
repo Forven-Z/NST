@@ -210,16 +210,21 @@ Mock 数据结构 **与本文件一致**。
 | ✅ | P1 | GET | `/patient/registers/{registerId}` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/registers/{registerId}/queue-status` | his | PATIENT |
 | ✅ | P1 | POST | `/patient/registers/{registerId}/cancel` | his | PATIENT |
-| ⬜ | P1 | GET | `/patient/registers/{registerId}/orders` | his | PATIENT |
+| ✅ | P1 | GET | `/patient/registers/{registerId}/orders` | his | PATIENT |
+| ✅ | P1 | GET | `/patient/prescriptions/{prescriptionId}` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/bills` | his | PATIENT |
 | ✅ | P1 | POST | `/patient/payments` | his | PATIENT |
 | ✅ | P2 | GET | `/patient/payments` | his | PATIENT |
 | ✅ | P2 | GET | `/patient/payments/{paymentId}` | his | PATIENT |
 | ✅ | P2 | GET | `/patient/refunds` | his | PATIENT |
 | P4 | P4 | POST | `/patient/payments/wechat/prepay` | his | PATIENT |
+| ✅ | P1 | GET | `/patient/medical-records` | his | PATIENT |
 | ✅ | P1 | GET | `/patient/medical-records/{registerId}` | his | PATIENT |
+| ✅ | P1 | GET | `/patient/visits` | his | PATIENT |
+| ✅ | P1 | GET | `/patient/visits/{registerId}/hub` | his | PATIENT |
 | ✅ | P2 | GET | `/patient/reports` | his | PATIENT |
 | ✅ | P2 | GET | `/patient/reports/{type}/{requestId}` | his | PATIENT |
+| ✅ | P2 | GET | `/patient/reports/exam/{checkRequestId}/snapshot/{plane}` | his | PATIENT |
 | ✅ | P1 | GET | `/doctor/queues` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | POST | `/doctor/call/{registerId}` | his | OUTPATIENT_DOCTOR |
 | ✅ | P1 | POST | `/doctor/registers/{registerId}/finish` | his | OUTPATIENT_DOCTOR |
@@ -410,7 +415,7 @@ Mock 数据结构 **与本文件一致**。
 
 **Request**：`{ "reason": "..." }`
 
-### GET `/patient/registers/{registerId}/orders` ⬜ P1
+### GET `/patient/registers/{registerId}/orders` ✅ P1
 
 **页面**：小程序「医嘱进度」、PC 医生站医嘱面板（患者端同结构）
 
@@ -451,10 +456,18 @@ Mock 数据结构 **与本文件一致**。
 | disposal | `disposal_request` | 同上 | 医技 |
 | prescription | `prescription` | 10/15/20/30/40/50 | **处方**；`list[]` 中 `status=15` 时医生端含 `rejectReason`；明细 `prescriptions[]` 含 `items[]` |
 
+**患者端附加字段**：`registerSummary`（`deptName`, `doctorName`, `workDate`, `noonLabel`, `patientName`, `registLevelName`）
+
+### GET `/patient/prescriptions/{prescriptionId}` ✅ P1
+
+**页面**：小程序「处方详情」
+
+**Response `data`**：`prescriptionId`, `registerId`, `patientName`, `doctorName`, `totalAmount`, `status`, `statusLabel`, `pickupHint`, `items[]`（药品明细含用法用量）
+
 ### GET `/patient/bills` ✅ P1
 
 **Query**：`patientId`, `status?`（0 待支付）, `registerId?`, `scope?`（outpatient/exam）  
-**Response `data.list[]`**：`id`, `billTitle`, `bizType`, `amount`, `status`, `registerId`
+**Response `data.list[]`**：`id`, `billTitle`, `bizType`, `bizTypeLabel`, `amount`, `status`, `registerId`, `lineItems[]`（`name`, `spec`, `qty`, `amount`, `usage`）
 
 ### POST `/patient/payments` ✅ P1（Mock 批量支付）
 
@@ -479,20 +492,98 @@ Mock 数据结构 **与本文件一致**。
 
 真微信支付预下单；首期演示用 Mock `POST /patient/payments`。
 
+### GET `/patient/medical-records` ✅ P1
+
+**Query**：`patientId` / `visitPatientId`（可选，默认当前登录患者）  
+**Response `data.list[]`**：仅 `medical_record.status=2`（已确诊提交），按 `visit_date` 倒序  
+
+| 字段 | 说明 |
+|------|------|
+| `registerId` | 挂号单 ID，详情入口 |
+| `visitDateLabel` | 就诊日期 |
+| `noonLabel` | 上午/下午 |
+| `deptName`, `doctorName` | 科室、医生 |
+| `summary` | 诊断/主诉摘要 |
+
 ### GET `/patient/medical-records/{registerId}` ✅ P1
 
 **仅 `medical_record.status=2` 对患者可见**  
-**Response `data`**：`readme`, `present`, `diagnosis`, `cure`, …
+**Response `data`**：`readme`, `present`, `diagnosis`, `cure`, `visitDateLabel`, `deptName`, `doctorName`, `diseaseEntries`, …
+
+### GET `/patient/visits` ✅ P1（就诊记录列表）
+
+**Query**：`patientId` / `visitPatientId`（可选）, `page`, `pageSize`  
+**范围**：`visit_state ∈ {1,2,3}`（已挂号 / 接诊中 / 看诊结束），一次挂号一条  
+**Response `data.list[]`（VisitSummary）**：
+
+| 字段 | 说明 |
+|------|------|
+| `registerId` | 挂号单 ID，Hub 详情入口 |
+| `visitState`, `visitStateLabel` | 就诊状态 |
+| `visitDateLabel`, `noonLabel` | 日期、午别 |
+| `deptName`, `doctorName`, `registLevelName`, `patientName` | 摘要 |
+| `hasMedicalRecord`, `medicalRecordStatus` | 病历是否已提交（status=2） |
+| `orderCount` | 医嘱单数（检验+检查+处置+处方） |
+| `reportReadyCount` | 已出报告数（检验/检查/处置 status≥40） |
+| `summarySnippet` | 诊断/主诉摘要或「医嘱 N 项」 |
+
+### GET `/patient/visits/{registerId}/hub` ✅ P1（就诊 Hub 聚合）
+
+**Response `data`（VisitHub）**：
+
+| 字段 | 说明 |
+|------|------|
+| `registerSummary` | 同 VisitSummary 头部字段 |
+| `hasMedicalRecord`, `medicalRecordStatus` | 病历可见性 |
+| `medicalRecord` | 已提交时同 `GET /medical-records/{id}`；否则 `null` |
+| `orders` | 同 `GET /registers/{id}/orders`（含 `list[]` 与 `action`：pay/report/prescription） |
+
+> 医生端 Phase 3 可复用 VisitSummary / VisitHub 契约，只读展示既往就诊。
+
+### GET `/doctor/patients/{patientId}/visits` ✅ P3
+
+**页面**：医生工作台「既往就诊」Drawer 左侧列表  
+**Response `data`**：同 `GET /patient/visits`（`list[]` 为 VisitSummary），另含 `patientId`
+
+### GET `/doctor/patients/{patientId}/visits/{registerId}/hub` ✅ P3
+
+**Response `data`**：同 VisitHub，另含 `hasRecordDraft`（status≥1 时医生可见草稿病历）
+
+### GET `/doctor/patients/{patientId}/order-results/{kind}/{requestId}` ✅ P3
+
+**kind**：`inspection` \| `check` \| `disposal`  
+**用途**：既往 Hub 只读查看报告（不限于本医生开立）  
+**Response `data`**：同对应 doctor `/*-requests/{id}/result` 报告视图
 
 ### GET `/patient/reports` ✅ P2
 
 **Query**：`type`（all/lab/exam/disposal）, `patientId`  
-**Response `data.list[]`**：`requestId`, `type`, `typeLabel`（disposal→**处置记录**）, `reportName`, `reportTime`, `summary`
+**Response `data`**：`list[]`, `visitPatientId`, `pendingCount`（已缴费未出结果项数，用于空态提示）  
+**Response `data.list[]`**：`requestId`, `type`, `typeLabel`（disposal→**处置记录**）, `reportName`, `reportTime`, `summary`, `hasSnapshots`（仅 exam，列表角标「含影像」）
 
 ### GET `/patient/reports/{type}/{requestId}` ✅ P2
 
 **type**：`lab` | `exam` | `disposal`  
 **Response `data`**：`reportName`, `typeLabel`, `purpose`, `bodyPart`, `resultText`, `reportTime`, `status`
+
+**type=exam（检查）额外字段**（与 PC `CheckReportSheet` 对齐）：
+
+| 字段 | 说明 |
+|------|------|
+| `reportType` | 固定 `check` |
+| `findings.findingsText` | CT 所见 |
+| `findings.reportImages` | 三视图 **patient 代理 URL**（见下节） |
+| `findings.hasSnapshots` | 是否有采图 |
+| `analysis.aiReportText` | 诊断印象 |
+
+### GET `/patient/reports/exam/{checkRequestId}/snapshot/{plane}` ✅ P2
+
+**用途**：患者小程序加载检查报告三视图 PNG（**禁止**直连 pacs）。  
+**plane**：`axial` \| `coronal` \| `sagittal`  
+**鉴权**：PATIENT Token；校验 `check_request.patient_id` 归属（含家属就诊人）。  
+**前置**：`check_request.status >= 40`  
+**Response**：`image/png` 二进制流（非 JSON `Result` 包装）。  
+**内部**：his Feign/HTTP 调 `hospital-pacs` `/internal/imaging/report-preview/{checkRequestId}/{plane}`。
 
 ---
 
@@ -534,8 +625,9 @@ Mock 数据结构 **与本文件一致**。
 ### POST `/doctor/registers/{registerId}/finish` ✅ P1
 
 **页面**：医生工作台「结束看诊」  
-**前置**：当前医生、`visit_state = 2`  
+**前置**：当前医生、`visit_state = 2`，且 **`medical_record.status = 2`（已确诊提交）**  
 **效果**：`visit_state` → 3（看诊结束）  
+**失败**：病历未提交时返回 `400`，提示「请先确诊提交病历后再结束看诊」  
 **Response `data`**：`registerId`, `visitState`
 
 ### GET/PUT `/doctor/medical-records/{registerId}` ✅ P1
@@ -1098,7 +1190,8 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | 待缴/已缴 | `GET /patient/bills`, `POST /payments`, `GET /payments` |
 | 挂号记录/排队/退号 | `GET /registers`, `/registers/{id}`, `/queue-status`, `POST .../cancel` |
 | 就诊人 | `GET/POST /patient/family-members` |
-| 电子病历 | `GET /patient/medical-records/{registerId}` |
+| 就诊记录（Hub） | `GET /patient/visits`, `GET /patient/visits/{registerId}/hub` |
+| 病历文书（Hub 内） | `GET /patient/medical-records/{registerId}`（兼容；Hub 已聚合） |
 | 报告 Tab | `GET /patient/reports`, `/reports/{type}/{id}` |
 | 医嘱进度 | `GET /patient/registers/{id}/orders` |
 | AI 问诊 P4 | `POST /ai/triage/chat` |

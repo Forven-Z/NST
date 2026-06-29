@@ -371,6 +371,8 @@ function seedDemoPatients() {
     cure: '完善头颅影像学及血常规，排除颅内病变及感染',
     checkAdvice: '头部 CT',
     inspectionAdvice: '血常规',
+    status: 1,
+    statusLabel: '已保存',
   }
 
   // ③ 检验科队列：已缴费待执行（开单→缴费→检验 常识链路）
@@ -929,6 +931,10 @@ export function callRegister(registerId) {
 export function finishRegister(registerId) {
   const reg = state.registers.find((r) => r.registerId === Number(registerId))
   if (!reg) throw new Error('挂号记录不存在')
+  const record = state.medicalRecords[Number(registerId)]
+  if (!record || record.status !== 2) {
+    throw new Error('请先确诊提交病历后再结束看诊')
+  }
   reg.visitState = 3
   return reg
 }
@@ -963,6 +969,71 @@ export function confirmMedicalRecord(registerId, data) {
 
 export function getRegisterById(registerId) {
   return state.registers.find((r) => r.registerId === Number(registerId))
+}
+
+function buildVisitSummary(reg) {
+  const record = getMedicalRecord(reg.registerId)
+  const mrStatus = record?.status ?? null
+  const ordersData = getRegisterOrders(reg.registerId)
+  const orderList = ordersData.list ?? []
+  const orderCount = orderList.length
+  const reportReadyCount = orderList.filter((o) => o.kind !== 'prescription' && o.status >= 40).length
+  let summarySnippet = (record?.diagnosis || record?.readme || '').trim()
+  if (summarySnippet.length > 80) summarySnippet = `${summarySnippet.slice(0, 80)}…`
+  if (!summarySnippet && orderCount > 0) summarySnippet = `医嘱 ${orderCount} 项`
+  if (!summarySnippet) summarySnippet = '就诊进行中，暂无文书摘要'
+
+  return {
+    registerId: reg.registerId,
+    visitState: reg.visitState,
+    visitStateLabel: VISIT_STATE_LABELS[reg.visitState] || String(reg.visitState),
+    visitDateLabel: reg.workDate || '—',
+    workDate: reg.workDate,
+    noonLabel: reg.noonLabel,
+    deptName: reg.deptName,
+    doctorName: reg.doctorName,
+    registLevelName: reg.registLevelName,
+    patientName: reg.patientName,
+    medicalRecordNo: reg.medicalRecordNo,
+    medicalRecordStatus: mrStatus,
+    hasMedicalRecord: mrStatus === 2,
+    orderCount,
+    reportReadyCount,
+    summarySnippet,
+  }
+}
+
+export function getPatientVisits(patientId, params = {}) {
+  const pid = Number(patientId)
+  const list = state.registers
+    .filter((r) => r.patientId === pid && r.visitState >= 1 && r.visitState <= 3)
+    .sort((a, b) => String(b.workDate || b.registTime).localeCompare(String(a.workDate || a.registTime)))
+    .map(buildVisitSummary)
+  return {
+    list,
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 20,
+    patientId: pid,
+  }
+}
+
+export function getPatientVisitHub(patientId, registerId) {
+  const reg = state.registers.find(
+    (r) => r.registerId === Number(registerId) && r.patientId === Number(patientId),
+  )
+  if (!reg) throw new Error('就诊记录不存在')
+  const record = getMedicalRecord(registerId)
+  const mrStatus = record?.status ?? null
+  const hasSubmitted = mrStatus === 2
+  const hasDraft = mrStatus != null && mrStatus >= 1
+  return {
+    registerSummary: buildVisitSummary(reg),
+    medicalRecordStatus: mrStatus,
+    hasMedicalRecord: hasSubmitted,
+    hasRecordDraft: hasDraft,
+    medicalRecord: hasDraft ? record : null,
+    orders: getRegisterOrders(registerId),
+  }
 }
 
 function createTechOrder(registerId, techId, kind) {
