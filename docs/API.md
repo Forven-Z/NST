@@ -540,6 +540,21 @@ Mock 数据结构 **与本文件一致**。
 
 > 医生端 Phase 3 可复用 VisitSummary / VisitHub 契约，只读展示既往就诊。
 
+### GET `/doctor/patients/{patientId}/visits` ✅ P3
+
+**页面**：医生工作台「既往就诊」Drawer 左侧列表  
+**Response `data`**：同 `GET /patient/visits`（`list[]` 为 VisitSummary），另含 `patientId`
+
+### GET `/doctor/patients/{patientId}/visits/{registerId}/hub` ✅ P3
+
+**Response `data`**：同 VisitHub，另含 `hasRecordDraft`（status≥1 时医生可见草稿病历）
+
+### GET `/doctor/patients/{patientId}/order-results/{kind}/{requestId}` ✅ P3
+
+**kind**：`inspection` \| `check` \| `disposal`  
+**用途**：既往 Hub 只读查看报告（不限于本医生开立）  
+**Response `data`**：同对应 doctor `/*-requests/{id}/result` 报告视图
+
 ### GET `/patient/reports` ✅ P2
 
 **Query**：`type`（all/lab/exam/disposal）, `patientId`  

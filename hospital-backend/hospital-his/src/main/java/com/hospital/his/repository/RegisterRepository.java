@@ -465,6 +465,102 @@ public class RegisterRepository {
     }
 
     /**
+     * 医生查阅患者既往就诊：按 patient_id 列出有效门诊记录。
+     */
+    public List<Map<String, Object>> findVisitSummariesForPatient(Long patientId, int offset, int limit) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.call_time,
+                               r.remark,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no,
+                               mr.status AS medical_record_status,
+                               mr.diagnosis,
+                               mr.readme,
+                               (
+                                   (SELECT COUNT(*) FROM inspection_request ir
+                                    WHERE ir.register_id = r.id AND ir.delmark = 0)
+                                   + (SELECT COUNT(*) FROM check_request cr
+                                      WHERE cr.register_id = r.id AND cr.delmark = 0)
+                                   + (SELECT COUNT(*) FROM disposal_request dr
+                                      WHERE dr.register_id = r.id AND dr.delmark = 0)
+                                   + (SELECT COUNT(*) FROM prescription pr
+                                      WHERE pr.register_id = r.id AND pr.delmark = 0)
+                               )::int AS order_count,
+                               (
+                                   (SELECT COUNT(*) FROM inspection_request ir
+                                    WHERE ir.register_id = r.id AND ir.delmark = 0 AND ir.status >= 40)
+                                   + (SELECT COUNT(*) FROM check_request cr
+                                      WHERE cr.register_id = r.id AND cr.delmark = 0 AND cr.status >= 40)
+                                   + (SELECT COUNT(*) FROM disposal_request dr
+                                      WHERE dr.register_id = r.id AND dr.delmark = 0 AND dr.status >= 40)
+                               )::int AS report_ready_count
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        LEFT JOIN medical_record mr ON mr.register_id = r.id AND mr.delmark = 0
+                        WHERE r.delmark = 0
+                          AND r.visit_state IN (1, 2, 3)
+                          AND r.patient_id = :patientId
+                        ORDER BY r.visit_date DESC NULLS LAST, r.create_time DESC
+                        LIMIT :limit OFFSET :offset
+                        """)
+                .param("patientId", patientId)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = mapRegisterRow(rs);
+                    row.put("medicalRecordStatus", rs.getObject("medical_record_status", Integer.class));
+                    row.put("orderCount", rs.getInt("order_count"));
+                    row.put("reportReadyCount", rs.getInt("report_ready_count"));
+                    row.put("diagnosis", rs.getString("diagnosis"));
+                    row.put("readme", rs.getString("readme"));
+                    return row;
+                })
+                .list();
+    }
+
+    public Optional<Map<String, Object>> findDetailByPatient(Long registerId, Long patientId) {
+        return jdbcClient.sql("""
+                        SELECT r.id AS register_id,
+                               r.patient_id,
+                               r.visit_state,
+                               r.visit_date,
+                               r.noon_type,
+                               r.regist_fee,
+                               r.call_time,
+                               r.remark,
+                               r.create_time AS regist_time,
+                               d.dept_name,
+                               e.real_name AS doctor_name,
+                               rl.level_name AS regist_level_name,
+                               p.real_name AS patient_name,
+                               p.medical_record_no
+                        FROM register r
+                        JOIN patient p ON r.patient_id = p.id
+                        JOIN department d ON r.dept_id = d.id
+                        LEFT JOIN employee e ON r.employee_id = e.id
+                        JOIN regist_level rl ON r.regist_level_id = rl.id
+                        WHERE r.id = :id AND r.delmark = 0 AND r.patient_id = :patientId
+                        """)
+                .param("id", registerId)
+                .param("patientId", patientId)
+                .query((rs, rowNum) -> mapRegisterRow(rs))
+                .optional();
+    }
+
+    /**
      * 患者就诊记录列表：有效门诊（已挂号/接诊中/看诊结束），含医嘱与报告计数。
      */
     public List<Map<String, Object>> findVisitSummariesForOperator(Long operatorPatientId, Long visitPatientId,
@@ -532,6 +628,7 @@ public class RegisterRepository {
                 .param("offset", offset)
                 .query((rs, rowNum) -> {
                     Map<String, Object> row = mapRegisterRow(rs);
+                    row.put("medicalRecordStatus", rs.getObject("medical_record_status", Integer.class));
                     row.put("orderCount", rs.getInt("order_count"));
                     row.put("reportReadyCount", rs.getInt("report_ready_count"));
                     row.put("diagnosis", rs.getString("diagnosis"));

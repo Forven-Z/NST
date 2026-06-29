@@ -14,6 +14,9 @@ import {
   mockFetchInspectionResult,
   mockFetchMedicalRecord,
   mockFetchRegisterOrders,
+  mockFetchPatientVisits,
+  mockFetchPatientVisitHub,
+  mockFetchPatientVisitOrderResult,
   mockConfirmMedicalRecord,
   mockFetchRegisterResults,
   mockFinishVisit,
@@ -128,6 +131,21 @@ export function fetchOrderResult(kind, requestId) {
 export function fetchRegisterOrders(registerId) {
   if (useMock()) return mockFetchRegisterOrders(registerId)
   return request.get(`/doctor/registers/${registerId}/orders`)
+}
+
+export function fetchPatientVisits(patientId, params) {
+  if (useMock()) return mockFetchPatientVisits(patientId, params)
+  return request.get(`/doctor/patients/${patientId}/visits`, { params })
+}
+
+export function fetchPatientVisitHub(patientId, registerId) {
+  if (useMock()) return mockFetchPatientVisitHub(patientId, registerId)
+  return request.get(`/doctor/patients/${patientId}/visits/${registerId}/hub`)
+}
+
+export function fetchPatientVisitOrderResult(patientId, kind, requestId) {
+  if (useMock()) return mockFetchPatientVisitOrderResult(patientId, kind, requestId)
+  return request.get(`/doctor/patients/${patientId}/order-results/${kind}/${requestId}`)
 }
 
 const REQUEST_ID_KEYS = {

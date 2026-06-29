@@ -19,6 +19,7 @@ import AiPrescriptionDraftDialog from '../../components/doctor/AiPrescriptionDra
 import DoctorPrescriptionDialog from '../../components/doctor/DoctorPrescriptionDialog.vue'
 import DoctorTechOrderDialog from '../../components/doctor/DoctorTechOrderDialog.vue'
 import RegisterOrdersPanel from '../../components/doctor/RegisterOrdersPanel.vue'
+import VisitHistoryDrawer from '../../components/doctor/VisitHistoryDrawer.vue'
 import { TRIAGE_LEVEL_MAP } from '../../config/integrations'
 import { useDoctorWorkspaceStore } from '../../stores/doctorWorkspace'
 
@@ -44,6 +45,7 @@ const techOrderType = ref('INSPECTION')
 const rxDialogVisible = ref(false)
 const rxDraftDialogVisible = ref(false)
 const aiDiagnosisText = ref('')
+const visitHistoryVisible = ref(false)
 
 const recordForm = reactive({
   readme: '',
@@ -114,6 +116,14 @@ async function onCall(row) {
   } finally {
     callingId.value = null
   }
+}
+
+function openVisitHistory() {
+  if (!currentPatient.value?.patientId) {
+    ElMessage.info('请先选择或叫号患者')
+    return
+  }
+  visitHistoryVisible.value = true
 }
 
 async function onSelectRow(row) {
@@ -415,6 +425,7 @@ function formatGender(gender) {
             病历 {{ recordStatusLabel }}
           </el-tag>
           <div class="header-actions">
+            <el-button :disabled="!currentPatient?.patientId" @click="openVisitHistory">既往就诊</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('CHECK')">开检查</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('INSPECTION')">开检验</el-button>
             <el-button :disabled="!currentRegisterId" @click="openTechDialog('DISPOSAL')">开处置</el-button>
@@ -543,6 +554,14 @@ function formatGender(gender) {
       :register-id="currentRegisterId"
       :record-form="recordForm"
       @confirmed="onOrdersChanged"
+    />
+
+    <VisitHistoryDrawer
+      v-model="visitHistoryVisible"
+      :patient-id="currentPatient?.patientId ?? null"
+      :patient-name="currentPatient?.patientName ?? ''"
+      :medical-record-no="currentPatient?.medicalRecordNo ?? ''"
+      :current-register-id="currentRegisterId"
     />
   </div>
 </template>

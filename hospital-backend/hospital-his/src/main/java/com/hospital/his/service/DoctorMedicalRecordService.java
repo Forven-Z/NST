@@ -114,6 +114,18 @@ public class DoctorMedicalRecordService {
         return record;
     }
 
+    /** 医生只读查阅患者某次就诊病历（含已保存未提交） */
+    public Map<String, Object> getMedicalRecordForPatientVisit(Long registerId, Long patientId) {
+        if (AuthContextHolder.require().getEmployeeId() == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "需要门诊医生身份");
+        }
+        registerRepository.findDetailByPatient(registerId, patientId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "就诊记录不存在"));
+        return medicalRecordRepository.findByRegisterId(registerId)
+                .map(this::enrichWithDiseases)
+                .orElse(Map.of());
+    }
+
     private String formatVisitDate(Object visitDate) {
         if (visitDate instanceof LocalDate localDate) {
             return localDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));

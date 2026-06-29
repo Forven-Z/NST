@@ -24,34 +24,51 @@ public class CheckReportQueryService {
                         checkRequestId, doctorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
         assertResultReady(context);
-        return compose(context);
+        String resultText = context.get("resultText") != null ? String.valueOf(context.get("resultText")) : "";
+        var parsed = CheckReportComposer.parsePublishedText(resultText);
+        String aiStatus = !parsed.aiReportText().isBlank() || !parsed.doctorReportText().isBlank()
+                ? "READY" : "PENDING";
+        return composeView(context, parsed.findingsText(), parsed.aiReportText(), parsed.doctorReportText(), aiStatus, false);
     }
 
     public Map<String, Object> getCheckReportForPatient(Long checkRequestId) {
         Map<String, Object> context = checkRequestRepository.findCheckReportContext(checkRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查报告不存在"));
         assertResultReady(context);
-        return compose(context);
-    }
-
-    private Map<String, Object> compose(Map<String, Object> context) {
-        Long checkRequestId = ((Number) context.get("checkRequestId")).longValue();
         String resultText = context.get("resultText") != null ? String.valueOf(context.get("resultText")) : "";
         var parsed = CheckReportComposer.parsePublishedText(resultText);
-
-        String findings = parsed.findingsText();
-
         String aiStatus = !parsed.aiReportText().isBlank() || !parsed.doctorReportText().isBlank()
                 ? "READY" : "PENDING";
+        return composeView(context, parsed.findingsText(), parsed.aiReportText(), parsed.doctorReportText(), aiStatus, true);
+    }
 
+    public Map<String, Object> getCheckReportForStaffReadonly(Long checkRequestId) {
+        Map<String, Object> context = checkRequestRepository.findCheckReportContext(checkRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
+        assertResultReady(context);
+        String resultText = context.get("resultText") != null ? String.valueOf(context.get("resultText")) : "";
+        var parsed = CheckReportComposer.parsePublishedText(resultText);
+        String findings = parsed.findingsText();
+        String aiStatus = !parsed.aiReportText().isBlank() || !parsed.doctorReportText().isBlank()
+                ? "READY" : "PENDING";
+        return composeView(context, findings, parsed.aiReportText(), parsed.doctorReportText(), aiStatus, false);
+    }
+
+    private Map<String, Object> composeView(
+            Map<String, Object> context,
+            String findings,
+            String aiReportText,
+            String doctorReportText,
+            String aiStatus,
+            boolean forPatient) {
+        Long checkRequestId = ((Number) context.get("checkRequestId")).longValue();
         Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
-        Map<String, Object> imaging = CheckReportImagingSupport.buildImagingSummary(checkRequestId, study, true);
-
+        Map<String, Object> imaging = CheckReportImagingSupport.buildImagingSummary(checkRequestId, study, forPatient);
         return CheckReportComposer.composeView(
                 context,
                 findings,
-                parsed.aiReportText(),
-                parsed.doctorReportText(),
+                aiReportText,
+                doctorReportText,
                 aiStatus,
                 imaging
         );

@@ -35,6 +35,13 @@ public class LabReportQueryService {
         return compose(context);
     }
 
+    public Map<String, Object> getLabReportForStaffReadonly(Long inspectionRequestId) {
+        Map<String, Object> context = inspectionRequestRepository.findLabReportContext(inspectionRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
+        assertResultReady(context);
+        return compose(context);
+    }
+
     private Map<String, Object> compose(Map<String, Object> context) {
         Long id = ((Number) context.get("inspectionRequestId")).longValue();
         String itemName = (String) context.get("itemName");
