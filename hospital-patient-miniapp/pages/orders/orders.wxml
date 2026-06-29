@@ -1,36 +1,71 @@
-<view class="orders-page">
-  <view wx:if="{{registerSummary}}" class="card summary-card">
-    <view class="summary-title">{{registerSummary.deptName}} · {{registerSummary.doctorName}}</view>
-    <view class="muted">{{registerSummary.patientName}} · {{registerSummary.workDateLabel}} {{registerSummary.noonLabel}}</view>
-    <view class="muted">{{registerSummary.registLevelName}}</view>
-  </view>
-
-  <view wx:if="{{loading}}" class="empty card">加载中…</view>
-  <view wx:elif="{{loadError}}" class="empty card error-card">
-    <view class="empty-title">加载失败</view>
-    <view class="muted">网络或服务异常，请稍后重试</view>
-    <button class="btn-primary retry-btn" size="mini" bindtap="onRetry">重试</button>
-  </view>
-  <view wx:elif="{{!list.length}}" class="empty card">
-    <view class="empty-title">暂无医嘱单</view>
-    <view class="muted">医生尚未开具检验/检查/处置/处方医嘱</view>
-    <view class="muted hint-small">病历中的文字建议不等于医嘱单</view>
-  </view>
-  <view wx:else class="list-wrap">
-    <view wx:for="{{list}}" wx:key="requestId" class="card order-row">
-      <view class="row-between">
-        <text class="item-name">{{item.itemName}}</text>
-        <text class="tag tag-{{item.kind}}">{{item.typeLabel}}</text>
-      </view>
-      <view class="muted">状态：{{item.statusLabel}}</view>
-      <button
-        wx:if="{{item.actionLabel}}"
-        class="order-action-btn"
-        size="mini"
-        data-item="{{item}}"
-        bindtap="onOrderAction"
-      >{{item.actionLabel}}</button>
-    </view>
-  </view>
-</view>
-
+<view class="orders-page">
+
+  <view wx:if="{{registerSummary}}" class="card summary-card">
+
+    <view class="summary-title">{{registerSummary.deptName}} · {{registerSummary.doctorName}}</view>
+
+    <view class="muted">{{registerSummary.patientName}} · {{registerSummary.workDateLabel}} {{registerSummary.noonLabel}}</view>
+
+    <view class="muted">{{registerSummary.registLevelName}}</view>
+
+  </view>
+
+
+
+  <view wx:if="{{loading}}" class="empty card">加载中…</view>
+
+  <view wx:elif="{{loadError}}" class="empty card error-card">
+
+    <view class="empty-title">加载失败</view>
+
+    <view class="muted">网络或服务异常，请稍后重试</view>
+
+    <button class="btn-primary retry-btn" size="mini" bindtap="onRetry">重试</button>
+
+  </view>
+
+  <view wx:elif="{{!list.length}}" class="empty card">
+
+    <view class="empty-title">暂无医嘱单</view>
+
+    <view class="muted">医生尚未开具检验/检查/处置/处方医嘱</view>
+
+    <view class="muted hint-small">病历中的文字建议不等于医嘱单</view>
+
+  </view>
+
+  <view wx:else class="list-wrap">
+
+    <view wx:for="{{list}}" wx:key="requestId" class="card order-row">
+
+      <view class="row-between">
+
+        <text class="item-name">{{item.itemName}}</text>
+
+        <text class="tag tag-{{item.kind}}">{{item.typeLabel}}</text>
+
+      </view>
+
+      <view class="muted">状态：{{item.statusLabel}}</view>
+
+      <button
+
+        wx:if="{{item.actionLabel}}"
+
+        class="order-action-btn"
+
+        size="mini"
+
+        data-item="{{item}}"
+
+        bindtap="onOrderAction"
+
+      >{{item.actionLabel}}</button>
+
+    </view>
+
+  </view>
+
+</view>
+
+

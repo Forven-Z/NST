@@ -971,8 +971,6 @@ export function getRegisterById(registerId) {
   return state.registers.find((r) => r.registerId === Number(registerId))
 }
 
-const VISIT_STATE_LABELS = { 1: '已挂号', 2: '接诊中', 3: '看诊结束' }
-
 function buildVisitSummary(reg) {
   const record = getMedicalRecord(reg.registerId)
   const mrStatus = record?.status ?? null
