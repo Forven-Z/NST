@@ -6,6 +6,7 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.his.repository.MedicalRecordRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
+import com.hospital.his.visit.VisitLifecycleCoordinator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class DoctorQueueService {
 
     private final RegisterRepository registerRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final VisitLifecycleCoordinator visitLifecycleCoordinator;
 
     public Map<String, Object> listQueue(Integer visitState, String keyword, int page, int pageSize) {
         Long employeeId = AuthContextHolder.require().getEmployeeId();
@@ -58,12 +60,7 @@ public class DoctorQueueService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权叫号该患者");
         }
 
-        int currentState = ((Number) register.get("visitState")).intValue();
-        if (currentState != VisitState.REGISTERED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已挂号状态可叫号");
-        }
-
-        registerRepository.markCalled(registerId);
+        visitLifecycleCoordinator.callPatient(registerId);
         return Map.of("registerId", registerId, "visitState", VisitState.IN_CONSULTATION);
     }
 
@@ -90,7 +87,7 @@ public class DoctorQueueService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请先确诊提交病历后再结束看诊");
         }
 
-        registerRepository.markFinished(registerId);
+        visitLifecycleCoordinator.finishVisit(registerId);
         return Map.of("registerId", registerId, "visitState", VisitState.FINISHED);
     }
 }

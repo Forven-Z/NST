@@ -41,22 +41,7 @@ public class PacsCheckService {
 
     @Transactional
     public Map<String, Object> execute(Long checkRequestId) {
-        Long executorId = AuthContextHolder.require().getEmployeeId();
-        Map<String, Object> row = checkRequestRepository.findByIdForUpdate(checkRequestId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
-
-        if (((Number) row.get("status")).intValue() != InspectionRequestStatus.PAID) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费申请可执行");
-        }
-
-        Long assignedExecutorId = row.get("executorId") != null
-                ? ((Number) row.get("executorId")).longValue() : null;
-        if (assignedExecutorId != null && !Objects.equals(assignedExecutorId, executorId)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "该检查申请已分配给其他医师，不可执行");
-        }
-
-        checkRequestRepository.markExecuted(checkRequestId, executorId);
-        return Map.of("checkRequestId", checkRequestId, "status", InspectionRequestStatus.EXECUTED);
+        return executeOrder(checkRequestId);
     }
 
     public Map<String, Object> getResultDetail(Long checkRequestId) {
@@ -74,13 +59,8 @@ public class PacsCheckService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
 
         int status = ((Number) context.get("status")).intValue();
-        if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
-            if (status < InspectionRequestStatus.EXECUTED) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "报告尚未录入，无法审核");
-            }
-        } else if (status != InspectionRequestStatus.PAID && status != InspectionRequestStatus.EXECUTED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "当前状态不可录入结果");
-        }
+        boolean signAsReviewerOnly = Boolean.TRUE.equals(request.getSignAsReviewerOnly());
+        assertCanSaveResult(status, signAsReviewerOnly);
 
         Long existingReporterId = context.get("resultInputId") != null
                 ? ((Number) context.get("resultInputId")).longValue() : null;
@@ -91,25 +71,41 @@ public class PacsCheckService {
                 existingReporterId);
 
         String resultText = resolveResultText(request, context);
-        if (!Boolean.TRUE.equals(request.getSignAsReviewerOnly()) && resultText.isBlank()) {
+        if (!signAsReviewerOnly && resultText.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请生成 AI 报告或填写检查医师意见");
         }
 
-        checkRequestRepository.saveResult(
+        int targetStatus = resolveSaveResultTarget(status, signAsReviewerOnly, sign.pendingReview());
+        applySaveResultStatus(checkRequestId, status, targetStatus);
+
+        checkRequestRepository.saveResultContent(
                 checkRequestId,
                 sign.reporterId(),
                 sign.reviewerId(),
                 resultText,
-                Boolean.TRUE.equals(request.getSignAsReviewerOnly()));
+                signAsReviewerOnly);
         pacsAiReportCache.evict(checkRequestId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("checkRequestId", checkRequestId);
-        result.put("status", sign.pendingReview()
-                ? InspectionRequestStatus.EXECUTED
-                : InspectionRequestStatus.RESULT_READY);
+        result.put("status", targetStatus);
         result.put("resultText", resultText);
         return result;
+    }
+
+    @Override
+    protected MedTechExecuteCoordinator coordinator() {
+        return pacsMedTechOrderCoordinator;
+    }
+
+    @Override
+    protected Long requireExecutorId() {
+        return AuthContextHolder.require().getEmployeeId();
+    }
+
+    @Override
+    protected String orderIdResultKey() {
+        return "checkRequestId";
     }
 
     private String resolveResultText(CheckResultRequest request, Map<String, Object> context) {
@@ -137,48 +133,6 @@ public class PacsCheckService {
         }
 
         return CheckReportComposer.composeResultText(findings, ai, doctor);
-    }
-
-    private void autoAssignPaidRequests() {
-        List<Long> requestIds = checkRequestRepository.findUnassignedPaidIdsForUpdate();
-        if (requestIds.isEmpty()) {
-            return;
-        }
-
-        List<Map<String, Object>> doctors = checkRequestRepository.findDoctorLoads("CHECK_DOCTOR");
-        if (doctors.isEmpty()) {
-            return;
-        }
-
-        for (Long requestId : requestIds) {
-            Map<String, Object> doctor = doctors.get(0);
-            Long doctorId = ((Number) doctor.get("employeeId")).longValue();
-            checkRequestRepository.assignExecutorIfUnassigned(requestId, doctorId);
-            doctor.put("loadCount", ((Number) doctor.get("loadCount")).intValue() + 1);
-            sortDoctorsByLoad(doctors);
-        }
-    }
-
-    private Long queueExecutorFilter() {
-        var context = AuthContextHolder.require();
-        if (context.getRoles() != null && context.getRoles().contains("ADMIN")) {
-            return null;
-        }
-        return context.getEmployeeId();
-    }
-
-    private void sortDoctorsByLoad(List<Map<String, Object>> doctors) {
-        doctors.sort((left, right) -> {
-            int byLoad = Integer.compare(
-                    ((Number) left.get("loadCount")).intValue(),
-                    ((Number) right.get("loadCount")).intValue());
-            if (byLoad != 0) {
-                return byLoad;
-            }
-            return Long.compare(
-                    ((Number) left.get("employeeId")).longValue(),
-                    ((Number) right.get("employeeId")).longValue());
-        });
     }
 
     private Long toLong(Object value) {

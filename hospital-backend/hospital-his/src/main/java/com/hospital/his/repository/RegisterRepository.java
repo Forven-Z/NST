@@ -1,6 +1,7 @@
 package com.hospital.his.repository;
 
 import com.hospital.common.constant.RegisterChannel;
+import com.hospital.common.constant.VisitState;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -91,38 +92,72 @@ public class RegisterRepository {
                 .update();
     }
 
-    public void markCalled(Long registerId) {
-        jdbcClient.sql("""
-                        UPDATE register
-                        SET visit_state = 2, call_time = :now, update_time = NOW()
-                        WHERE id = :id
+    /** 乐观锁式状态迁移；返回受影响行数（0 表示当前状态与 expectedFrom 不一致）。 */
+    public int updateVisitStateIfCurrent(Long registerId, int expectedFrom, int newState) {
+        return jdbcClient.sql("""
+                        UPDATE register SET visit_state = :newState, update_time = NOW()
+                        WHERE id = :id AND visit_state = :expectedFrom
                         """)
                 .param("id", registerId)
+                .param("expectedFrom", expectedFrom)
+                .param("newState", newState)
+                .update();
+    }
+
+    public void markCalled(Long registerId) {
+        markCalledIfCurrent(registerId, VisitState.REGISTERED);
+    }
+
+    /** 叫号：仅当当前为 expectedFrom（通常为已挂号）时迁移为接诊中。 */
+    public int markCalledIfCurrent(Long registerId, int expectedFrom) {
+        return jdbcClient.sql("""
+                        UPDATE register
+                        SET visit_state = 2, call_time = :now, update_time = NOW()
+                        WHERE id = :id AND visit_state = :expectedFrom
+                        """)
+                .param("id", registerId)
+                .param("expectedFrom", expectedFrom)
                 .param("now", OffsetDateTime.now())
                 .update();
     }
 
     public void markFinished(Long registerId) {
-        jdbcClient.sql("""
+        markFinishedIfCurrent(registerId, VisitState.IN_CONSULTATION);
+    }
+
+    /** 结束看诊：仅当当前为接诊中时迁移为看诊结束。 */
+    public int markFinishedIfCurrent(Long registerId, int expectedFrom) {
+        return jdbcClient.sql("""
                         UPDATE register
                         SET visit_state = 3, visit_end_time = :now, update_time = NOW()
-                        WHERE id = :id
+                        WHERE id = :id AND visit_state = :expectedFrom
                         """)
                 .param("id", registerId)
+                .param("expectedFrom", expectedFrom)
                 .param("now", OffsetDateTime.now())
                 .update();
     }
 
+    /** @deprecated 请使用 {@link com.hospital.his.visit.VisitLifecycleCoordinator#autoDayClose} */
+    @Deprecated
     public void markAutoDayClosed(Long registerId, String remark) {
-        jdbcClient.sql("""
+        if (markAutoDayClosedIfCurrent(registerId, VisitState.REGISTERED, remark) == 0) {
+            markAutoDayClosedIfCurrent(registerId, VisitState.IN_CONSULTATION, remark);
+        }
+    }
+
+    /** 日终关单：仅当当前为 expectedFrom 时迁移为看诊结束并写入 remark。 */
+    public int markAutoDayClosedIfCurrent(Long registerId, int expectedFrom, String remark) {
+        return jdbcClient.sql("""
                         UPDATE register
                         SET visit_state = 3,
                             visit_end_time = :now,
                             remark = :remark,
                             update_time = NOW()
-                        WHERE id = :id
+                        WHERE id = :id AND visit_state = :expectedFrom
                         """)
                 .param("id", registerId)
+                .param("expectedFrom", expectedFrom)
                 .param("now", OffsetDateTime.now())
                 .param("remark", remark)
                 .update();

@@ -7,6 +7,7 @@ import com.hospital.common.support.RegisterLifecycleSupport;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
+import com.hospital.his.visit.VisitLifecycleCoordinator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class RegisterLifecycleService {
     private final RegisterRepository registerRepository;
     private final BillRepository billRepository;
     private final SchedulingRepository schedulingRepository;
+    private final VisitLifecycleCoordinator visitLifecycleCoordinator;
 
     public Map<String, Object> enrichRegisterRow(Map<String, Object> row) {
         Map<String, Object> enriched = new HashMap<>(row);
@@ -90,7 +92,7 @@ public class RegisterLifecycleService {
             billRepository.markVoid(((Number) bill.get("id")).longValue());
         }
 
-        registerRepository.updateVisitState(registerId, VisitState.CANCELLED);
+        visitLifecycleCoordinator.cancelPending(registerId);
 
         Object schedulingId = register.get("schedulingId");
         if (schedulingId != null) {
@@ -112,7 +114,7 @@ public class RegisterLifecycleService {
         int closed = 0;
         for (Long id : ids) {
             try {
-                cancelPendingRegister(id, "支付超时自动关闭");
+                expirePendingRegister(id);
                 closed++;
             } catch (Exception ex) {
                 log.warn("expire pending register failed id={}: {}", id, ex.getMessage());
@@ -122,6 +124,27 @@ public class RegisterLifecycleService {
             log.info("Register payment timeout: closed {} pending registers", closed);
         }
         return closed;
+    }
+
+    @Transactional
+    public void expirePendingRegister(Long registerId) {
+        Map<String, Object> register = registerRepository.findByIdForUpdate(registerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
+        int visitState = ((Number) register.get("visitState")).intValue();
+        if (visitState != VisitState.PENDING_PAYMENT) {
+            return;
+        }
+
+        for (Map<String, Object> bill : billRepository.findPendingByRegisterId(registerId)) {
+            billRepository.markVoid(((Number) bill.get("id")).longValue());
+        }
+
+        visitLifecycleCoordinator.expirePending(registerId);
+
+        Object schedulingId = register.get("schedulingId");
+        if (schedulingId != null) {
+            schedulingRepository.decrementUsedQuota(((Number) schedulingId).longValue());
+        }
     }
 
     @Transactional
@@ -146,13 +169,7 @@ public class RegisterLifecycleService {
 
     @Transactional
     public void autoDayCloseOne(Long registerId) {
-        Map<String, Object> register = registerRepository.findByIdForUpdate(registerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "挂号记录不存在"));
-        int visitState = ((Number) register.get("visitState")).intValue();
-        if (visitState != VisitState.REGISTERED && visitState != VisitState.IN_CONSULTATION) {
-            return;
-        }
-        registerRepository.markAutoDayClosed(registerId, RegisterLifecycleSupport.REMARK_AUTO_DAY_CLOSE);
+        visitLifecycleCoordinator.autoDayClose(registerId, RegisterLifecycleSupport.REMARK_AUTO_DAY_CLOSE);
     }
 
     @Transactional

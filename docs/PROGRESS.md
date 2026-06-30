@@ -59,14 +59,15 @@
 | hospital-management · 排班请假 §8.5/§9.5 | API §8.5、§9.5 | ✅ | | `scheduling_leave_request` 表 + 验收脚本 |
 | hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
 | hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
-| hospital-pacs · 影像任务/CNN | API §6 · §8 | 🟨 | lzr+wsh | taskType 已通；62001 头部 / 62002 肺部 / 62006 肿瘤（三模型权重已部署） |
-| hospital-ai-bridge · STUB | API §7 | ✅ | | `/ai/health`, triage/assistant 占位 |
+| hospital-pacs · 影像任务/CNN | API §6 · §8 | ✅ | lzr+wsh | taskType 三态；62001 头部 / 62002 肺部 / 62006 肿瘤 STUB；见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) |
+| hospital-ai-bridge · RAG | API §7 | 🟨 | | pgvector + 100 条官方知识；见 [RAG_GUIDE.md](./RAG_GUIDE.md) |
+| hospital-ai-bridge · triage/assistant STUB | API §7 | ✅ | | 非 RAG 路径占位 |
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
 | hospital-disposal | MICRO §2.5a | ✅ | | :9105 |
 | hospital-pacs | MICRO §2.5 | ✅ | | :9104 |
 | hospital-management | MICRO §2.6 | ✅ | | :9107 字典只读 + 科室/员工/排班 CRUD |
-| hospital-ai-bridge | MICRO §2.7 | ✅ | | :9106 STUB |
-| hospital-ai (Python) | API §8 | 🟨 | wsh | 头部 `best.pth` + 肺部 `lung_artifact_best.pth` 已部署；见 `LUNG_INTEGRATION_TEAM_CHANGELOG.md` |
+| hospital-ai-bridge | MICRO §2.7 | 🟨 | | :9106 RAG 收尾中 |
+| hospital-ai (Python) | API §8 | ✅ | wsh | 头部 + 肺部权重已部署；见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) |
 
 ---
 
@@ -80,7 +81,7 @@
 | PC · 收费员退费 | §2.3 | ✅ | | `/registrar/refund` 按病历号查询 + 退费 |
 | PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + 录入弹窗 **重新采图**（跳转影像 AI 工作台）+ `mergeCheckReportAfterLlm` 保留三视图 |
 | PC · PACS 影像任务 | §2.5 | 🟨 | zty | `/pacs/imaging` 关 Mock 显示开发中空态；后端 `imaging-studies` ⬜ |
-| PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai` 最小可运行；CNN 由 wsh 后续 |
+| PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai`；CNN 见 AI_CNN_INTEGRATION |
 | PC · admin | API §9 | ✅ | | 排班页与 Mock 统一；请假联调；AI STUB 50301 |
 | 小程序 · 登录/挂号 | §一 | ✅ | | `hospital-patient-miniapp/` |
 | 小程序 · 支付 | §一 | ✅ | | 待缴明细 + 演示级微信支付 UI + 缴费详情 |
@@ -102,6 +103,21 @@
 
 ---
 
+## 五·一、HIS 设计模式重构（ADR-018）
+
+| 阶段 | 内容 | 代码 | 验收 | 文档 |
+|------|------|------|------|------|
+| 1 | **①** VisitTransitions | ✅ | 🟨 待跑 | [REFACTORING §4.1](./REFACTORING_DESIGN_PATTERNS.md#41-图-1--visittransitions--registervisit_state) |
+| 2 | **②** SM1 + SM2 | ✅ | 🟨 待跑 | [REFACTORING §4.2～4.3](./REFACTORING_DESIGN_PATTERNS.md#42-图-2--medtechordertransitions--检验--检查--处置sm1) |
+| 3 | **③** MedicalOrderHandler + Registry | ✅ | 🟨 待跑 | [REFACTORING §五](./REFACTORING_DESIGN_PATTERNS.md#五handler-设计步骤-③) |
+| 4 | **④** AbstractMedTechExecuteTemplate | ✅ | 🟨 待跑 | [REFACTORING §六](./REFACTORING_DESIGN_PATTERNS.md#六template-method--医技执行步骤-④) |
+| 5 | **⑧** 拆微服务 | ⬜ | — | §八 + ADR-019（**待 ①～④ 验收 ✅ 后**） |
+
+> **验收**：`r-min` · `r-reversal` · `r-lis` · `r-pacs` · `r-disposal` · `r-pharmacy`（重构后须重跑）。  
+> **延后**：Coordinator/Handler 层单测扩充；步骤 ⑧ 与 ADR-019。
+
+---
+
 ## 六、阻塞与风险
 
 | 日期 | 描述 | 影响 | 处理 |
@@ -114,11 +130,16 @@
 
 | 日期 | 说明 |
 |------|------|
-| 2026-06-03 | wsh：taskType 第二步、MinIO 社区版、LIDC 数据计划；hospital-ai 肺部权重热插拔 |
+| 2026-06-04 | 文档精简：CNN→AI_CNN_INTEGRATION、RAG→RAG_GUIDE；删除 LUNG_* 过程文档；见 archive/README |
 | 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
 | 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
 | 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |
 | 2026-06-04 | ADR-015：AI 开单 suggest + ai-draft；`TEAM_COLLABORATION` §九 六人分工 |
+| 2026-06-30 | REFACTORING v2.3：2 层叙述 + 3 表；Handler + 单模板三子类（ADR-018 同步） |
+| 2026-06-30 | REFACTORING v2.4：处方 SM2 库存联动（开立预扣、退费/退药/驳回回增、不足拒开） |
+| 2026-06-04 | ADR-018 **①～④ 代码已落地**；REFACTORING v2.5 文档同步；验收待跑；单测/步骤⑧ 延后 |
+| 2026-06-04 | ADR-018 步骤③ Handler + Registry；步骤④ Execute 模板（lis/pacs/disposal） |
+| 2026-06-30 | 步骤②：SM1/SM2 状态机 + OrderStatusCoordinator（his/lis/pacs/disposal） |
 | 2026-05-31 | 文档精简：合并 INTEGRATION/RATIONALE/TECH 至 RUNBOOK/IMPLEMENTATION/MICROSERVICES |
 | 2026-05-31 | 退号/退费/退药：患者退号、窗口退费、药师退药+退费；验收 4/4 PASS |
 | 2026-05-31 | 药房发药闭环：开处方→缴费→待发药→发药；验收 4/4 PASS |

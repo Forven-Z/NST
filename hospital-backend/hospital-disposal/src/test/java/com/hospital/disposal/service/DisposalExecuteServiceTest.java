@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,9 +24,9 @@ class DisposalExecuteServiceTest {
         request.setOutcomeText("患者生命体征平稳，未诉明显不适");
 
         Method method = DisposalExecuteService.class.getDeclaredMethod(
-                "resolveResultText", DisposalResultRequest.class);
+                "resolveResultText", DisposalResultRequest.class, Map.class);
         method.setAccessible(true);
-        String text = (String) method.invoke(disposalExecuteService, request);
+        String text = (String) method.invoke(disposalExecuteService, request, Map.of());
 
         assertTrue(text.contains("【处置过程】"));
         assertTrue(text.contains("左侧卧位洗胃"));

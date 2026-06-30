@@ -83,6 +83,39 @@ public class PrescriptionRepository {
                 .update();
     }
 
+    public int updateStatusIfCurrent(Long prescriptionId, int expectedFrom, int newStatus) {
+        return jdbcClient.sql("""
+                        UPDATE prescription SET status = :newStatus, update_time = NOW()
+                        WHERE id = :id AND delmark = 0 AND status = :expectedFrom
+                        """)
+                .param("id", prescriptionId)
+                .param("expectedFrom", expectedFrom)
+                .param("newStatus", newStatus)
+                .update();
+    }
+
+    public int markDispensedIfCurrent(Long prescriptionId, int expectedFrom, Long pharmacistId) {
+        return jdbcClient.sql("""
+                        UPDATE prescription
+                        SET status = 30, pharmacist_id = :pharmacistId, update_time = NOW()
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
+                        """)
+                .param("id", prescriptionId)
+                .param("expectedFrom", expectedFrom)
+                .param("pharmacistId", pharmacistId)
+                .update();
+    }
+
+    public int markReturnedIfCurrent(Long prescriptionId, int expectedFrom) {
+        return jdbcClient.sql("""
+                        UPDATE prescription SET status = 40, update_time = NOW()
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
+                        """)
+                .param("id", prescriptionId)
+                .param("expectedFrom", expectedFrom)
+                .update();
+    }
+
     public Optional<Map<String, Object>> findByIdForUpdate(Long prescriptionId) {
         return jdbcClient.sql("""
                         SELECT id, register_id, patient_id, doctor_id, total_amount, status, create_time

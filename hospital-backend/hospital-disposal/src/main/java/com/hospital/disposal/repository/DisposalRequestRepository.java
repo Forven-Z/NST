@@ -1,5 +1,6 @@
 package com.hospital.disposal.repository;
 
+import com.hospital.common.execute.MedTechOrderStatusWriter;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Repository
-public class DisposalRequestRepository {
+public class DisposalRequestRepository implements MedTechOrderStatusWriter {
 
     private final JdbcClient jdbcClient;
 
@@ -114,23 +115,43 @@ public class DisposalRequestRepository {
     }
 
     public void markExecuted(Long id, Long executorId) {
-        jdbcClient.sql("""
+        markExecutedIfCurrent(id, com.hospital.common.constant.InspectionRequestStatus.PAID, executorId);
+    }
+
+    public int markExecutedIfCurrent(Long id, int expectedFrom, Long executorId) {
+        return jdbcClient.sql("""
                         UPDATE disposal_request
                         SET status = 30, executor_id = :executorId, execute_time = :now, update_time = NOW()
-                        WHERE id = :id
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
                         """)
                 .param("id", id)
+                .param("expectedFrom", expectedFrom)
                 .param("executorId", executorId)
                 .param("now", OffsetDateTime.now())
                 .update();
     }
 
+    public int updateStatusIfCurrent(Long id, int expectedFrom, int newStatus) {
+        return jdbcClient.sql("""
+                        UPDATE disposal_request SET status = :newStatus, update_time = NOW()
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("expectedFrom", expectedFrom)
+                .param("newStatus", newStatus)
+                .update();
+    }
+
     public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
+        saveResultContent(id, resultInputId, reviewerId, resultText, reviewOnly);
+    }
+
+    public void saveResultContent(Long id, Long resultInputId, Long reviewerId, String resultText,
+                                  boolean reviewOnly) {
         if (reviewOnly) {
             jdbcClient.sql("""
                             UPDATE disposal_request
                             SET reviewer_id = :reviewerId,
-                                status = 40,
                                 result_time = :now,
                                 update_time = NOW()
                             WHERE id = :id
@@ -141,11 +162,9 @@ public class DisposalRequestRepository {
                     .update();
             return;
         }
-        int status = reviewerId != null ? 40 : 30;
         jdbcClient.sql("""
                         UPDATE disposal_request
-                        SET status = :status,
-                            result_input_id = :resultInputId,
+                        SET result_input_id = :resultInputId,
                             reviewer_id = :reviewerId,
                             result_time = :now,
                             result_text = :resultText,
@@ -154,7 +173,6 @@ public class DisposalRequestRepository {
                         WHERE id = :id
                         """)
                 .param("id", id)
-                .param("status", status)
                 .param("resultInputId", resultInputId)
                 .param("reviewerId", reviewerId)
                 .param("now", OffsetDateTime.now())

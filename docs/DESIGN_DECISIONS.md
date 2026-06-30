@@ -28,6 +28,7 @@
 | ADR-015 | AI 辅助开检查/检验/处置 | **已定稿** | **方案 A** `diagnosis/suggest` 分支 + **方案 B** ai-draft 三步（与处方对称） |
 | ADR-016 | 就诊人/家属业务模型 | **已定稿** | **方案 A**：JWT=操作者；`visitPatientId`=当前就诊人；本人不进 link |
 | ADR-017 | 处置微服务拆分 | **已定稿** | 镜像 LIS/PACS：`hospital-disposal`（:9105）负责队列/执行/结果 |
+| ADR-018 | HIS 领域设计模式重构 | **实施中** | ①～④ **代码已落地**，待验收；详见 [REFACTORING v2.5](./REFACTORING_DESIGN_PATTERNS.md) |
 
 ---
 
@@ -266,7 +267,32 @@ v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1
 
 ---
 
-## 六、修订记录
+## 六、ADR-018 HIS 领域设计模式重构（实施中 · ①～④ 已落地）
+
+### 6.1 定稿结论
+
+| 项 | 决策 |
+|----|------|
+| **步骤 ①** | `VisitTransitions` + `VisitLifecycleCoordinator` | 就诊 visit_state **最先** |
+| **步骤 ②** | `MedTechOrderTransitions` + `PrescriptionTransitions` + Coordinator | 医嘱 SM1/SM2 |
+| **步骤 ③** | `MedicalOrderHandler` + `MedicalOrderHandlerRegistry` | Handler（开单 + 缴费/退费一体） |
+| **步骤 ④** | `AbstractMedTechExecuteTemplate` + `AbstractMedTechOrderCoordinator` | 单模板 · LIS/PACS/Disposal 三子类 |
+| **处方库存** | 开立预扣 `stock_qty`；退费/驳回/退药回增；不足拒开 | 与 SM2 同事务；见 REFACTORING §4.3.1 |
+| **步骤 ⑧** | 拆 patient / pharmacy / clinical | ADR-019（**待 ①～④ 验收 ✅ 后**） |
+| **契约** | **不改** Gateway / `API.md` 字段 | |
+| **代码状态** | ①～④ **已落地**（2026-06-04） | 验收脚本待重跑 |
+| **延后** | 单测扩充（Coordinator/Handler/Execute） | 不阻塞当前代码合并 |
+| **实施** | ①→②→③→④ 每步独立验收 | 见 [REFACTORING §〇](./REFACTORING_DESIGN_PATTERNS.md#〇实施顺序king-定稿) |
+
+### 6.2 与现有文档关系
+
+- 就诊状态图：**已有** → `BUSINESS_FLOW.md` §8.1（State 模式将其代码化）  
+- 医嘱状态图：**已有** → §8.2～8.5（保持枚举 + 局部校验，**不**强行 State 类）  
+- 微服务边界：**暂不变** → `MICROSERVICES.md` §2.3；待 ADR-018 **①～④ 验收 ✅** 后再开 ADR-019「his 三拆」
+
+---
+
+## 七、修订记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -278,3 +304,7 @@ v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1
 | v1.5 | 2026-06 | **ADR-015** AI 辅助开单：diagnosis/suggest + ai-draft 三步 |
 | v1.6 | 2026-06 | **ADR-016** 就诊人/家属：**方案 A**（操作者 JWT + visitPatientId） |
 | v1.8 | 2026-06 | **ADR-016 修订**：病人账户登录 + QQ 式 `switch-account`；微信仅 bind 支付 |
+| v1.9 | 2026-06-04 | **ADR-018** 实施顺序：① visit → ② SM1/SM2 → ③ Strategy → ④ Execute Template |
+| v2.0 | 2026-06-30 | **ADR-018 修订**：③ Handler + Registry；④ 单模板三子类；叙述 2 层 / 实现 3 表 |
+| v2.2 | 2026-06-04 | **ADR-018 实施进度**：①～④ 代码已落地；验收待跑；单测/步骤⑧ 延后 |
+| v2.1 | 2026-06-30 | **ADR-018 补充**：处方 SM2 与 `stock_qty` 联动（开立预扣、退费/退药/驳回回增、不足拒开） |
