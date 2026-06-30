@@ -83,13 +83,13 @@ def save_preview_nifti(image: sitk.Image, path: Path | str) -> str:
     return str(path)
 
 
-def save_mask_preview_nifti(mask_image: sitk.Image, path: Path | str) -> str:
-    """掩码预览用最近邻降采样，减小浏览器 Niivue 解析压力。"""
+def save_mask_preview_nifti(mask_image: sitk.Image, path: Path | str) -> sitk.Image:
+    """掩码预览用最近邻降采样，减小浏览器 Niivue 解析压力；返回预览体供统计切片索引。"""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     preview = _downsample_for_web_preview(mask_image, interpolator=sitk.sitkNearestNeighbor)
     sitk.WriteImage(preview, str(path))
-    return str(path)
+    return preview
 
 
 def mask_slice_indices(mask_image: sitk.Image) -> list[int]:

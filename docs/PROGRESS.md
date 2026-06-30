@@ -58,8 +58,8 @@
 | hospital-management · 科室/员工/排班 CRUD | API §9.2–9.3 | ✅ | | `POST/PUT/DELETE /admin/**` + auth 内部开户 |
 | hospital-management · 排班请假 §8.5/§9.5 | API §8.5、§9.5 | ✅ | | `scheduling_leave_request` 表 + 验收脚本 |
 | hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
-| hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` / 双字段 `result`；`PacsAiReportCache` |
-| hospital-pacs · 影像任务/CNN | API §6 · §8 | 🟨 | lzr+wsh | taskType 已通；62001 头部 / 62002 胸部（肺部权重已部署，待联调） |
+| hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
+| hospital-pacs · 影像任务/CNN | API §6 · §8 | 🟨 | lzr+wsh | taskType 已通；62001 头部 / 62002 肺部 / 62006 肿瘤（三模型权重已部署） |
 | hospital-ai-bridge · STUB | API §7 | ✅ | | `/ai/health`, triage/assistant 占位 |
 | hospital-lis | MICRO §2.4 | ✅ | | :9103 |
 | hospital-disposal | MICRO §2.5a | ✅ | | :9105 |

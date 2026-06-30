@@ -35,7 +35,7 @@ STATUS_FAILED = "FAILED"
 
 STUB_MESSAGES = {
     LUNG_CT_ARTIFACT: "肺部 CT 金属伪影模型尚未部署，请先完成数据采集与训练（见 docs/LUNG_CT_DATA_PLAN.md）",
-    TUMOR_SEG: "肿瘤分割模型尚未部署，请先完成病灶标注与训练",
+    TUMOR_SEG: "肿瘤分割模型尚未部署，请先完成训练并运行 scripts/install-model-weights.ps1",
 }
 
 
@@ -80,6 +80,7 @@ class JobStore:
 job_store = JobStore()
 _infer_head: CTArtifactInfer | None = None
 _infer_lung: CTArtifactInfer | None = None
+_infer_tumor: CTArtifactInfer | None = None
 _minio: MinioStorage | None = None
 
 
@@ -87,8 +88,12 @@ def _lung_weight_ready() -> bool:
     return Path(settings.lung_model_weight_path).is_file()
 
 
+def _tumor_weight_ready() -> bool:
+    return Path(settings.tumor_model_weight_path).is_file()
+
+
 def get_infer(task_type: str = HEAD_CT_ARTIFACT) -> CTArtifactInfer:
-    global _infer_head, _infer_lung
+    global _infer_head, _infer_lung, _infer_tumor
     task_type = normalize_task_type(task_type)
     if task_type == LUNG_CT_ARTIFACT:
         if _infer_lung is None:
@@ -96,6 +101,12 @@ def get_infer(task_type: str = HEAD_CT_ARTIFACT) -> CTArtifactInfer:
                 raise RuntimeError(STUB_MESSAGES[LUNG_CT_ARTIFACT])
             _infer_lung = CTArtifactInfer(model_weight_path=settings.lung_model_weight_path)
         return _infer_lung
+    if task_type == TUMOR_SEG:
+        if _infer_tumor is None:
+            if not _tumor_weight_ready():
+                raise RuntimeError(STUB_MESSAGES[TUMOR_SEG])
+            _infer_tumor = CTArtifactInfer(model_weight_path=settings.tumor_model_weight_path)
+        return _infer_tumor
     if _infer_head is None:
         _infer_head = CTArtifactInfer(model_weight_path=settings.model_weight_path)
     return _infer_head
@@ -110,7 +121,9 @@ def get_minio() -> MinioStorage:
 
 def _assert_task_supported(task_type: str) -> None:
     if task_type == TUMOR_SEG:
-        raise RuntimeError(STUB_MESSAGES[TUMOR_SEG])
+        if not _tumor_weight_ready():
+            raise RuntimeError(STUB_MESSAGES[TUMOR_SEG])
+        return
     if task_type == LUNG_CT_ARTIFACT:
         if not _lung_weight_ready():
             raise RuntimeError(STUB_MESSAGES[LUNG_CT_ARTIFACT])
@@ -147,19 +160,26 @@ def run_inference_job(job: InferenceJob):
         preview_local = output_dir / "ct_preview.nii.gz"
         mask_sitk = infer.predict_from_sitk(sitk_ct, save_mask_path=str(output_dir / "mask_full.nii.gz"))
         save_preview_nifti(sitk_ct, preview_local)
-        save_mask_preview_nifti(mask_sitk, mask_local)
+        mask_preview = save_mask_preview_nifti(mask_sitk, mask_local)
         prefix = job.result_prefix if job.result_prefix.endswith("/") else job.result_prefix + "/"
         mask_key = f"{prefix}mask.nii.gz"
         preview_key = f"{prefix}ct_preview.nii.gz"
         minio.upload_file(mask_key, mask_local, content_type="application/gzip")
         minio.upload_file(preview_key, preview_local, content_type="application/gzip")
         spacing = sitk_ct.GetSpacing()
-        modality = "CT_LUNG" if task_type == LUNG_CT_ARTIFACT else "CT_HEAD"
+        if task_type == LUNG_CT_ARTIFACT:
+            modality = "CT_LUNG"
+        elif task_type == TUMOR_SEG:
+            modality = "TUMOR_SEG"
+        else:
+            modality = "CT_HEAD"
+        preview_slices = mask_slice_indices(mask_preview)
         report_json = {
             "taskType": task_type,
-            "maskVoxelCount": mask_voxel_count(mask_sitk),
-            "maskSliceIndices": mask_slice_indices(mask_sitk),
-            "sliceCount": int(sitk_ct.GetSize()[2]) if sitk_ct.GetDimension() >= 3 else 1,
+            "maskVoxelCount": mask_voxel_count(mask_preview),
+            "maskSliceIndices": preview_slices,
+            "maskSlices": preview_slices,
+            "sliceCount": int(mask_preview.GetSize()[2]) if mask_preview.GetDimension() >= 3 else 1,
             "spacing": [float(spacing[0]), float(spacing[1]), float(spacing[2])],
             "modality": modality,
         }

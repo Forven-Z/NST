@@ -1,4 +1,4 @@
-﻿# Seed demo check requests #62001 (head CT) and #62002 (chest CT)
+﻿# Seed demo check requests #62001 (head CT) and #62002 (lung CT)
 param(
     [string]$DbHost = 'localhost',
     [string]$DbName = 'hospital',

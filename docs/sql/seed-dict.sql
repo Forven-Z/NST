@@ -91,7 +91,7 @@ INSERT INTO medical_technology (item_code, item_name, tech_type, price, dept_id)
     ('INS-RESP-AG', '呼吸道病原抗原', 'INSPECTION', 85.00, 3),
     -- 检查 CHECK（放射科 dept_id=2）
     ('CHK-CT-HEAD', '头部 CT', 'CHECK', 280.00, 2),
-    ('CHK-CT-LUNG', '胸部 CT', 'CHECK', 320.00, 2),
+    ('CHK-CT-LUNG', '肺部 CT', 'CHECK', 320.00, 2),
     ('CHK-TUMOR-SEG', '肿瘤 CT 分割', 'CHECK', 450.00, 2),
     ('CHK-CXR', '胸部 X 线', 'CHECK', 90.00, 2),
     ('CHK-MRI-BRAIN', '颅脑 MRI', 'CHECK', 680.00, 2),

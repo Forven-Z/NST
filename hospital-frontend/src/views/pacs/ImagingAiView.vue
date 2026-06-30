@@ -25,11 +25,41 @@ const itemName = computed(() => route.query.itemName || '-')
 const viewMode = computed(() => route.query.view === '1' || route.query.view === 'true')
 const showResultEntry = computed(() => !viewMode.value && !!checkRequestId.value)
 
+const taskKind = computed(() => {
+  const name = `${itemName.value || ''}`
+  if (/肿瘤|病灶|肿物|TUMOR/i.test(name)) return 'tumor'
+  if (/胸|肺|CHEST|LUNG/i.test(name)) return 'lung'
+  return 'head'
+})
+
+const isTumorSeg = computed(() => taskKind.value === 'tumor')
+
 const pageTitle = computed(() => {
-  const name = itemName.value || ''
-  if (/胸|肺/.test(name)) return '胸部 CT 伪影检测'
-  if (/肿瘤|病灶|肿物/.test(name)) return '肿瘤分割分析'
+  if (taskKind.value === 'tumor') return '肿瘤分割分析'
+  if (taskKind.value === 'lung') return '肺部 CT 伪影检测'
   return '头部 CT 金属伪影检测'
+})
+
+const analyzeButtonLabel = computed(() => {
+  if (generating.value) return 'CNN 推理中（约 15–60 秒）…'
+  if (uploading.value) return '正在上传源数据…'
+  return isTumorSeg.value ? '开始 AI 分割' : '开始 AI 检测'
+})
+
+const uploadTip = computed(() => {
+  if (isTumorSeg.value && mode.value === 'dicom') {
+    return '选文件夹后自动上传至 MinIO。'
+  }
+  if (isTumorSeg.value) {
+    return '选文件后自动上传源数据至 MinIO；AI 完成后分割掩码与预览由后端自动写入 MinIO。'
+  }
+  return '选文件后自动上传源数据至 MinIO；AI 完成后伪影掩码与预览由后端自动写入 MinIO。'
+})
+
+const maskEmptyHint = computed(() => {
+  if (!isTumorSeg.value || !showResults.value || generating.value) return ''
+  if (maskVoxelCount.value !== 0) return ''
+  return '本次未检出病灶：肿瘤模型针对脑部 CT 训练。请改用 UploadDemo 下 case005 或 case039，重新上传并分析。'
 })
 
 const mode = ref('nifti')
@@ -51,6 +81,7 @@ const detail = ref(null)
 const ctObjectUrl = ref('')
 const maskObjectUrl = ref('')
 const maskSlices = ref([])
+const maskVoxelCount = ref(null)
 const mountViewer = ref(false)
 
 const resultDialogVisible = ref(false)
@@ -84,7 +115,15 @@ function resetResults() {
   mountViewer.value = false
   detail.value = null
   maskSlices.value = []
+  maskVoxelCount.value = null
   revokeUrls()
+}
+
+function applyPreviewMeta(data) {
+  const slices = data?.maskSlices ?? data?.maskSliceIndices ?? []
+  maskSlices.value = Array.isArray(slices) ? slices : []
+  const count = data?.maskVoxelCount
+  maskVoxelCount.value = typeof count === 'number' ? count : count != null ? Number(count) : null
 }
 
 function stopProgressTimer() {
@@ -113,7 +152,7 @@ function onUploadProgress(e) {
 
 function startInferenceProgress() {
   stopProgressTimer()
-  setProgress(30, 'CNN 推理中（CPU 约 3–8 分钟，请勿重复点击）…')
+  setProgress(30, 'CNN 推理中（约 15–60 秒，请勿重复点击）…')
   progressTimer = setInterval(() => {
     if (progressPct.value < 88) {
       setProgress(progressPct.value + 1)
@@ -195,7 +234,7 @@ async function loadStoredPreview() {
   studyStatus.value = '正在从 MinIO 加载历史影像…'
   try {
     const previewRes = await fetchPacsImagingPreview(checkRequestId.value)
-    maskSlices.value = previewRes.data?.maskSlices || []
+    applyPreviewMeta(previewRes.data)
     const [ctUrl, maskUrl] = await Promise.all([
       fetchPacsPreviewBlob(checkRequestId.value, 'ct'),
       fetchPacsPreviewBlob(checkRequestId.value, 'mask'),
@@ -232,7 +271,7 @@ async function loadPreviewVolumes() {
     ctObjectUrl.value = ctUrl
     maskObjectUrl.value = maskUrl
     const previewRes = await fetchPacsImagingPreview(checkRequestId.value)
-    maskSlices.value = previewRes.data?.maskSlices || []
+    applyPreviewMeta(previewRes.data)
     setProgress(100, '分析完成')
     await nextTick()
     setTimeout(() => {
@@ -266,8 +305,10 @@ async function onAgentAiAnalysis() {
     setProgress(90, '推理完成，正在加载预览…')
     showResults.value = true
     detail.value = res.data
-    studyStatus.value = '分析完成（掩码与预览已写入 MinIO）'
-    ElMessage.success('AI 影像分析完成')
+    studyStatus.value = isTumorSeg.value
+      ? '分析完成（分割掩码与预览已写入 MinIO）'
+      : '分析完成（伪影掩码与预览已写入 MinIO）'
+    ElMessage.success(isTumorSeg.value ? 'AI 肿瘤分割完成' : 'AI 影像分析完成')
     await loadPreviewVolumes()
   } catch (err) {
     stopProgressTimer()
@@ -519,13 +560,17 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="block">
+          <h2>{{ isTumorSeg ? 'AI 肿瘤分割' : 'AI 伪影检测' }}</h2>
+          <p v-if="isTumorSeg" class="task-desc">
+            本检查使用<strong>肿瘤分割模型</strong>，输出为病灶区域的分割掩码（非金属伪影检测）。
+          </p>
           <button
             type="button"
             class="primary"
             :disabled="generating || uploading || !canAnalyze"
             @click="onAgentAiAnalysis"
           >
-            {{ generating ? 'CNN 推理中（约 15–60 秒）…' : uploading ? '正在上传源数据…' : '开始 AI 检测' }}
+            {{ analyzeButtonLabel }}
           </button>
           <p class="status">任务状态：{{ studyStatus }}</p>
           <div v-if="progressPct > 0 || uploading || generating || previewLoading" class="progress-wrap">
@@ -535,13 +580,21 @@ onBeforeUnmount(() => {
             <p class="progress-label">{{ progressLabel || studyStatus }}</p>
             <span class="progress-pct">{{ progressPct }}%</span>
           </div>
-          <p class="tip">选文件后自动上传源数据至 MinIO；AI 完成后掩码与预览由后端自动写入 MinIO。</p>
+          <p class="tip">{{ uploadTip }}</p>
+          <p v-if="maskEmptyHint" class="warn-tip">{{ maskEmptyHint }}</p>
           <div v-if="showResults" class="usage-hint">
-            <p class="usage-title">阅片说明</p>
-            <ul>
+            <p class="usage-title">{{ isTumorSeg ? '分割掩码阅片说明' : '伪影掩码阅片说明' }}</p>
+            <ul v-if="isTumorSeg">
               <li>分析完成后，右侧<strong>默认只加载源数据 CT</strong>（灰度图）。</li>
-              <li>要看 AI 蓝色伪影，请在右侧底部工具栏点击<strong>「叠加 AI 掩码」</strong>。</li>
-              <li>点击轴位 / 冠状 / 矢状视图可<strong>放大</strong>查看当前视角。</li>
+              <li>要看 AI 分割结果，请点击<strong>「叠加 AI 分割掩码」</strong>——蓝色区域为肿瘤/病灶范围。</li>
+              <li>某层无蓝色区域表示该层 AI 未检出明显病灶。</li>
+              <li>本结果为 AI 辅助分割，仅供演示，<strong>不能替代临床诊断</strong>。</li>
+              <li>点击轴位 / 冠状 / 矢状视图可<strong>放大</strong>查看。</li>
+            </ul>
+            <ul v-else>
+              <li>分析完成后，右侧<strong>默认只加载源数据 CT</strong>（灰度图）。</li>
+              <li>要看 AI 检测到的金属伪影，请点击<strong>「叠加 AI 掩码」</strong>——蓝色区域为伪影范围。</li>
+              <li>点击轴位 / 冠状 / 矢状视图可<strong>放大</strong>查看。</li>
             </ul>
           </div>
         </section>
@@ -559,6 +612,7 @@ onBeforeUnmount(() => {
             :ct-url="ctObjectUrl"
             :mask-url="maskObjectUrl"
             :mask-slices="maskSlices"
+            :mask-mode="isTumorSeg ? 'tumor' : 'artifact'"
           />
         </div>
         <p v-else-if="showResults && !ctObjectUrl && error" class="panel-tip error">
@@ -660,10 +714,13 @@ onBeforeUnmount(() => {
 .panel { padding: 16px; background: #111820; border-right: 1px solid #243040; overflow-y: auto; }
 .block { margin-bottom: 18px; }
 .block h2 { margin: 0 0 10px; font-size: 13px; color: #b8c8d8; text-transform: uppercase; }
+.task-desc { font-size: 12px; line-height: 1.6; color: #9eb4c8; margin: 0 0 12px; padding: 8px 10px; background: #141c28; border-radius: 6px; border-left: 3px solid #4ecdc4; }
+.task-desc strong { color: #c8e8f0; }
 .mode-tabs { display: flex; gap: 8px; }
 .mode-tabs button { flex: 1; padding: 8px; border: 1px solid #304050; border-radius: 8px; background: #182028; color: #c8d8e8; cursor: pointer; }
 .mode-tabs button.active { background: #1e3a52; border-color: #3d8fd1; color: #fff; }
 .file-name, .tip, .status { font-size: 12px; color: #8aa0b4; margin-top: 8px; }
+.warn-tip { font-size: 12px; color: #ffb86c; margin-top: 8px; line-height: 1.5; padding: 8px 10px; background: #2a2218; border-radius: 6px; border-left: 3px solid #ffb86c; }
 .primary, .secondary { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
 .primary { background: linear-gradient(135deg, #2a7bd6, #1e5fad); color: #fff; }
 .secondary { background: #243040; color: #d0dce8; }
