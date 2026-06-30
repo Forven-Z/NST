@@ -3,9 +3,12 @@ package com.hospital.pacs.service;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.common.execute.AbstractMedTechExecuteTemplate;
+import com.hospital.common.execute.MedTechExecuteCoordinator;
 import com.hospital.common.support.CheckReportComposer;
 import com.hospital.common.support.MedTechSignSupport;
 import com.hospital.pacs.dto.CheckResultRequest;
+import com.hospital.pacs.order.PacsMedTechOrderCoordinator;
 import com.hospital.pacs.repository.CheckRequestRepository;
 import com.hospital.pacs.security.AuthContextHolder;
 import com.hospital.pacs.support.PacsAiReportCache;
@@ -16,17 +19,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class PacsCheckService {
+public class PacsCheckService extends AbstractMedTechExecuteTemplate {
 
     private final CheckRequestRepository checkRequestRepository;
     private final ImagingService imagingService;
+    private final PacsMedTechOrderCoordinator pacsMedTechOrderCoordinator;
     private final PacsAiReportCache pacsAiReportCache;
 
-    @Transactional
     public Map<String, Object> listQueue(Integer status, int page, int pageSize) {
         autoAssignPaidRequests();
         int offset = Math.max(page - 1, 0) * pageSize;
@@ -106,6 +108,44 @@ public class PacsCheckService {
     @Override
     protected String orderIdResultKey() {
         return "checkRequestId";
+    }
+
+    private Long queueExecutorFilter() {
+        var context = AuthContextHolder.require();
+        if (context.getRoles() != null && context.getRoles().contains("ADMIN")) {
+            return null;
+        }
+        return context.getEmployeeId();
+    }
+
+    private void autoAssignPaidRequests() {
+        List<Long> requestIds = checkRequestRepository.findUnassignedPaidIdsForUpdate();
+        if (requestIds.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> doctors = checkRequestRepository.findDoctorLoads("CHECK_DOCTOR");
+        if (doctors.isEmpty()) {
+            return;
+        }
+
+        for (Long requestId : requestIds) {
+            Map<String, Object> doctor = doctors.get(0);
+            Long doctorId = ((Number) doctor.get("employeeId")).longValue();
+            checkRequestRepository.assignExecutorIfUnassigned(requestId, doctorId);
+            doctor.put("loadCount", ((Number) doctor.get("loadCount")).intValue() + 1);
+            doctors.sort((left, right) -> {
+                int byLoad = Integer.compare(
+                        ((Number) left.get("loadCount")).intValue(),
+                        ((Number) right.get("loadCount")).intValue());
+                if (byLoad != 0) {
+                    return byLoad;
+                }
+                return Long.compare(
+                        ((Number) left.get("employeeId")).longValue(),
+                        ((Number) right.get("employeeId")).longValue());
+            });
+        }
     }
 
     private String resolveResultText(CheckResultRequest request, Map<String, Object> context) {
