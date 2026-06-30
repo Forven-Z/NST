@@ -37,7 +37,7 @@ SET status = 20, delmark = 0, purpose = EXCLUDED.purpose, body_part = EXCLUDED.b
     medical_technology_id = EXCLUDED.medical_technology_id,
     executor_id = NULL, execute_time = NULL, result_text = NULL;
 
--- #62004 Zhao daye - chest CT
+-- #62004 Zhao daye - lung CT
 INSERT INTO check_request (
     id, register_id, patient_id, medical_technology_id, doctor_id,
     item_price, purpose, body_part, status, order_time
@@ -48,7 +48,7 @@ SELECT
      WHERE p.medical_record_no = 'MR202606040003' AND r.delmark = 0
      ORDER BY r.id DESC LIMIT 1),
     p.id, mt.id, 1,
-    320.00, 'chest CT screening', 'chest', 20, NOW()
+    320.00, 'lung CT screening', 'chest', 20, NOW()
 FROM patient p
 JOIN medical_technology mt ON mt.item_code = 'CHK-CT-LUNG'
 WHERE p.medical_record_no = 'MR202606040003'

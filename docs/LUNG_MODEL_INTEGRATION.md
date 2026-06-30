@@ -45,7 +45,7 @@ LUNG_MODEL_WEIGHT_PATH=model/weights/lung_artifact_best.pth
 1. 拷贝权重到 `model/weights/lung_artifact_best.pth`
 2. 重启 `scripts\start-r-pacs-ai.bat`
 3. `GET http://127.0.0.1:8000/v1/health` → `lungModelLoaded: true`
-4. 检查队列 **62002 胸部 CT** → 上传胸部 DICOM → **开始 AI 检测** → 应出掩码与肺部报告文案
+4. 检查队列 **62002 肺部 CT** → 上传肺部 DICOM → **开始 AI 检测** → 应出掩码与肺部报告文案
 
 头部 **62001** 回归不受影响。
 

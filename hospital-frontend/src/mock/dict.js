@@ -331,7 +331,7 @@ export const MOCK_MEDICAL_TECHNOLOGIES = [
   { id: 4, itemCode: 'INS-PCT', itemName: '降钙素原', techType: 'INSPECTION', price: 80, deptId: 3 },
   { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 7 },
   { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 7 },
-  { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '胸部 CT', techType: 'CHECK', price: 320, deptId: 2 },
+  { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '肺部 CT', techType: 'CHECK', price: 320, deptId: 2 },
   { id: 8, itemCode: 'CHK-TUMOR-SEG', itemName: '肿瘤 CT 分割', techType: 'CHECK', price: 450, deptId: 2 },
   { id: 9, itemCode: 'INS-URINE', itemName: '尿常规', techType: 'INSPECTION', price: 25, deptId: 3 },
   { id: 10, itemCode: 'INS-STOOL', itemName: '粪便常规及隐血', techType: 'INSPECTION', price: 30, deptId: 3 },

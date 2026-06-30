@@ -13,7 +13,7 @@
 |------|--------|------|
 | 新建 PostgreSQL 表 | ❌ 不做 | 单库 `hospital`，表结构已够用 |
 | `ALTER TABLE` 加列 | ❌ 不做 | 用已有 `imaging_study.modality`、`report_json` |
-| `seed-dict.sql` 加检查项目 | ✅ 做 | 字典里补「胸部 CT」等 |
+| `seed-dict.sql` 加检查项目 | ✅ 做 | 字典里补「肺部 CT」等 |
 | Java `ImagingService` 推断类型 | ✅ 做 | 写入 `modality`，调 AI 时传 `taskType` |
 | Java `HospitalAiClient` | ✅ 做 | 请求体增加 `taskType` |
 | Python `hospital-ai` | ✅ 做小改 | 接收 `taskType`；头部照旧；其余 STUB 失败 |
@@ -72,7 +72,7 @@ Python `jobs.py` **写死**头部 `CTArtifactInfer`。
 | 检查项目示例（`item_name`） | `imaging_study.modality` | 调 Python 的 `taskType` | 本步模型 |
 |----------------------------|--------------------------|-------------------------|----------|
 | 头部 CT | `CT_HEAD` | `HEAD_CT_ARTIFACT` | ✅ 已有 `best.pth` |
-| 胸部 CT | `CT_LUNG` | `LUNG_CT_ARTIFACT` | ⬜ STUB：明确失败 |
+| 肺部 CT | `CT_LUNG` | `LUNG_CT_ARTIFACT` | ⬜ STUB：明确失败 |
 | 肿瘤 CT / 肿瘤分割（名称组内可定） | `TUMOR_SEG` | `TUMOR_SEG` | ⬜ STUB：明确失败 |
 | 其他含 CT 的项目 | `CT_HEAD` | `HEAD_CT_ARTIFACT` | 默认兼容现有 demo |
 
@@ -96,7 +96,7 @@ Python `jobs.py` **写死**头部 `CTArtifactInfer`。
 ```sql
 INSERT INTO medical_technology (item_code, item_name, tech_type, price, dept_id) VALUES
     ('CHK-CT-HEAD', '头部 CT', 'CHECK', 280.00, 2),
-    ('CHK-CT-LUNG', '胸部 CT', 'CHECK', 320.00, 2),
+    ('CHK-CT-LUNG', '肺部 CT', 'CHECK', 320.00, 2),
     ('CHK-TUMOR-SEG', '肿瘤 CT 分割', 'CHECK', 450.00, 2),
     ('INS-BLOOD', '血常规', 'INSPECTION', 35.00, 3),
     ('DIS-WASH', '洗胃', 'DISPOSAL', 120.00, 1)
@@ -109,7 +109,7 @@ ON CONFLICT (item_code) DO NOTHING;
 psql -U postgres -d hospital -f docs/sql/seed-dict.sql
 ```
 
-**可选**：`docs/sql/seed-demo-check.sql` 再插一条 `check_request id=62002` 的「胸部 CT」演示单，便于自测。
+**可选**：`docs/sql/seed-demo-check.sql` 再插一条 `check_request id=62002` 的「肺部 CT」演示单，便于自测。
 
 ---
 
@@ -221,7 +221,7 @@ const pageTitle = computed(() => {
 ## 五、数据流（改完后）
 
 ```text
-1. 医生开「胸部 CT」
+1. 医生开「肺部 CT」
    → check_request + medical_technology（库中已有字典行）
 
 2. 检查医生上传 CT
@@ -250,7 +250,7 @@ const pageTitle = computed(() => {
 | 1 | 执行 `seed-dict.sql` 后查字典 | `SELECT item_code, item_name FROM medical_technology WHERE tech_type='CHECK';` 含 HEAD/LUNG/TUMOR 三项 |
 | 2 | 演示单 62001 头部 CT 全流程 | 与第一步相同，掩码 + 报告成功 |
 | 3 | 查 `imaging_study` | `modality = 'CT_HEAD'`（不再是 `'CT'`） |
-| 4 | 新建或模拟「胸部 CT」检查单并触发 AI | `modality = 'CT_LUNG'`，分析失败且提示含「肺部」或「未部署」 |
+| 4 | 新建或模拟「肺部 CT」检查单并触发 AI | `modality = 'CT_LUNG'`，分析失败且提示含「肺部」或「未部署」 |
 | 5 | `report_json`（头部成功时） | 含 `taskType: "HEAD_CT_ARTIFACT"` |
 | 6 | 回归登录、上传、预览 URL | 无破坏 |
 
@@ -270,7 +270,7 @@ LIMIT 5;
 | 序号 | 文件路径 | 操作 |
 |------|----------|------|
 | 1 | `docs/sql/seed-dict.sql` | 加 2 条检查项目 |
-| 2 | `docs/sql/seed-demo-check.sql` | 可选：胸部 CT 演示单 |
+| 2 | `docs/sql/seed-demo-check.sql` | 可选：肺部 CT 演示单 |
 | 3 | `hospital-pacs/.../ImagingService.java` | 改 `inferModality`；加 `resolveTaskType`；`generateAiReport` 传 taskType |
 | 4 | `hospital-pacs/.../HospitalAiClient.java` | body 加 `taskType` |
 | 5 | `hospital-ai/app/main.py` | 请求模型加 `taskType` |

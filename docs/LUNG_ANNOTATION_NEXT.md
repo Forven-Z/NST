@@ -74,6 +74,6 @@ run/weights/lung_artifact_best.pth
 | 检查单 | 预期 |
 |--------|------|
 | 62001 头部 CT | 掩码成功 |
-| 62002 胸部 CT | 有肺部权重后成功；无权重时 STUB 明确失败 |
+| 62002 肺部 CT | 有肺部权重后成功；无权重时 STUB 明确失败 |
 
 启动顺序见 `LOCAL_WORKSPACE.md`、`AI_CNN_INTEGRATION.md`。

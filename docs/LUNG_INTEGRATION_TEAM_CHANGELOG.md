@@ -31,7 +31,7 @@
 | taskType | `HEAD_CT_ARTIFACT` | `LUNG_CT_ARTIFACT` |
 | 权重文件 | `best.pth` | `lung_artifact_best.pth`（Dice ≈ 0.87） |
 | MinIO 路径 | `studies/62001/` | `studies/62002/` |
-| 前端入口 | 同一页 `/pacs/imaging-ai` | 同上（标题：**胸部 CT 伪影检测**） |
+| 前端入口 | 同一页 `/pacs/imaging-ai` | 同上（标题：**肺部 CT 伪影检测**） |
 | CNN 输出 | 掩码 + CT 预览 NIfTI | 同上 |
 | CNN 文字报告 | **无**（已删除） | **无**（已删除） |
 
@@ -131,7 +131,7 @@ npm run dev
 
 | 文件 | 变更 |
 |------|------|
-| `docs/sql/seed-demo-check.sql` | 新增 **#62002** 胸部 CT |
+| `docs/sql/seed-demo-check.sql` | 新增 **#62002** 肺部 CT |
 | `docs/sql/seed-dict.sql` | `CHK-CT-LUNG` |
 | `scripts/install-model-weights.ps1` | **新增** 权重安装 |
 | `scripts/start-r-pacs-ai.bat` | 修复编码；一键启 Java + hospital-ai |
@@ -154,7 +154,7 @@ npm run dev
 | CHECK + **status=40** | 新增 **「查看影像」**（`view=1` 查看模式，自动加载 MinIO 预览） |
 | **查看模式** | 无「录入结果」按钮 |
 | **工作台（非查看）** | 右上角 **「录入结果」**，与队列弹窗相同 |
-| 胸部标题 | **「胸部 CT 伪影检测」**（原「肺部…」） |
+| 肺部标题 | **「肺部 CT 伪影检测」** |
 
 | 文件 | 变更 |
 |------|------|
@@ -167,7 +167,7 @@ npm run dev
 ## 七、验收步骤
 
 1. `GET http://127.0.0.1:8000/v1/health` → 双模型 `true`，`device: cuda`
-2. **#62002 胸部 CT** → 上传 NIfTI 或 DICOM → AI 检测 → 三视图 + 掩码叠加
+2. **#62002 肺部 CT** → 上传 NIfTI 或 DICOM → AI 检测 → 三视图 + 掩码叠加
 3. **#62001 头部 CT** → 同上，回归头部
 4. 工作台**不应**再出现 CNN 生成的文字报告块
 5. MinIO：`studies/62001/`、`studies/62002/` 各有 `source/`、`mask.nii.gz`

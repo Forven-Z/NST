@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     model_weight_path: str = str(ROOT_DIR / "model" / "weights" / "best.pth")
     lung_model_weight_path: str = str(ROOT_DIR / "model" / "weights" / "lung_artifact_best.pth")
+    tumor_model_weight_path: str = str(ROOT_DIR / "model" / "weights" / "tumor_seg_best.pth")
     minio_endpoint: str = "127.0.0.1:9001"
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin123"
