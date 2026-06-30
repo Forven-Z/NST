@@ -18,7 +18,7 @@ public class InspectionRequestRepository {
         this.jdbcClient = jdbcClient;
     }
 
-    public List<Map<String, Object>> findQueue(Integer status, int offset, int limit) {
+    public List<Map<String, Object>> findQueue(Integer status, Long executorId, int offset, int limit) {
         return jdbcClient.sql("""
                         WITH executor_load AS (
                             SELECT executor_id, COUNT(*)::int AS load_count
@@ -46,10 +46,12 @@ public class InspectionRequestRepository {
                         LEFT JOIN executor_load el ON ir.executor_id = el.executor_id
                         WHERE ir.delmark = 0
                           AND (CAST(:status AS INTEGER) IS NULL OR ir.status = CAST(:status AS INTEGER))
+                          AND (CAST(:executorId AS BIGINT) IS NULL OR ir.executor_id = CAST(:executorId AS BIGINT))
                         ORDER BY ir.order_time
                         LIMIT :limit OFFSET :offset
                         """)
                 .param("status", status)
+                .param("executorId", executorId)
                 .param("limit", limit)
                 .param("offset", offset)
                 .query((rs, rowNum) -> {
@@ -193,7 +195,7 @@ public class InspectionRequestRepository {
                             executor_id = COALESCE(executor_id, :executorId),
                             execute_time = :now,
                             update_time = NOW()
-                        WHERE id = :id
+                        WHERE id = :id AND status = 20 AND delmark = 0
                         """)
                 .param("id", id)
                 .param("executorId", executorId)

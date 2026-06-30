@@ -31,8 +31,9 @@ public class PacsCheckService {
         autoAssignPaidRequests();
         int offset = Math.max(page - 1, 0) * pageSize;
         Integer queryStatus = status != null ? status : InspectionRequestStatus.PAID;
+        Long executorId = queueExecutorFilter();
         return Map.of(
-                "list", checkRequestRepository.findQueue(queryStatus, offset, pageSize),
+                "list", checkRequestRepository.findQueue(queryStatus, executorId, offset, pageSize),
                 "page", page,
                 "pageSize", pageSize
         );
@@ -156,6 +157,14 @@ public class PacsCheckService {
             doctor.put("loadCount", ((Number) doctor.get("loadCount")).intValue() + 1);
             sortDoctorsByLoad(doctors);
         }
+    }
+
+    private Long queueExecutorFilter() {
+        var context = AuthContextHolder.require();
+        if (context.getRoles() != null && context.getRoles().contains("ADMIN")) {
+            return null;
+        }
+        return context.getEmployeeId();
     }
 
     private void sortDoctorsByLoad(List<Map<String, Object>> doctors) {
