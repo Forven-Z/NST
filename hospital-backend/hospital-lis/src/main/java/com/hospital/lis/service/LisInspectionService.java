@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +30,9 @@ public class LisInspectionService {
     private final LisAiReportCache lisAiReportCache;
     private final AiBridgeLabReportClient aiBridgeLabReportClient;
 
+    @Transactional
     public Map<String, Object> listQueue(Integer status, int page, int pageSize) {
+        autoAssignPaidRequests();
         int offset = Math.max(page - 1, 0) * pageSize;
         Integer queryStatus = status != null ? status : InspectionRequestStatus.PAID;
         return Map.of(
@@ -48,6 +51,12 @@ public class LisInspectionService {
         int currentStatus = ((Number) row.get("status")).intValue();
         if (currentStatus != InspectionRequestStatus.PAID) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费申请可执行");
+        }
+
+        Long assignedExecutorId = row.get("executorId") != null
+                ? ((Number) row.get("executorId")).longValue() : null;
+        if (assignedExecutorId != null && !Objects.equals(assignedExecutorId, executorId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "该检验申请已分配给其他医师，不可执行");
         }
 
         inspectionRequestRepository.markExecuted(inspectionRequestId, executorId);
@@ -199,5 +208,39 @@ public class LisInspectionService {
         if (status < InspectionRequestStatus.PAID) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费及以后状态可查看报告");
         }
+    }
+
+    private void autoAssignPaidRequests() {
+        List<Long> requestIds = inspectionRequestRepository.findUnassignedPaidIdsForUpdate();
+        if (requestIds.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> doctors = inspectionRequestRepository.findDoctorLoads("LAB_DOCTOR");
+        if (doctors.isEmpty()) {
+            return;
+        }
+
+        for (Long requestId : requestIds) {
+            Map<String, Object> doctor = doctors.get(0);
+            Long doctorId = ((Number) doctor.get("employeeId")).longValue();
+            inspectionRequestRepository.assignExecutorIfUnassigned(requestId, doctorId);
+            doctor.put("loadCount", ((Number) doctor.get("loadCount")).intValue() + 1);
+            sortDoctorsByLoad(doctors);
+        }
+    }
+
+    private void sortDoctorsByLoad(List<Map<String, Object>> doctors) {
+        doctors.sort((left, right) -> {
+            int byLoad = Integer.compare(
+                    ((Number) left.get("loadCount")).intValue(),
+                    ((Number) right.get("loadCount")).intValue());
+            if (byLoad != 0) {
+                return byLoad;
+            }
+            return Long.compare(
+                    ((Number) left.get("employeeId")).longValue(),
+                    ((Number) right.get("employeeId")).longValue());
+        });
     }
 }

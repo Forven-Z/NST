@@ -444,12 +444,17 @@ async function submitResult(signOpts, successMessage) {
         <el-table-column prop="itemName" label="项目" min-width="140" />
         <el-table-column v-if="showTriage" label="AI 分诊" width="96">
           <template #default="{ row }">
-            <el-tooltip v-if="row.triageNote" :content="row.triageNote" placement="top">
+            <el-tooltip v-if="row.executorName" :content="`当前未完成 ${row.executorLoad ?? 0} 单`" placement="top">
+              <el-tag size="small" type="success">
+                {{ row.executorName }} · {{ row.executorLoad ?? 0 }}单
+              </el-tag>
+            </el-tooltip>
+            <el-tooltip v-else-if="row.triageNote" :content="row.triageNote" placement="top">
               <el-tag size="small" :type="TRIAGE_LEVEL_MAP[row.triageLevel]?.type || 'info'">
                 {{ TRIAGE_LEVEL_MAP[row.triageLevel]?.label || '普通' }}
               </el-tag>
             </el-tooltip>
-            <span v-else class="muted">—</span>
+            <span v-else class="muted">待分配</span>
           </template>
         </el-table-column>
         <el-table-column label="金额" width="90">

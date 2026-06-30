@@ -20,6 +20,14 @@ public class InspectionRequestRepository {
 
     public List<Map<String, Object>> findQueue(Integer status, int offset, int limit) {
         return jdbcClient.sql("""
+                        WITH executor_load AS (
+                            SELECT executor_id, COUNT(*)::int AS load_count
+                            FROM inspection_request
+                            WHERE delmark = 0
+                              AND status IN (20, 30)
+                              AND executor_id IS NOT NULL
+                            GROUP BY executor_id
+                        )
                         SELECT ir.id AS inspection_request_id,
                                ir.register_id,
                                p.medical_record_no,
@@ -27,10 +35,15 @@ public class InspectionRequestRepository {
                                mt.item_name,
                                ir.item_price,
                                ir.status,
-                               ir.order_time
+                               ir.order_time,
+                               ir.executor_id,
+                               exe.real_name AS executor_name,
+                               COALESCE(el.load_count, 0) AS executor_load
                         FROM inspection_request ir
                         JOIN patient p ON ir.patient_id = p.id
                         JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        LEFT JOIN employee exe ON ir.executor_id = exe.id
+                        LEFT JOIN executor_load el ON ir.executor_id = el.executor_id
                         WHERE ir.delmark = 0
                           AND (CAST(:status AS INTEGER) IS NULL OR ir.status = CAST(:status AS INTEGER))
                         ORDER BY ir.order_time
@@ -49,14 +62,71 @@ public class InspectionRequestRepository {
                     row.put("itemPrice", rs.getBigDecimal("item_price"));
                     row.put("status", rs.getInt("status"));
                     row.put("orderTime", rs.getObject("order_time", OffsetDateTime.class));
+                    row.put("executorId", rs.getObject("executor_id") != null ? rs.getLong("executor_id") : null);
+                    row.put("executorName", rs.getString("executor_name"));
+                    row.put("executorLoad", rs.getInt("executor_load"));
                     return row;
                 })
                 .list();
     }
 
+    public List<Long> findUnassignedPaidIdsForUpdate() {
+        return jdbcClient.sql("""
+                        SELECT id
+                        FROM inspection_request
+                        WHERE delmark = 0
+                          AND status = 20
+                          AND executor_id IS NULL
+                        ORDER BY order_time, id
+                        FOR UPDATE SKIP LOCKED
+                        """)
+                .query(Long.class)
+                .list();
+    }
+
+    public List<Map<String, Object>> findDoctorLoads(String roleType) {
+        return jdbcClient.sql("""
+                        SELECT e.id AS employee_id,
+                               e.real_name AS employee_name,
+                               COALESCE(COUNT(ir.id), 0)::int AS load_count
+                        FROM employee e
+                        LEFT JOIN inspection_request ir
+                          ON ir.executor_id = e.id
+                         AND ir.delmark = 0
+                         AND ir.status IN (20, 30)
+                        WHERE e.delmark = 0
+                          AND e.role_type = :roleType
+                        GROUP BY e.id, e.real_name
+                        ORDER BY load_count ASC, e.id ASC
+                        """)
+                .param("roleType", roleType)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("employeeId", rs.getLong("employee_id"));
+                    row.put("employeeName", rs.getString("employee_name"));
+                    row.put("loadCount", rs.getInt("load_count"));
+                    return row;
+                })
+                .list();
+    }
+
+    public void assignExecutorIfUnassigned(Long id, Long executorId) {
+        jdbcClient.sql("""
+                        UPDATE inspection_request
+                        SET executor_id = :executorId, update_time = NOW()
+                        WHERE id = :id
+                          AND status = 20
+                          AND executor_id IS NULL
+                          AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("executorId", executorId)
+                .update();
+    }
+
     public Optional<Map<String, Object>> findByIdForUpdate(Long id) {
         return jdbcClient.sql("""
-                        SELECT id, status, medical_technology_id
+                        SELECT id, status, medical_technology_id, executor_id
                         FROM inspection_request
                         WHERE id = :id AND delmark = 0
                         FOR UPDATE
@@ -67,6 +137,7 @@ public class InspectionRequestRepository {
                     row.put("id", rs.getLong("id"));
                     row.put("status", rs.getInt("status"));
                     row.put("medicalTechnologyId", rs.getLong("medical_technology_id"));
+                    row.put("executorId", rs.getObject("executor_id") != null ? rs.getLong("executor_id") : null);
                     return row;
                 })
                 .optional();
@@ -118,7 +189,10 @@ public class InspectionRequestRepository {
     public void markExecuted(Long id, Long executorId) {
         jdbcClient.sql("""
                         UPDATE inspection_request
-                        SET status = 30, executor_id = :executorId, execute_time = :now, update_time = NOW()
+                        SET status = 30,
+                            executor_id = COALESCE(executor_id, :executorId),
+                            execute_time = :now,
+                            update_time = NOW()
                         WHERE id = :id
                         """)
                 .param("id", id)
