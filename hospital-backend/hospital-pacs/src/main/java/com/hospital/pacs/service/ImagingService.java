@@ -5,10 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.pacs.client.AiBridgeReportClient;
 import com.hospital.pacs.client.HospitalAiClient;
+import com.hospital.common.support.CheckReportComposer;
 import com.hospital.pacs.config.HospitalAiProperties;
 import com.hospital.pacs.repository.CheckRequestRepository;
+import com.hospital.pacs.repository.EmployeeRepository;
 import com.hospital.pacs.repository.ImagingStudyRepository;
+import com.hospital.pacs.security.AuthContextHolder;
+import com.hospital.pacs.support.PacsAiReportCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +35,9 @@ public class ImagingService {
     private final HospitalAiProperties hospitalAiProperties;
     private final ImagingCallbackRegistry imagingCallbackRegistry;
     private final ObjectMapper objectMapper;
+    private final PacsAiReportCache pacsAiReportCache;
+    private final EmployeeRepository employeeRepository;
+    private final AiBridgeReportClient aiBridgeReportClient;
 
     @Transactional
     public Map<String, Object> uploadImaging(Long checkRequestId, MultipartFile[] files) {
@@ -88,7 +96,7 @@ public class ImagingService {
         String status = String.valueOf(study.get("status"));
 
         if ("COMPLETED".equals(status)) {
-            return buildResultDetail(checkRequestId, check, study);
+            return getStructuredResultDetail(checkRequestId);
         }
 
         if ("FAILED".equals(status)) {
@@ -126,7 +134,7 @@ public class ImagingService {
                     checkRequestId, hospitalAiProperties.getInferenceTimeoutSeconds());
             persistCallbackResult(studyId, callback);
             study = imagingStudyRepository.findById(studyId).orElse(study);
-            return buildResultDetail(checkRequestId, check, study);
+            return getStructuredResultDetail(checkRequestId);
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -135,11 +143,34 @@ public class ImagingService {
         }
     }
 
-    public Map<String, Object> getResultDetail(Long checkRequestId) {
-        Map<String, Object> check = checkRequestRepository.findDetail(checkRequestId)
+    public Map<String, Object> getStructuredResultDetail(Long checkRequestId) {
+        Map<String, Object> context = checkRequestRepository.findReportContext(checkRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
         Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
-        return buildResultDetail(checkRequestId, check, study);
+        return enrichCheckReport(context, study);
+    }
+
+    /**
+     * LLM 诊断印象：仅基于医师填写的 CT 所见；CNN 推理请走 {@link #generateAiReport}。
+     */
+    public Map<String, Object> generateLlmReport(Long checkRequestId, String findingsText) {
+        String findings = findingsText != null ? findingsText.trim() : "";
+        if (findings.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "请先填写 CT 所见");
+        }
+
+        Map<String, Object> context = checkRequestRepository.findReportContext(checkRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
+        Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
+
+        String aiText = aiBridgeReportClient.generateHeadCtImpression(context, findings);
+        pacsAiReportCache.put(checkRequestId, aiText, "READY");
+
+        return enrichCheckReport(context, study, findings, aiText, null, "READY");
+    }
+
+    public Map<String, Object> getResultDetail(Long checkRequestId) {
+        return getStructuredResultDetail(checkRequestId);
     }
 
     public Map<String, Object> getImagingPreview(Long checkRequestId) {
@@ -170,6 +201,61 @@ public class ImagingService {
         String prefix = minioStorageService.studyResultPrefix(checkRequestId);
         String objectKey = "mask".equalsIgnoreCase(kind) ? prefix + "mask.nii.gz" : prefix + "ct_preview.nii.gz";
         return minioStorageService.openObject(objectKey);
+    }
+
+    @Transactional
+    public Map<String, Object> saveReportSnapshots(
+            Long checkRequestId,
+            MultipartFile axial,
+            MultipartFile coronal,
+            MultipartFile sagittal,
+            String metaJson) {
+        Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "尚未上传影像，无法采图"));
+
+        long studyId = ((Number) study.get("id")).longValue();
+        String prefix = minioStorageService.reportSnapshotPrefix(checkRequestId);
+        Map<String, String> keys = new java.util.LinkedHashMap<>();
+        storeSnapshot(prefix, "axial", axial, keys);
+        storeSnapshot(prefix, "coronal", coronal, keys);
+        storeSnapshot(prefix, "sagittal", sagittal, keys);
+
+        if (keys.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "未收到有效采图");
+        }
+
+        try {
+            Map<String, Object> merged = new HashMap<>(parseReportJson(study));
+            merged.put("reportSnapshots", keys);
+            if (metaJson != null && !metaJson.isBlank()) {
+                merged.put("snapshotMeta", objectMapper.readValue(metaJson, new TypeReference<>() {}));
+            }
+            imagingStudyRepository.mergeReportJson(studyId, objectMapper.writeValueAsString(merged));
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "保存报告采图失败: " + ex.getMessage());
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("checkRequestId", checkRequestId);
+        result.put("reportImages", buildReportImageUrls(checkRequestId, keys));
+        return result;
+    }
+
+    public InputStream openReportSnapshotStream(Long checkRequestId, String plane) throws Exception {
+        Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "尚未上传影像"));
+        Map<String, Object> json = parseReportJson(study);
+        Object raw = json.get("reportSnapshots");
+        if (!(raw instanceof Map<?, ?> snaps)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "报告采图不存在");
+        }
+        Object key = snaps.get(plane);
+        if (key == null || String.valueOf(key).isBlank()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "报告采图不存在: " + plane);
+        }
+        return minioStorageService.openObject(String.valueOf(key));
     }
 
     public void handleCallback(Map<String, Object> payload) {
@@ -240,40 +326,100 @@ public class ImagingService {
         }
     }
 
-    private Map<String, Object> buildResultDetail(Long checkRequestId, Map<String, Object> check,
-                                                  Map<String, Object> study) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("checkRequestId", checkRequestId);
-        result.put("itemName", check.get("itemName"));
-        result.put("medicalRecordNo", check.get("medicalRecordNo"));
-        result.put("patientName", check.get("patientName"));
-        result.put("status", check.get("status"));
-        result.put("instrumentData", buildInstrumentData(check));
-        result.put("doctorReportText", extractDoctorReportText(check.get("resultText")));
-        result.put("reportTime", check.get("resultTime"));
-        result.put("resultText", check.get("resultText"));
-        result.put("resultAttachment", check.get("resultAttachment"));
+    private Map<String, Object> enrichCheckReport(Map<String, Object> context, Map<String, Object> study) {
+        return enrichCheckReport(context, study, null, null, null, null);
+    }
 
-        String aiReportStatus = "PENDING";
-        String aiReportText = "";
-        if (study != null) {
-            String studyStatus = String.valueOf(study.get("status"));
-            result.put("studyId", study.get("id"));
-            result.put("studyStatus", studyStatus);
-            result.put("modality", study.get("modality"));
-            result.put("taskType", resolveTaskType(String.valueOf(study.get("modality"))));
-            if ("COMPLETED".equals(studyStatus)) {
-                aiReportStatus = "READY";
-                aiReportText = String.valueOf(parseReportJson(study).getOrDefault("aiReportText", ""));
-            } else if ("FAILED".equals(studyStatus)) {
-                aiReportStatus = "FAILED";
-                aiReportText = String.valueOf(study.getOrDefault("errorMessage", ""));
+    private Map<String, Object> enrichCheckReport(
+            Map<String, Object> context,
+            Map<String, Object> study,
+            String findingsOverride,
+            String aiOverride,
+            String doctorOverride,
+            String aiStatusOverride) {
+
+        Long checkRequestId = ((Number) context.get("checkRequestId")).longValue();
+        String resultText = context.get("resultText") != null ? String.valueOf(context.get("resultText")) : "";
+        var parsed = CheckReportComposer.parsePublishedText(resultText);
+
+        String findings;
+        if (findingsOverride != null) {
+            findings = findingsOverride.trim();
+        } else {
+            findings = parsed.findingsText();
+        }
+
+        String ai = aiOverride != null ? aiOverride : parsed.aiReportText();
+        String doctor = doctorOverride != null ? doctorOverride : parsed.doctorReportText();
+        String aiStatus = aiStatusOverride;
+
+        if (ai.isBlank()) {
+            PacsAiReportCache.Entry cached = pacsAiReportCache.get(checkRequestId);
+            if (cached != null) {
+                ai = cached.aiReportText();
+                aiStatus = cached.aiReportStatus();
+            }
+        } else if (aiStatus == null) {
+            aiStatus = "READY";
+        }
+        if (aiStatus == null || aiStatus.isBlank()) {
+            aiStatus = ai.isBlank() ? "PENDING" : "READY";
+        }
+
+        return CheckReportComposer.composeView(
+                context, findings, ai, doctor, aiStatus, buildImagingMeta(checkRequestId, study));
+    }
+
+    private Map<String, Object> buildImagingMeta(Long checkRequestId, Map<String, Object> study) {
+        Map<String, Object> imaging = new HashMap<>();
+        if (study == null) {
+            imaging.put("hasImaging", false);
+            imaging.put("studyStatus", "NONE");
+            return imaging;
+        }
+        String studyStatus = String.valueOf(study.get("status"));
+        imaging.put("studyId", study.get("id"));
+        imaging.put("studyStatus", studyStatus);
+        imaging.put("modality", study.get("modality"));
+        imaging.put("hasImaging", "COMPLETED".equals(studyStatus));
+        if ("COMPLETED".equals(studyStatus)) {
+            imaging.put("ctPreviewUrl", "/api/v1/pacs/imaging/preview/" + checkRequestId + "/ct");
+            imaging.put("maskPreviewUrl", "/api/v1/pacs/imaging/preview/" + checkRequestId + "/mask");
+        }
+        Map<String, Object> json = study != null ? parseReportJson(study) : Map.of();
+        Object rawSnaps = json.get("reportSnapshots");
+        if (rawSnaps instanceof Map<?, ?> snaps && !snaps.isEmpty()) {
+            Map<String, String> reportImages = buildReportImageUrls(checkRequestId, snaps);
+            imaging.put("reportImages", reportImages);
+            imaging.put("snapshotMeta", json.get("snapshotMeta"));
+        }
+        return imaging;
+    }
+
+    private Map<String, String> buildReportImageUrls(Long checkRequestId, Map<?, ?> snapKeys) {
+        Map<String, String> urls = new java.util.LinkedHashMap<>();
+        for (Object plane : List.of("axial", "coronal", "sagittal")) {
+            if (snapKeys.containsKey(plane)) {
+                urls.put(String.valueOf(plane),
+                        "/api/v1/pacs/imaging/report-preview/" + checkRequestId + "/" + plane);
             }
         }
-        result.put("aiReportStatus", aiReportStatus);
-        result.put("aiReportText", aiReportText);
-        return result;
+        return urls;
     }
+
+    private void storeSnapshot(String prefix, String plane, MultipartFile file, Map<String, String> keys) {
+        if (file == null || file.isEmpty()) {
+            return;
+        }
+        try {
+            String objectKey = prefix + plane + ".png";
+            minioStorageService.uploadBytes(objectKey, file.getBytes(), "image/png");
+            keys.put(plane, objectKey);
+        } catch (Exception ex) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "上传采图失败: " + plane);
+        }
+    }
+
 
     private Map<String, Object> parseReportJson(Map<String, Object> study) {
         Object raw = study.get("reportJson");
@@ -286,33 +432,6 @@ public class ImagingService {
         } catch (Exception ignored) {
             return Map.of();
         }
-    }
-
-    private String buildInstrumentData(Map<String, Object> check) {
-        String bodyPart = check.get("bodyPart") == null ? "" : String.valueOf(check.get("bodyPart"));
-        String purpose = check.get("purpose") == null ? "" : String.valueOf(check.get("purpose"));
-        if (bodyPart.isBlank() && purpose.isBlank()) {
-            return "";
-        }
-        if (bodyPart.isBlank()) {
-            return purpose;
-        }
-        if (purpose.isBlank()) {
-            return "检查部位: " + bodyPart;
-        }
-        return "检查部位: " + bodyPart + "\n检查目的: " + purpose;
-    }
-
-    private String extractDoctorReportText(Object resultText) {
-        if (resultText == null) {
-            return "";
-        }
-        String text = String.valueOf(resultText);
-        int idx = text.indexOf("医师：");
-        if (idx >= 0) {
-            return text.substring(idx + 3).trim();
-        }
-        return text;
     }
 
     private String resolveStudyModality(Map<String, Object> check, Map<String, Object> study) {

@@ -297,3 +297,10 @@
   color: #fff !important;
   background: #1677ff !important;
 }
+
+.triage-disclaimer {
+  padding: 16rpx 24rpx 24rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  text-align: center;
+}

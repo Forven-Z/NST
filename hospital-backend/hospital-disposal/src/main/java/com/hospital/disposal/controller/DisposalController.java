@@ -3,7 +3,6 @@ package com.hospital.disposal.controller;
 import com.hospital.common.Result;
 import com.hospital.disposal.dto.DisposalResultRequest;
 import com.hospital.disposal.service.DisposalExecuteService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,17 +42,12 @@ public class DisposalController {
     @PostMapping("/requests/{id}/result")
     public Result<Map<String, Object>> saveResult(
             @PathVariable Long id,
-            @Valid @RequestBody DisposalResultRequest request) {
+            @RequestBody DisposalResultRequest request) {
         return Result.success(disposalExecuteService.saveResult(id, request));
     }
 
     @GetMapping("/requests/{id}/result-detail")
     public Result<Map<String, Object>> resultDetail(@PathVariable Long id) {
         return Result.success(disposalExecuteService.getResultDetail(id));
-    }
-
-    @PostMapping("/requests/{id}/ai-report")
-    public Result<Map<String, Object>> generateAiReport(@PathVariable Long id) {
-        return Result.success(disposalExecuteService.generateAiReport(id));
     }
 }

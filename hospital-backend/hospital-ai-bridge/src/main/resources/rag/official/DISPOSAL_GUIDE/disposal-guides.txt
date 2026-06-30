@@ -1,0 +1,269 @@
+---
+documentCode: DIS-001
+title: 清创换药处置原则
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 普通外科,急诊科
+topics: 清创,换药
+reviewRequired: true
+---
+# 清创换药处置原则
+清创前应评估污染、异物、深部结构损伤、出血和神经血管状态，并核对破伤风免疫。复杂伤口、活动性出血、咬伤或重要结构损伤应转专科，不能由AI直接决定缝合或抗菌方案。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-002
+title: 伤口缝合前复核
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 普通外科,急诊科
+topics: 缝合,伤口
+reviewRequired: true
+---
+# 伤口缝合前复核
+拟缝合伤口需评估受伤时间、污染程度、组织活性、异物及感染风险。严重污染、咬伤、穿刺伤或深部结构损伤不应机械按普通伤口即时闭合。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-003
+title: 雾化吸入处置复核
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 呼吸内科,儿科
+topics: 雾化,喘息
+reviewRequired: true
+---
+# 雾化吸入处置复核
+雾化吸入应有明确适应证，并评估喘息程度、呼吸频率、血氧和既往反应。药物、剂量和频次必须由医生确认，呼吸状态不稳定者优先急症评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-004
+title: 氧疗处置复核
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 急诊科,呼吸内科
+topics: 吸氧,低氧
+reviewRequired: true
+---
+# 氧疗处置复核
+氧疗前后应评估血氧、呼吸状态和基础疾病，并选择合适目标范围和监测方式。明显低氧、意识改变、呼吸衰竭表现或氧疗反应差需要升级呼吸支持。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-005
+title: 洗胃处置安全复核
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 急诊科
+topics: 洗胃,中毒
+reviewRequired: true
+---
+# 洗胃处置安全复核
+洗胃仅适用于严格筛选的急性中毒情境，必须明确摄入物、时间、剂量、气道保护和禁忌。腐蚀性物质、挥发性烃类、气道未保护或消化道高风险时不得机械执行。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-006
+title: 外伤固定与转运
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 骨科,急诊科
+topics: 骨折,固定
+reviewRequired: true
+---
+# 外伤固定与转运
+疑似骨折或关节损伤应先评估远端血运、感觉运动、开放伤及严重畸形，再进行适当固定。固定后必须复查神经血管状态，开放性骨折或血运障碍需紧急转诊。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-007
+title: 烧烫伤现场处置
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 普通外科,急诊科
+topics: 烧伤,冷却
+reviewRequired: true
+---
+# 烧烫伤现场处置
+烧烫伤应停止热源并采用适当流动清水冷却，避免冰敷、偏方和撕除粘连衣物。大面积、深度、特殊部位或吸入性损伤疑虑时应尽快转烧伤或急诊专科。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-008
+title: 鼻出血初步处置
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 耳鼻喉科,急诊科
+topics: 鼻出血,压迫止血
+reviewRequired: true
+---
+# 鼻出血初步处置
+鼻出血可在保持坐位前倾时进行规范鼻翼压迫，并评估抗凝药、血压、外伤和出血量。持续大量出血、循环不稳、后鼻孔出血疑虑或压迫无效需专科处理。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-009
+title: 气道异物风险处置
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 耳鼻喉科,急诊科
+topics: 气道异物,窒息
+reviewRequired: true
+---
+# 气道异物风险处置
+疑似气道异物应根据患者能否有效咳嗽、说话和呼吸判断完全或不完全梗阻。出现不能发声、发绀或意识丧失时按急救流程处理并立即呼叫急救支持。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-010
+title: 导尿处置复核
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 泌尿外科,急诊科
+topics: 导尿,尿潴留
+reviewRequired: true
+---
+# 导尿处置复核
+导尿应有明确指征，确认无尿道损伤线索并采用无菌操作，避免仅为方便常规留置。骨盆外伤伴尿道口出血、会阴血肿或明显置管阻力时应停止并请泌尿专科评估。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-011
+title: 灌肠处置复核
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 消化内科,急诊科
+topics: 灌肠,便秘
+reviewRequired: true
+---
+# 灌肠处置复核
+灌肠前应排除肠梗阻、穿孔、活动性消化道出血及严重腹痛等禁忌风险。高龄、儿童、电解质紊乱和严重心肾疾病患者需谨慎选择制剂和方式。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-012
+title: 冷热敷处置安全
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 康复医学科,骨科
+topics: 冷敷,热敷
+reviewRequired: true
+---
+# 冷热敷处置安全
+急性软组织损伤的局部处理应结合损伤时间、肿胀、皮肤和感觉状态选择，避免长时间直接接触导致冻伤或烫伤。感觉障碍、循环不良或皮肤破损时需特别谨慎。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-013
+title: 严重过敏急救处置
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 急诊科
+topics: 严重过敏,急救
+reviewRequired: true
+---
+# 严重过敏急救处置
+快速进展的呼吸道、循环或多系统过敏表现应按严重过敏反应紧急处理并持续监测。不能用口服抗组胺药替代气道、循环评估和规范的一线急救措施。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-014
+title: 心肺复苏与急救呼叫
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 急诊科
+topics: 心肺复苏,心搏骤停
+reviewRequired: true
+---
+# 心肺复苏与急救呼叫
+发现无反应且无正常呼吸者，应立即启动急救系统并按规范开展高质量心肺复苏和尽早除颤。AI草稿不能延误现场急救，也不能替代经过培训人员的实时判断。
+
+
+=== DOCUMENT ===
+---
+documentCode: DIS-015
+title: 留观与转诊决策原则
+knowledgeType: DISPOSAL_GUIDE
+sourceName: 世界卫生组织基础急症救治公开资料
+sourceUrl: https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured
+sourceVersion: 官方公开资料摘要-2026.06
+effectiveDate:
+accessedAt: 2026-06-22
+departments: 急诊科,内科
+topics: 留观,转诊
+reviewRequired: true
+---
+# 留观与转诊决策原则
+病情诊断不明、生命体征波动、治疗反应不确定或存在进展风险时，应根据医院能力选择留观、专科会诊或转诊。转诊前需尽可能稳定患者并清楚交接病情、已做处理和风险。
+
+

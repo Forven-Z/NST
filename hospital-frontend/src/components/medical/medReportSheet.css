@@ -1,0 +1,210 @@
+/* 检验 / 检查报告单共用样式 */
+.med-report-sheet {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: #fff;
+  font-size: 13px;
+  color: #334155;
+}
+
+.sheet-head {
+  text-align: center;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.hospital {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.report-no {
+  font-family: ui-monospace, monospace;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.info-grid .span-2 {
+  grid-column: span 2;
+}
+
+.info-grid .span-3 {
+  grid-column: span 3;
+}
+
+.label {
+  color: #64748b;
+  margin-right: 4px;
+}
+
+.data-zone {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fafafa;
+  margin-bottom: 12px;
+}
+
+.zone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.zone-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.subsection-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: #0f172a;
+}
+
+.imaging-hint {
+  font-size: 12px;
+  color: #0369a1;
+  background: #e0f2fe;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.readonly {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-family: inherit;
+  color: #475569;
+  font-size: 13px;
+}
+
+.sheet-footer {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.6;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+  margin-top: 10px;
+}
+
+.disclaimer {
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.result-table th,
+.result-table td {
+  border: 1px solid #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.result-table th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.result-table td.abnormal {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.flag {
+  margin-left: 2px;
+}
+
+.zone-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subsection {
+  margin-top: 8px;
+}
+
+.subsection + .subsection {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.snapshot-cell {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.snapshot-label {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.snapshot-img {
+  width: 100%;
+  min-height: 140px;
+  max-height: 220px;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+.snapshot-empty {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.snapshot-meta {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 8px;
+}

@@ -3,6 +3,7 @@ package com.hospital.his.service;
 import com.hospital.his.dto.patient.WechatLoginRequest;
 import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.util.BizNoGenerator;
+import com.hospital.his.util.IdCardUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +58,7 @@ public class PatientWechatService {
                 resolveRealName(request),
                 request.getGender(),
                 request.getBirthDate(),
+                IdCardUtils.resolveAge(null, request.getBirthDate()),
                 phone,
                 idCard,
                 blankToNull(request.getAddress()),

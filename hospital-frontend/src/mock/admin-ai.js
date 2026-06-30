@@ -141,3 +141,185 @@ export function mockPublishAdminSchedule(schedulingId) {
   row.publishStatus = 1
   return mockResult({ ...row, message: '排班已发布，患者可挂号' })
 }
+
+const MOCK_TEMPLATES = new Map()
+
+function alignMondayIso(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+function addDaysIso(dateStr, days) {
+  const d = new Date(`${dateStr}T12:00:00`)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+function defaultQuota(registLevelId) {
+  return Number(registLevelId) === 2 ? 15 : 30
+}
+
+function weekSlots(deptId, weekStart) {
+  const start = alignMondayIso(weekStart)
+  const end = addDaysIso(start, 6)
+  return MOCK_SCHEDULES.filter(
+    (s) => s.deptId === Number(deptId)
+      && s.workDate >= start
+      && s.workDate <= end
+      && (s.publishStatus ?? 1) !== 2,
+  )
+}
+
+function mockDoctors(deptId) {
+  const seen = new Map()
+  for (const s of MOCK_SCHEDULES.filter((x) => x.deptId === Number(deptId))) {
+    if (!seen.has(s.employeeId)) {
+      seen.set(s.employeeId, {
+        employeeId: s.employeeId,
+        realName: s.employeeName,
+        title: s.employeeTitle,
+      })
+    }
+  }
+  return [...seen.values()]
+}
+
+export function mockWeekGrid(params) {
+  const deptId = Number(params.deptId)
+  const weekStart = alignMondayIso(params.weekStart || new Date().toISOString().slice(0, 10))
+  const weekEnd = addDaysIso(weekStart, 6)
+  const slots = weekSlots(deptId, weekStart)
+  const draftCount = slots.filter((s) => (s.publishStatus ?? 1) === 0).length
+  const publishedCount = slots.filter((s) => (s.publishStatus ?? 1) === 1).length
+  return mockResult({
+    weekStart,
+    weekEnd,
+    deptId,
+    doctors: mockDoctors(deptId),
+    slots,
+    prefilledFromTemplate: false,
+    draftCount,
+    publishedCount,
+  })
+}
+
+export function mockBatchUpsertSchedules(data) {
+  let created = 0
+  let updated = 0
+  let cleared = 0
+  for (const change of data.changes || []) {
+    if (change.clear) {
+      const row = MOCK_SCHEDULES.find((s) => s.schedulingId === Number(change.schedulingId))
+      if (row) {
+        row.publishStatus = 2
+        cleared += 1
+      }
+      continue
+    }
+    if (change.schedulingId) {
+      const row = MOCK_SCHEDULES.find((s) => s.schedulingId === Number(change.schedulingId))
+      if (row) {
+        if (change.registLevelId != null) {
+          row.registLevelId = change.registLevelId
+          const level = MOCK_REGIST_LEVELS.find((l) => l.id === change.registLevelId)
+          row.registLevelName = level?.levelName
+        }
+        if (change.totalQuota != null) {
+          row.totalQuota = change.totalQuota
+          row.remainQuota = Math.max(0, change.totalQuota - (row.usedQuota ?? 0))
+        }
+        updated += 1
+      }
+      continue
+    }
+    const emp = getEmployeeById(change.employeeId)
+    const dept = getDepartmentById(emp?.deptId)
+    const level = MOCK_REGIST_LEVELS.find((l) => l.id === Number(change.registLevelId ?? 1))
+    const noon = NOON_META[change.noonType ?? 1] || NOON_META[1]
+    nextScheduleId += 1
+    const quota = change.totalQuota ?? defaultQuota(change.registLevelId)
+    MOCK_SCHEDULES.push({
+      schedulingId: nextScheduleId,
+      deptId: emp.deptId,
+      deptName: dept?.deptName,
+      employeeId: change.employeeId,
+      employeeName: emp.realName,
+      employeeTitle: emp.title,
+      registLevelId: change.registLevelId ?? 1,
+      registLevelName: level?.levelName || '普通号',
+      workDate: change.workDate,
+      noonType: change.noonType,
+      noonLabel: noon.label,
+      timeRange: noon.timeRange,
+      totalQuota: quota,
+      usedQuota: 0,
+      remainQuota: quota,
+      registFee: level?.registFee ?? 20,
+      publishStatus: 0,
+    })
+    created += 1
+  }
+  return mockResult({ created, updated, cleared, message: '排班已保存' })
+}
+
+export function mockCopyScheduleWeek(data) {
+  const sourceStart = alignMondayIso(data.sourceWeekStart)
+  const targetStart = alignMondayIso(data.targetWeekStart)
+  const sourceSlots = weekSlots(data.deptId, sourceStart)
+  let created = 0
+  let skipped = 0
+  for (const s of sourceSlots) {
+    const srcDate = new Date(`${s.workDate}T12:00:00`)
+    const offset = (srcDate.getDay() + 6) % 7
+    const targetDate = addDaysIso(targetStart, offset)
+    const exists = MOCK_SCHEDULES.some(
+      (x) => x.employeeId === s.employeeId
+        && x.workDate === targetDate
+        && x.noonType === s.noonType
+        && (x.publishStatus ?? 1) !== 2,
+    )
+    if (exists) {
+      skipped += 1
+      continue
+    }
+    nextScheduleId += 1
+    MOCK_SCHEDULES.push({ ...s, schedulingId: nextScheduleId, workDate: targetDate, publishStatus: 0, usedQuota: 0, remainQuota: s.totalQuota })
+    created += 1
+  }
+  return mockResult({ created, skipped, message: `复制上周完成：新建 ${created} 条，跳过 ${skipped} 条` })
+}
+
+export function mockApplyScheduleTemplate(data) {
+  return mockCopyScheduleWeek({ ...data, sourceWeekStart: data.weekStart, targetWeekStart: data.weekStart })
+}
+
+export function mockBatchPublishSchedules(data) {
+  const weekStart = alignMondayIso(data.weekStart)
+  const weekEnd = addDaysIso(weekStart, 6)
+  let published = 0
+  for (const s of MOCK_SCHEDULES) {
+    if (s.deptId === Number(data.deptId) && s.workDate >= weekStart && s.workDate <= weekEnd && (s.publishStatus ?? 1) === 0) {
+      s.publishStatus = 1
+      published += 1
+    }
+  }
+  return mockResult({ published, message: `已发布 ${published} 条排班` })
+}
+
+export function mockFetchScheduleTemplate(employeeId) {
+  const slots = MOCK_TEMPLATES.get(Number(employeeId)) || []
+  return mockResult({ employeeId: Number(employeeId), slots })
+}
+
+export function mockReplaceScheduleTemplate(employeeId, data) {
+  const slots = (data.slots || []).map((s) => ({
+    ...s,
+    totalQuota: s.totalQuota ?? defaultQuota(s.registLevelId),
+    enabled: s.enabled !== false,
+  }))
+  MOCK_TEMPLATES.set(Number(employeeId), slots)
+  return mockResult({ employeeId: Number(employeeId), slots, message: '固定模板已保存' })
+}

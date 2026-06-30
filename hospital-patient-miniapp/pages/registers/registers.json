@@ -1,4 +1,5 @@
 {
   "navigationBarTitleText": "挂号记录",
-  "enablePullDownRefresh": true
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 80
 }

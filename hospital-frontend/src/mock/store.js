@@ -4,6 +4,25 @@
  */
 import { mockAiReportText, mockInstrumentData } from './ai-reports'
 import {
+  composeLabReportView,
+  composeLabResultText,
+  defaultLabItems,
+  generateLabAiReportStub,
+  parseLabPublishedText,
+} from '../utils/labReport'
+import {
+  composeDisposalRecordView,
+  composeDisposalResultText,
+  parseDisposalResultText,
+} from '../utils/disposalRecord'
+import {
+  composeCheckReportView,
+  composeCheckResultText,
+  generateCheckAiReportStub,
+  normalizeCheckAiReportText,
+  parseCheckResultText,
+} from '../utils/checkReport'
+import {
   consumeScheduleQuota,
   getDeptById,
   getDoctorById,
@@ -21,13 +40,175 @@ function buildPublishedResultText({ instrumentData = '', aiReportText = '', doct
 
 function initResultFields(row, techType) {
   row.instrumentData = ''
+  row.findingsText = ''
   row.aiReportText = ''
   row.doctorReportText = ''
   row.aiReportStatus = 'PENDING'
+  row.resultItems = []
+  row.processText = ''
+  row.outcomeText = ''
   row.techType = techType
 }
 
+function mockCurrentRealName() {
+  try {
+    const raw = localStorage.getItem('hospital_staff_auth')
+    if (!raw) return '演示医师'
+    const data = JSON.parse(raw)
+    return data.user?.realName || '演示医师'
+  } catch {
+    return '演示医师'
+  }
+}
+
+/** Mock 双签：与后端 MedTechSignSupport 行为对齐 */
+function applyMockMedTechSign(row, payload, { reporterField, reviewerField, aliasFields = [] }) {
+  if (!payload || typeof payload !== 'object') return
+  const name = mockCurrentRealName()
+  if (payload.signAsReviewerOnly) {
+    row[reviewerField] = name
+    return
+  }
+  if (payload.pendingReview) {
+    row[reporterField] = name
+    row[reviewerField] = ''
+    aliasFields.forEach((f) => {
+      row[f] = name
+    })
+    return
+  }
+  row[reporterField] = name
+  row[reviewerField] = name
+  aliasFields.forEach((f) => {
+    row[f] = name
+  })
+}
+
+function ensureLabItems(row) {
+  if (!row.resultItems?.length) {
+    row.resultItems = defaultLabItems(row.itemName)
+  }
+  return row.resultItems
+}
+
+/** 送检科室：挂号/开单所在门诊科室（非医技执行科室） */
+function referringDepartment(registerId) {
+  if (!registerId) return '—'
+  const reg = state.registers.find((r) => r.registerId === Number(registerId))
+  return reg?.deptName || '—'
+}
+
+function buildDisposalRecordRow(row) {
+  const parsed = parseDisposalResultText(row.resultText)
+  const process = row.processText || parsed.processText
+  const outcome = row.outcomeText || parsed.outcomeText
+  return composeDisposalRecordView(
+    {
+      disposalRequestId: row.disposalRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      patientName: row.patientName,
+      medicalRecordNo: row.medicalRecordNo,
+      genderLabel: row.genderLabel || '—',
+      ageLabel: row.ageLabel || '—',
+      department: referringDepartment(row.registerId),
+      clinicalDiagnosis: row.clinicalDiagnosis || '—',
+      purpose: row.purpose,
+      bodyPart: row.bodyPart,
+      orderRemark: row.remark,
+      reportTime: row.resultTime ?? nowIso(),
+      executeTime: row.executeTime ?? row.resultTime ?? nowIso(),
+      orderingDoctorName: row.orderingDoctorName || '门诊医生',
+      executorName: row.executorName || '处置医师',
+      recorderName: row.recorderName || '处置医师',
+      reviewerName: row.reviewerName || '',
+    },
+    { processText: process, outcomeText: outcome },
+  )
+}
+
+function buildCheckReportRow(row) {
+  const parsed = parseCheckResultText(row.resultText)
+  const findings = (row.findingsText || parsed.findingsText || '').trim()
+  const ai = normalizeCheckAiReportText(row.aiReportText || parsed.aiReportText)
+  const doctor = row.doctorReportText || parsed.doctorReportText
+  return composeCheckReportView(
+    {
+      checkRequestId: row.checkRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      patientName: row.patientName,
+      medicalRecordNo: row.medicalRecordNo,
+      genderLabel: row.genderLabel || '—',
+      ageLabel: row.ageLabel || '—',
+      department: referringDepartment(row.registerId),
+      bodyPart: row.bodyPart,
+      purpose: row.purpose,
+      clinicalDiagnosis: row.clinicalDiagnosis || '—',
+      orderRemark: row.remark,
+      examDate: row.executeTime ?? row.resultTime ?? nowIso(),
+      executeTime: row.executeTime ?? row.resultTime ?? nowIso(),
+      reportTime: row.resultTime ?? nowIso(),
+      orderingDoctorName: row.orderingDoctorName || '门诊医生',
+      executorName: row.executorName || '放射科医师',
+      reporterName: row.reporterName || '放射科医师',
+      reviewerName: row.reviewerName || '',
+      studyStatus: row.studyStatus || 'NONE',
+      hasImaging: row.studyStatus === 'COMPLETED',
+    },
+    {
+      findingsText: findings,
+      studyStatus: row.studyStatus,
+      hasImaging: row.studyStatus === 'COMPLETED' || !!row.reportSnapshots,
+      reportImages: row.reportSnapshots
+        ? { axial: row.reportSnapshots.axial, coronal: row.reportSnapshots.coronal, sagittal: row.reportSnapshots.sagittal }
+        : null,
+      localSnapshots: row.reportSnapshots || null,
+      snapshotMeta: row.snapshotMeta,
+    },
+    {
+      aiReportText: ai,
+      doctorReportText: doctor,
+      aiReportStatus: row.aiReportStatus || (ai ? 'READY' : 'PENDING'),
+    },
+  )
+}
+
+function buildLabReportRow(row) {
+  ensureLabItems(row)
+  const parsed = parseLabPublishedText(row.resultText)
+  const ai = row.aiReportText || parsed.aiReportText
+  const doctor = row.doctorReportText || parsed.doctorReportText
+  return composeLabReportView(
+    {
+      inspectionRequestId: row.inspectionRequestId,
+      itemName: row.itemName,
+      status: row.status,
+      patientName: row.patientName,
+      medicalRecordNo: row.medicalRecordNo,
+      genderLabel: row.genderLabel || '—',
+      ageLabel: row.ageLabel || '—',
+      department: referringDepartment(row.registerId),
+      clinicalDiagnosis: row.clinicalDiagnosis || '—',
+      purpose: row.purpose,
+      orderRemark: row.remark,
+      reportTime: row.resultTime ?? nowIso(),
+      testerName: row.testerName || '检验师',
+      reporterName: row.reporterName || row.testerName || '检验师',
+      reviewerName: row.reviewerName || '',
+      orderingDoctorName: row.orderingDoctorName || '门诊医生',
+    },
+    row.resultItems,
+    {
+      aiReportText: ai,
+      doctorReportText: doctor,
+      aiReportStatus: row.aiReportStatus || (ai ? 'READY' : 'PENDING'),
+    },
+  )
+}
+
 function ensureInstrumentData(row, techType) {
+  if (techType === 'CHECK') return ''
   if (!row.instrumentData) {
     row.instrumentData = mockInstrumentData(techType, row.itemName)
   }
@@ -37,6 +218,8 @@ function ensureInstrumentData(row, techType) {
 let nextPatientId = 100
 let nextRegisterId = 30000
 let nextBillId = 81000
+let nextPaymentId = 92000
+let nextRefundId = 93000
 let nextInspectionId = 61000
 let nextCheckId = 62000
 let nextDisposalId = 63000
@@ -46,6 +229,8 @@ let nextDraftId = 8000
 const state = {
   registers: [],
   bills: [],
+  payments: [],
+  refunds: [],
   medicalRecords: {},
   inspectionRequests: [],
   checkRequests: [],
@@ -53,8 +238,25 @@ const state = {
   prescriptions: [],
 }
 
+const CHANNEL_LABELS = {
+  CASH: '现金',
+  WECHAT: '微信',
+  ALIPAY: '支付宝',
+  INSURANCE: '医保',
+  SCAN: '扫码',
+}
+
+function channelLabel(channel) {
+  if (!channel) return '—'
+  return CHANNEL_LABELS[channel.toUpperCase()] || channel
+}
+
 function nowIso() {
   return new Date().toISOString()
+}
+
+function formatMockTime(iso) {
+  return iso.replace('T', ' ').slice(0, 16)
 }
 
 function createBill({ medicalRecordNo, patientId, registerId, bizType, bizId, itemName, amount, status = 0 }) {
@@ -103,6 +305,7 @@ function seedDemoPatients() {
     visitState: 1,
     registTime: nowIso(),
     workDate: new Date().toISOString().slice(0, 10),
+    noonType: 1,
     noonLabel: '上午',
     triageLevel: 'NORMAL',
     triageNote: 'AI 分诊：常见病初诊，分配普通门诊',
@@ -134,13 +337,14 @@ function seedDemoPatients() {
     phone: '13900139002',
     deptId: 1,
     deptName: '内科',
-    employeeId: 11,
-    doctorName: '王教授',
+    employeeId: 8,
+    doctorName: '陈教授',
     registLevelId: 2,
     registLevelName: '专家号',
     visitState: 2,
     registTime: nowIso(),
     workDate: new Date().toISOString().slice(0, 10),
+    noonType: 1,
     noonLabel: '上午',
     triageLevel: 'URGENT',
     triageNote: 'AI 分诊：反复头痛，优先接诊',
@@ -167,6 +371,8 @@ function seedDemoPatients() {
     cure: '完善头颅影像学及血常规，排除颅内病变及感染',
     checkAdvice: '头部 CT',
     inspectionAdvice: '血常规',
+    status: 1,
+    statusLabel: '已保存',
   }
 
   // ③ 检验科队列：已缴费待执行（开单→缴费→检验 常识链路）
@@ -189,7 +395,9 @@ function seedDemoPatients() {
     registLevelName: '普通号',
     visitState: 2,
     registTime: nowIso(),
-    triageLevel: 'NORMAL',
+    workDate: new Date().toISOString().slice(0, 10),
+    noonType: 2,
+    noonLabel: '下午',
     triageNote: 'AI 分诊：老年慢病复诊',
     assignedByAi: true,
   })
@@ -252,11 +460,11 @@ function seedDemoPatients() {
     registerId: r2,
     medicalRecordNo: 'MR202606040002',
     patientName: '李小红',
-    doctorName: '王教授',
+    doctorName: '陈教授',
     totalAmount: 37,
     status: 20,
     createTime: nowIso(),
-    items: [{ drugName: '阿莫西林胶囊', quantity: 2, dosage: '0.5g tid', days: 7 }],
+    items: [{ drugId: 1, drugName: '阿莫西林胶囊', quantity: 2, dosage: '0.5g', frequency: 'tid', days: 7, usageMethod: '口服', entrust: '饭后服用' }],
   })
   createBill({
     medicalRecordNo: 'MR202606040002',
@@ -291,6 +499,8 @@ export function addRegisterFromWindow(body, schedule, fee) {
     patientName: body.patientName,
     gender: body.gender ?? 1,
     age: body.age,
+    birthDate: body.birthDate,
+    idCard: body.idCard,
     phone: body.phone,
     deptId: body.deptId,
     deptName: dept?.deptName,
@@ -321,7 +531,7 @@ export function addRegisterFromWindow(body, schedule, fee) {
 
 export function getBillsByMedicalRecord(medicalRecordNo, status) {
   return state.bills.filter((b) => {
-    if (b.medicalRecordNo !== medicalRecordNo) return false
+    if (b.medicalRecordNo !== medicalRecordNo.trim()) return false
     if (status !== undefined && status !== null && status !== '') {
       return b.status === Number(status)
     }
@@ -330,11 +540,266 @@ export function getBillsByMedicalRecord(medicalRecordNo, status) {
 }
 
 export function getPatientIdByMr(medicalRecordNo) {
-  const reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo)
+  const reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo.trim())
   return reg?.patientId ?? null
 }
 
-export function chargeBills(billIds) {
+function findRegistersByExactName(name) {
+  const n = name.trim()
+  return state.registers.filter((r) => r.patientName === n)
+}
+
+function findRegisterByExactIdCard(idCard) {
+  const s = idCard.trim().toUpperCase()
+  return state.registers.find((r) => r.idCard && r.idCard.toUpperCase() === s)
+}
+
+export function resolvePatientBillsQuery({ medicalRecordNo, idCard, realName, patientId, status }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  const list = getBillsByMedicalRecord(resolved.medicalRecordNo, status)
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+  }
+}
+
+export function resolvePatientPaymentsQuery({ medicalRecordNo, idCard, realName, patientId, registerId }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  let list = state.payments.filter((p) => p.patientId === resolved.patientId)
+  if (registerId != null && registerId !== '') {
+    list = list.filter((p) => p.registerId === Number(registerId))
+  }
+  list = list.map((p) => ({
+    ...p,
+    channelLabel: p.channelLabel || channelLabel(p.channel),
+    paidAt: p.paidAt || formatMockTime(p.payTime || nowIso()),
+    amount: p.amount ?? p.totalAmount,
+  }))
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+    page: 1,
+    pageSize: 20,
+  }
+}
+
+export function resolvePatientRefundsQuery({ medicalRecordNo, idCard, realName, patientId, registerId }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  let list = state.refunds.filter((r) => r.patientId === resolved.patientId)
+  if (registerId != null && registerId !== '') {
+    list = list.filter((r) => r.registerId === Number(registerId))
+  }
+  list = list.map((r) => ({
+    ...r,
+    channelLabel: r.channelLabel || channelLabel(r.channel),
+    refundTime: r.refundTime,
+    amount: r.amount ?? r.refundAmount,
+  }))
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+    page: 1,
+    pageSize: 20,
+  }
+}
+
+export function getShiftSummary(workDate) {
+  const date = workDate || new Date().toISOString().slice(0, 10)
+  const operatorId = 901
+  const dayPayments = state.payments.filter((p) => {
+    const t = (p.payTime || '').slice(0, 10)
+    return p.operatorId === operatorId && t === date
+  })
+  const dayRefunds = state.refunds.filter((r) => {
+    const t = (r.refundTime || '').slice(0, 10)
+    return t === date
+  })
+  const paymentTotal = dayPayments.reduce((s, p) => s + Number(p.totalAmount ?? p.amount ?? 0), 0)
+  const refundTotal = dayRefunds.reduce((s, r) => s + Number(r.refundAmount ?? r.amount ?? 0), 0)
+  const groupByChannel = (rows, amountKey) => {
+    const map = {}
+    for (const row of rows) {
+      const ch = row.channel || 'CASH'
+      if (!map[ch]) map[ch] = { channel: ch, channelLabel: channelLabel(ch), count: 0, totalAmount: 0 }
+      map[ch].count += 1
+      map[ch].totalAmount += Number(row[amountKey] ?? row.amount ?? 0)
+    }
+    return Object.values(map)
+  }
+  return {
+    workDate: date,
+    operatorId,
+    paymentCount: dayPayments.length,
+    paymentTotal: Math.round(paymentTotal * 100) / 100,
+    refundCount: dayRefunds.length,
+    refundTotal: Math.round(refundTotal * 100) / 100,
+    netTotal: Math.round((paymentTotal - refundTotal) * 100) / 100,
+    paymentsByChannel: groupByChannel(dayPayments, 'totalAmount'),
+    refundsByChannel: groupByChannel(dayRefunds, 'refundAmount'),
+  }
+}
+
+function resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId }) {
+  let reg = null
+  if (medicalRecordNo?.trim()) {
+    reg = state.registers.find((r) => r.medicalRecordNo === medicalRecordNo.trim())
+    if (!reg) return { error: '病历号不存在' }
+  } else if (idCard?.trim()) {
+    reg = findRegisterByExactIdCard(idCard)
+    if (!reg) return { error: '身份证号不存在' }
+  } else if (realName?.trim()) {
+    const matches = findRegistersByExactName(realName)
+    if (!matches.length) return { error: '未找到该姓名患者' }
+    if (matches.length > 1) {
+      return {
+        multiple: true,
+        candidates: matches.map((r) => ({
+          patientId: r.patientId,
+          medicalRecordNo: r.medicalRecordNo,
+          realName: r.patientName,
+          gender: r.gender,
+          age: r.age,
+          idCard: r.idCard,
+        })),
+      }
+    }
+    reg = matches[0]
+  } else if (patientId != null) {
+    reg = state.registers.find((r) => r.patientId === Number(patientId))
+    if (!reg) return { error: '患者不存在' }
+  } else {
+    return { error: '请提供病历号、身份证号或姓名' }
+  }
+  return {
+    medicalRecordNo: reg.medicalRecordNo,
+    patientId: reg.patientId,
+    realName: reg.patientName,
+    gender: reg.gender,
+    age: reg.age,
+  }
+}
+
+const VISIT_STATE_LABELS = {
+  0: '待支付',
+  1: '已挂号',
+  2: '接诊中',
+  3: '看诊结束',
+  4: '已退号',
+}
+
+function enrichRegisterForDisplay(reg) {
+  const registBill = state.bills.find(
+    (b) => b.registerId === reg.registerId && (b.bizType === 'REGIST' || b.bizType === 'REGISTER'),
+  )
+  const callTime = reg.callTime || null
+  const cancellable = reg.visitState === 0 || (reg.visitState === 1 && !callTime)
+  return {
+    registerId: reg.registerId,
+    visitState: reg.visitState,
+    visitStateLabel: VISIT_STATE_LABELS[reg.visitState] || '未知',
+    cancellable,
+    cancelHint: reg.visitState === 1 && !callTime
+      ? '医生叫号后将不可退号；当日 21:00 未就诊将自动结束且不退挂号费'
+      : null,
+    callTime,
+    workDate: reg.workDate,
+    noonLabel: reg.noonLabel,
+    deptName: reg.deptName,
+    doctorName: reg.doctorName,
+    registLevelName: reg.registLevelName,
+    registFee: reg.registFee ?? registBill?.amount ?? null,
+    registTime: reg.registTime,
+  }
+}
+
+export function resolvePatientRegistersQuery({ medicalRecordNo, idCard, realName, patientId, visitState }) {
+  const resolved = resolvePatientSummary({ medicalRecordNo, idCard, realName, patientId })
+  if (resolved.error || resolved.multiple) {
+    return resolved
+  }
+  let list = state.registers.filter((r) => r.patientId === resolved.patientId)
+  if (visitState !== undefined && visitState !== null && visitState !== '') {
+    list = list.filter((r) => r.visitState === Number(visitState))
+  }
+  list = list
+    .slice()
+    .sort((a, b) => String(b.registTime || '').localeCompare(String(a.registTime || '')))
+    .map(enrichRegisterForDisplay)
+  return {
+    multiple: false,
+    medicalRecordNo: resolved.medicalRecordNo,
+    patientId: resolved.patientId,
+    realName: resolved.realName,
+    gender: resolved.gender,
+    age: resolved.age,
+    list,
+  }
+}
+
+export function cancelRegisterByRegistrar(registerId, reason) {
+  const reg = state.registers.find((r) => r.registerId === Number(registerId))
+  if (!reg) throw new Error('挂号记录不存在')
+  if (reg.visitState === 0) {
+    state.bills
+      .filter((b) => b.registerId === reg.registerId && b.status === 0)
+      .forEach((b) => {
+        b.status = 3
+        b.statusText = '已作废'
+      })
+    reg.visitState = 4
+    return {
+      registerId: reg.registerId,
+      visitState: 4,
+      message: reason || '待支付挂号已取消',
+    }
+  }
+  if (reg.visitState === 1) {
+    if (reg.callTime) throw new Error('医生已叫号，不可退号')
+    const bill = state.bills.find(
+      (b) =>
+        b.registerId === reg.registerId
+        && (b.bizType === 'REGIST' || b.bizType === 'REGISTER')
+        && b.status === 1,
+    )
+    if (bill) {
+      bill.status = 2
+      bill.statusText = '已退款'
+    }
+    reg.visitState = 4
+    return {
+      registerId: reg.registerId,
+      visitState: 4,
+      message: reason || '退号成功',
+    }
+  }
+  throw new Error('仅待支付或已挂号未接诊可退号')
+}
+
+export function chargeBills(billIds, payChannel = 'CASH') {
   const ids = billIds.map(Number)
   let paidAmount = 0
   const paid = []
@@ -366,18 +831,76 @@ export function chargeBills(billIds) {
       if (rx && rx.status === 10) rx.status = 20
     }
   }
-  return { paidAmount, paid }
+  let paymentId = null
+  if (paid.length) {
+    nextPaymentId += 1
+    paymentId = nextPaymentId
+    const channel = (payChannel || 'CASH').toUpperCase()
+    const titles = paid.map((b) => b.billTitle || b.itemName).filter(Boolean)
+    const payTime = nowIso()
+    state.payments.unshift({
+      paymentId,
+      patientId: paid[0].patientId,
+      registerId: paid[0].registerId,
+      totalAmount: Math.round(paidAmount * 100) / 100,
+      amount: Math.round(paidAmount * 100) / 100,
+      channel,
+      channelLabel: channelLabel(channel),
+      payTime,
+      paidAt: formatMockTime(payTime),
+      status: 1,
+      summary: titles.length ? titles.join('、') : '窗口缴费',
+      billIds: paid.map((b) => b.id),
+      operatorId: 901,
+    })
+  }
+  return {
+    paidAmount,
+    paid,
+    paymentId,
+    payChannel: (payChannel || 'CASH').toUpperCase(),
+    channelLabel: channelLabel((payChannel || 'CASH').toUpperCase()),
+  }
 }
 
-export function refundBillById(billId) {
+export function refundBillById(billId, reason = '窗口退费') {
   const bill = state.bills.find((b) => b.id === Number(billId))
   if (!bill || bill.status !== 1) return null
   bill.status = 2
   bill.statusText = '已退款'
+  const payment = state.payments.find((p) => p.billIds?.includes(bill.id))
+  nextRefundId += 1
+  const refundTime = nowIso()
+  state.refunds.unshift({
+    refundId: nextRefundId,
+    paymentId: payment?.paymentId ?? null,
+    billId: bill.id,
+    patientId: bill.patientId,
+    registerId: bill.registerId,
+    refundAmount: bill.amount,
+    amount: bill.amount,
+    channel: payment?.channel ?? 'CASH',
+    channelLabel: channelLabel(payment?.channel ?? 'CASH'),
+    refundTime,
+    reason,
+    billTitle: bill.billTitle || bill.itemName,
+  })
   return bill
 }
 
 // —— 医生 ——
+
+function resolveNoonType(reg) {
+  if (reg.noonType != null) return Number(reg.noonType)
+  if (reg.noonLabel === '下午') return 2
+  return 1
+}
+
+function compareDoctorQueueOrder(a, b) {
+  const noonDiff = resolveNoonType(a) - resolveNoonType(b)
+  if (noonDiff !== 0) return noonDiff
+  return String(a.registTime || '').localeCompare(String(b.registTime || ''))
+}
 
 export function getDoctorQueue(params = {}) {
   const { visitState } = params
@@ -387,7 +910,14 @@ export function getDoctorQueue(params = {}) {
   } else {
     list = list.filter((r) => r.visitState >= 1 && r.visitState <= 2)
   }
-  return list.sort((a, b) => a.registTime.localeCompare(b.registTime))
+  list = list.sort(compareDoctorQueueOrder)
+  const seen = new Set()
+  return list.filter((r) => {
+    const key = r.patientId ?? r.medicalRecordNo
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 export function callRegister(registerId) {
@@ -401,6 +931,10 @@ export function callRegister(registerId) {
 export function finishRegister(registerId) {
   const reg = state.registers.find((r) => r.registerId === Number(registerId))
   if (!reg) throw new Error('挂号记录不存在')
+  const record = state.medicalRecords[Number(registerId)]
+  if (!record || record.status !== 2) {
+    throw new Error('请先确诊提交病历后再结束看诊')
+  }
   reg.visitState = 3
   return reg
 }
@@ -435,6 +969,71 @@ export function confirmMedicalRecord(registerId, data) {
 
 export function getRegisterById(registerId) {
   return state.registers.find((r) => r.registerId === Number(registerId))
+}
+
+function buildVisitSummary(reg) {
+  const record = getMedicalRecord(reg.registerId)
+  const mrStatus = record?.status ?? null
+  const ordersData = getRegisterOrders(reg.registerId)
+  const orderList = ordersData.list ?? []
+  const orderCount = orderList.length
+  const reportReadyCount = orderList.filter((o) => o.kind !== 'prescription' && o.status >= 40).length
+  let summarySnippet = (record?.diagnosis || record?.readme || '').trim()
+  if (summarySnippet.length > 80) summarySnippet = `${summarySnippet.slice(0, 80)}…`
+  if (!summarySnippet && orderCount > 0) summarySnippet = `医嘱 ${orderCount} 项`
+  if (!summarySnippet) summarySnippet = '就诊进行中，暂无文书摘要'
+
+  return {
+    registerId: reg.registerId,
+    visitState: reg.visitState,
+    visitStateLabel: VISIT_STATE_LABELS[reg.visitState] || String(reg.visitState),
+    visitDateLabel: reg.workDate || '—',
+    workDate: reg.workDate,
+    noonLabel: reg.noonLabel,
+    deptName: reg.deptName,
+    doctorName: reg.doctorName,
+    registLevelName: reg.registLevelName,
+    patientName: reg.patientName,
+    medicalRecordNo: reg.medicalRecordNo,
+    medicalRecordStatus: mrStatus,
+    hasMedicalRecord: mrStatus === 2,
+    orderCount,
+    reportReadyCount,
+    summarySnippet,
+  }
+}
+
+export function getPatientVisits(patientId, params = {}) {
+  const pid = Number(patientId)
+  const list = state.registers
+    .filter((r) => r.patientId === pid && r.visitState >= 1 && r.visitState <= 3)
+    .sort((a, b) => String(b.workDate || b.registTime).localeCompare(String(a.workDate || a.registTime)))
+    .map(buildVisitSummary)
+  return {
+    list,
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 20,
+    patientId: pid,
+  }
+}
+
+export function getPatientVisitHub(patientId, registerId) {
+  const reg = state.registers.find(
+    (r) => r.registerId === Number(registerId) && r.patientId === Number(patientId),
+  )
+  if (!reg) throw new Error('就诊记录不存在')
+  const record = getMedicalRecord(registerId)
+  const mrStatus = record?.status ?? null
+  const hasSubmitted = mrStatus === 2
+  const hasDraft = mrStatus != null && mrStatus >= 1
+  return {
+    registerSummary: buildVisitSummary(reg),
+    medicalRecordStatus: mrStatus,
+    hasMedicalRecord: hasSubmitted,
+    hasRecordDraft: hasDraft,
+    medicalRecord: hasDraft ? record : null,
+    orders: getRegisterOrders(registerId),
+  }
 }
 
 function createTechOrder(registerId, techId, kind) {
@@ -544,40 +1143,7 @@ function formatResultPayload(row, idKey) {
     [idKey]: row[idKey],
     itemName: row.itemName,
     resultText: row.resultText || '',
-    resultAttachment: row.resultAttachment || '',
     reportTime: row.resultTime ?? nowIso(),
-  }
-}
-
-function parsePublishedText(resultText) {
-  const text = (resultText || '').trim()
-  if (!text) return { ai: '', doctor: '' }
-  const match = /^AI：([\s\S]*?)(?:\n医师：([\s\S]*))?$/.exec(text)
-  if (match) {
-    return { ai: (match[1] || '').trim(), doctor: (match[2] || '').trim() }
-  }
-  return { ai: text, doctor: '' }
-}
-
-function techTypeForIdKey(idKey) {
-  if (idKey === 'inspectionRequestId') return 'INSPECTION'
-  if (idKey === 'checkRequestId') return 'CHECK'
-  return 'DISPOSAL'
-}
-
-function enrichDoctorResultView(row, idKey) {
-  const parsed = parsePublishedText(row.resultText)
-  const aiReportText = row.aiReportText || parsed.ai
-  const doctorReportText = row.doctorReportText || parsed.doctor
-  const techType = row.techType || techTypeForIdKey(idKey)
-  const instrumentData = row.instrumentData || mockInstrumentData(techType, row.itemName)
-  return {
-    ...formatResultPayload(row, idKey),
-    status: row.status,
-    instrumentData,
-    aiReportText,
-    doctorReportText,
-    aiReportStatus: aiReportText || doctorReportText ? 'READY' : 'PENDING',
   }
 }
 
@@ -585,21 +1151,21 @@ export function getInspectionResult(inspectionRequestId) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(inspectionRequestId))
   if (!row) throw new Error('检验申请不存在')
   if (row.status < 40) throw new Error('检验结果尚未出具，请待检验科录入')
-  return enrichDoctorResultView(row, 'inspectionRequestId')
+  return buildLabReportRow(row)
 }
 
 export function getCheckResult(checkRequestId) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(checkRequestId))
   if (!row) throw new Error('检查申请不存在')
   if (row.status < 40) throw new Error('检查报告尚未出具，请待放射科录入')
-  return enrichDoctorResultView(row, 'checkRequestId')
+  return buildCheckReportRow(row)
 }
 
 export function getDisposalResult(disposalRequestId) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(disposalRequestId))
   if (!row) throw new Error('处置申请不存在')
   if (row.status < 40) throw new Error('处置记录尚未出具，请待处置科录入')
-  return enrichDoctorResultView(row, 'disposalRequestId')
+  return buildDisposalRecordRow(row)
 }
 
 function findTechRow(techType, id) {
@@ -618,24 +1184,70 @@ function findTechRow(techType, id) {
 export function getTechResultDetail(techType, id) {
   const row = findTechRow(techType, id)
   if (!row) throw new Error('申请不存在')
+  if (techType === 'INSPECTION') {
+    ensureLabItems(row)
+    const report = buildLabReportRow(row)
+    return {
+      ...report,
+      medicalRecordNo: row.medicalRecordNo,
+      patientName: row.patientName,
+      techType,
+    }
+  }
+  if (techType === 'DISPOSAL') {
+    const report = buildDisposalRecordRow(row)
+    return {
+      ...report,
+      medicalRecordNo: row.medicalRecordNo,
+      patientName: row.patientName,
+      techType,
+    }
+  }
+  if (techType === 'CHECK') {
+    const report = buildCheckReportRow(row)
+    return {
+      ...report,
+      medicalRecordNo: row.medicalRecordNo,
+      patientName: row.patientName,
+      techType,
+    }
+  }
   ensureInstrumentData(row, techType)
-  const idKey = techType === 'INSPECTION'
-    ? 'inspectionRequestId'
-    : techType === 'CHECK'
-      ? 'checkRequestId'
-      : 'disposalRequestId'
+  const idKey = techType === 'CHECK'
+    ? 'checkRequestId'
+    : techType === 'DISPOSAL'
+      ? 'disposalRequestId'
+      : 'inspectionRequestId'
   return {
     ...formatResultPayload(row, idKey),
     status: row.status,
     medicalRecordNo: row.medicalRecordNo,
     patientName: row.patientName,
     techType,
+    instrumentData: row.instrumentData,
+    aiReportText: row.aiReportText,
+    doctorReportText: row.doctorReportText,
+    aiReportStatus: row.aiReportStatus,
   }
 }
 
-export function generateTechAiReport(techType, id) {
+export function generateTechAiReport(techType, id, findingsTextFromRequest) {
   const row = findTechRow(techType, id)
   if (!row) throw new Error('申请不存在')
+  if (techType === 'INSPECTION') {
+    ensureLabItems(row)
+    row.aiReportText = generateLabAiReportStub(row.itemName, row.resultItems)
+    row.aiReportStatus = 'READY'
+    return getTechResultDetail(techType, id)
+  }
+  if (techType === 'CHECK') {
+    const findings = (findingsTextFromRequest ?? row.findingsText ?? '').trim()
+    if (!findings) throw new Error('请先填写 CT 所见')
+    row.findingsText = findings
+    row.aiReportText = generateCheckAiReportStub(row.itemName, findings)
+    row.aiReportStatus = 'READY'
+    return getTechResultDetail(techType, id)
+  }
   ensureInstrumentData(row, techType)
   row.aiReportText = mockAiReportText(techType, row.itemName)
   row.aiReportStatus = 'READY'
@@ -652,6 +1264,7 @@ const ORDER_STATUS_LABEL = {
 
 const RX_STATUS_LABEL = {
   10: '已开立',
+  15: '药师驳回',
   20: '已缴费',
   30: '已发药',
   40: '已退药',
@@ -693,14 +1306,16 @@ export function getRegisterOrders(registerId) {
     })
   }
   for (const row of state.prescriptions.filter((r) => r.registerId === rid)) {
-    list.push({
+    const item = {
       kind: 'prescription',
       typeLabel: '处方',
       requestId: row.prescriptionId,
       itemName: row.items?.map((i) => i.drugName).join('、') || '处方',
       status: row.status,
       statusLabel: RX_STATUS_LABEL[row.status] ?? String(row.status),
-    })
+    }
+    if (row.status === 15 && row.rejectReason) item.rejectReason = row.rejectReason
+    list.push(item)
   }
 
   return {
@@ -730,7 +1345,6 @@ export function getRegisterResults(registerId) {
         typeLabel: item.typeLabel,
         itemName: item.itemName,
         resultText: detail.resultText,
-        resultAttachment: detail.resultAttachment,
         reportTime: detail.reportTime,
       })
     } catch {
@@ -834,25 +1448,32 @@ export function executeInspection(id) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
-  ensureInstrumentData(row, 'INSPECTION')
-  if (!row.aiReportText) {
-    row.aiReportText = mockAiReportText('INSPECTION', row.itemName)
-    row.aiReportStatus = 'READY'
-  }
+  ensureLabItems(row)
   return row
 }
 
 export function saveInspectionResult(id, payload) {
   const row = state.inspectionRequests.find((r) => r.inspectionRequestId === Number(id))
   if (!row) throw new Error('申请不存在')
+  ensureLabItems(row)
   if (typeof payload === 'string') {
     row.resultText = payload
+  } else if (payload?.aiReportText || payload?.doctorReportText) {
+    row.aiReportText = payload.aiReportText?.trim() || row.aiReportText || ''
+    row.doctorReportText = payload.doctorReportText?.trim() || ''
+    row.resultText = composeLabResultText(row.resultItems, row.aiReportText, row.doctorReportText)
+    row.aiReportStatus = row.aiReportText ? 'READY' : 'PENDING'
   } else {
-    row.resultText = payload.resultText ?? ''
-    row.resultAttachment = payload.resultAttachment ?? ''
+    row.resultText = payload?.resultText ?? ''
   }
-  row.status = 40
-  return row
+  applyMockMedTechSign(row, payload, {
+    reporterField: 'reporterName',
+    reviewerField: 'reviewerName',
+    aliasFields: ['testerName'],
+  })
+  row.status = payload?.signAsReviewerOnly ? 40 : payload?.pendingReview ? 30 : 40
+  row.resultTime = nowIso()
+  return buildLabReportRow(row)
 }
 
 export function getCheckQueue(status) {
@@ -866,7 +1487,19 @@ export function executeCheck(id) {
   const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
-  ensureInstrumentData(row, 'CHECK')
+  return row
+}
+
+export function saveCheckReportSnapshots(id, snapshots) {
+  const row = state.checkRequests.find((r) => r.checkRequestId === Number(id))
+  if (!row) throw new Error('申请不存在')
+  row.reportSnapshots = {
+    axial: snapshots?.axial || '',
+    coronal: snapshots?.coronal || '',
+    sagittal: snapshots?.sagittal || '',
+  }
+  row.snapshotMeta = snapshots?.meta || null
+  row.studyStatus = row.studyStatus || 'COMPLETED'
   return row
 }
 
@@ -875,11 +1508,20 @@ export function saveCheckResult(id, payload) {
   if (!row) throw new Error('申请不存在')
   if (typeof payload === 'string') {
     row.resultText = payload
+  } else if (payload?.aiReportText || payload?.doctorReportText || payload?.findingsText) {
+    row.findingsText = payload.findingsText?.trim() ?? row.findingsText ?? ''
+    row.aiReportText = payload.aiReportText?.trim() || row.aiReportText || ''
+    row.doctorReportText = payload.doctorReportText?.trim() || row.doctorReportText || ''
+    row.resultText = composeCheckResultText(row.findingsText, row.aiReportText, row.doctorReportText)
+    row.aiReportStatus = row.aiReportText ? 'READY' : 'PENDING'
   } else {
     row.resultText = payload.resultText ?? ''
-    row.resultAttachment = payload.resultAttachment ?? ''
   }
-  row.status = 40
+  applyMockMedTechSign(row, payload, {
+    reporterField: 'reporterName',
+    reviewerField: 'reviewerName',
+  })
+  row.status = payload?.signAsReviewerOnly ? 40 : payload?.pendingReview ? 30 : 40
   return row
 }
 
@@ -892,11 +1534,7 @@ export function executeDisposal(id) {
   const row = state.disposalRequests.find((r) => r.disposalRequestId === Number(id))
   if (!row || row.status !== 20) throw new Error('仅已缴费项目可执行')
   row.status = 30
-  ensureInstrumentData(row, 'DISPOSAL')
-  if (!row.aiReportText) {
-    row.aiReportText = mockAiReportText('DISPOSAL', row.itemName)
-    row.aiReportStatus = 'READY'
-  }
+  row.executeTime = nowIso()
   return row
 }
 
@@ -905,21 +1543,23 @@ export function saveDisposalResult(id, payload) {
   if (!row) throw new Error('申请不存在')
   if (typeof payload === 'string') {
     row.resultText = payload
-  } else if (payload.aiReportText || payload.doctorReportText) {
-    const ai = payload.aiReportText?.trim() || ''
-    const doctor = payload.doctorReportText?.trim() || ''
-    if (ai && doctor) row.resultText = `AI：${ai}\n医师：${doctor}`
-    else if (ai) row.resultText = `AI：${ai}`
-    else row.resultText = `医师：${doctor}`
-    row.aiReportText = ai
-    row.doctorReportText = doctor
-    row.resultAttachment = payload.resultAttachment ?? ''
+  } else if (payload?.processText || payload?.outcomeText) {
+    row.processText = payload.processText?.trim() || ''
+    row.outcomeText = payload.outcomeText?.trim() || ''
+    row.resultText = composeDisposalResultText(row.processText, row.outcomeText)
+  } else if (payload?.aiReportText || payload?.doctorReportText) {
+    row.outcomeText = payload.doctorReportText?.trim() || payload.aiReportText?.trim() || ''
+    row.resultText = composeDisposalResultText('', row.outcomeText)
   } else {
-    row.resultText = payload.resultText ?? ''
-    row.resultAttachment = payload.resultAttachment ?? ''
+    row.resultText = payload?.resultText ?? ''
   }
-  row.status = 40
-  return row
+  applyMockMedTechSign(row, payload, {
+    reporterField: 'recorderName',
+    reviewerField: 'reviewerName',
+  })
+  row.status = payload?.signAsReviewerOnly ? 40 : payload?.pendingReview ? 30 : 40
+  row.resultTime = nowIso()
+  return buildDisposalRecordRow(row)
 }
 
 // —— 药房 ——
@@ -940,6 +1580,73 @@ export function dispensePrescription(prescriptionId) {
 export function returnPrescription(prescriptionId) {
   const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
   if (!rx || rx.status !== 30) throw new Error('仅已发药处方可退药')
-  rx.status = 10
+  rx.status = 40
   return rx
+}
+
+export function getPrescriptionDetail(prescriptionId) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx) throw new Error('处方不存在')
+  const statusLabels = { 10: '已开立', 15: '药师驳回', 20: '已缴费', 30: '已发药', 40: '已退药', 50: '已退费' }
+  return {
+    ...rx,
+    statusLabel: statusLabels[rx.status] || String(rx.status),
+    items: (rx.items || []).map((it) => ({ ...it, stockQty: 100, amount: rx.totalAmount })),
+  }
+}
+
+export function rejectPrescription(prescriptionId, reason) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx || rx.status !== 20) throw new Error('仅已缴费未发药处方可拒绝')
+  const trimmed = String(reason || '').trim()
+  if (!trimmed) throw new Error('请填写拒绝原因')
+  const bill = state.bills.find((b) => b.bizType === 'PRESCRIPTION' && b.bizId === rx.prescriptionId && b.status === 1)
+  if (bill) bill.status = 2
+  rx.status = 15
+  rx.rejectReason = trimmed
+  return rx
+}
+
+export function updatePrescriptionItems(prescriptionId, items) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx || rx.status !== 15) throw new Error('仅药师驳回处方可修改')
+  const mapped = (items || []).map((it) => {
+    const drug = getDrugById(it.drugId)
+    const unitPrice = drug?.retailPrice ?? 0
+    return {
+      drugId: it.drugId,
+      drugName: drug?.drugName ?? it.drugName ?? '药品',
+      drugFormat: drug?.drugFormat ?? it.drugFormat ?? '',
+      quantity: it.quantity,
+      usageMethod: it.usageMethod,
+      dosage: it.dosage,
+      frequency: it.frequency,
+      days: it.days,
+      entrust: it.entrust,
+      unitPrice,
+    }
+  })
+  rx.items = mapped
+  rx.totalAmount = Math.round(
+    mapped.reduce((s, it) => s + (it.unitPrice ?? 0) * (it.quantity ?? 1), 0) * 100,
+  ) / 100
+  return rx
+}
+
+export function resubmitPrescriptionMock(prescriptionId) {
+  const rx = state.prescriptions.find((r) => r.prescriptionId === Number(prescriptionId))
+  if (!rx || rx.status !== 15) throw new Error('仅药师驳回处方可重新提交')
+  rx.status = 10
+  rx.rejectReason = null
+  const bill = createBill({
+    medicalRecordNo: rx.medicalRecordNo,
+    patientId: state.registers.find((r) => r.registerId === rx.registerId)?.patientId,
+    registerId: rx.registerId,
+    bizType: 'PRESCRIPTION',
+    bizId: rx.prescriptionId,
+    itemName: `处方费 #${rx.prescriptionId}`,
+    amount: rx.totalAmount,
+    status: 0,
+  })
+  return { ...rx, billId: bill.billId }
 }

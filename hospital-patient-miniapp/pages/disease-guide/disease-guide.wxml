@@ -78,6 +78,7 @@
   </view>
 
   <view class="safety" wx:if="{{safetyNotice}}">{{safetyNotice}}</view>
+  <view class="triage-disclaimer muted">AI 导诊为演示能力，推荐科室仅供参考，请以医生诊断为准。</view>
 
   <view wx:if="{{showRecommendModal && primaryRecommendation}}" class="modal-mask" bindtap="onCloseRecommend">
     <view class="recommend-modal" catchtap="noop">

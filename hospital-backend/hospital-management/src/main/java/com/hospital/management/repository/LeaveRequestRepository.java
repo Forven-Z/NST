@@ -69,6 +69,38 @@ public class LeaveRequestRepository {
                 .optional();
     }
 
+    public Optional<Map<String, Object>> findApprovedBySchedulingId(Long schedulingId) {
+        return jdbcClient.sql("""
+                        SELECT lr.id AS leave_request_id,
+                               lr.scheduling_id,
+                               lr.employee_id,
+                               e.real_name AS employee_name,
+                               lr.reason,
+                               lr.status,
+                               lr.approve_time,
+                               lr.reject_remark,
+                               lr.create_time,
+                               s.work_date,
+                               s.noon_type,
+                               s.total_quota,
+                               s.used_quota,
+                               rl.level_name AS regist_level_name,
+                               emp.dept_id
+                        FROM scheduling_leave_request lr
+                        JOIN scheduling s ON lr.scheduling_id = s.id
+                        JOIN employee e ON lr.employee_id = e.id
+                        JOIN employee emp ON s.employee_id = emp.id
+                        JOIN regist_level rl ON s.regist_level_id = rl.id
+                        WHERE lr.scheduling_id = :schedulingId
+                          AND lr.status = 1
+                        ORDER BY lr.id DESC
+                        LIMIT 1
+                        """)
+                .param("schedulingId", schedulingId)
+                .query(this::mapLeaveRow)
+                .optional();
+    }
+
     public List<Map<String, Object>> listAdmin(Integer status) {
         return jdbcClient.sql("""
                         SELECT lr.id AS leave_request_id,

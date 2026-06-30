@@ -60,6 +60,7 @@ const router = createRouter({
           path: 'imaging-ai',
           name: 'pacs-imaging-ai',
           component: () => import('../views/pacs/ImagingAiView.vue'),
+          meta: { immersive: true },
         },
         {
           path: 'my-schedules',
@@ -96,6 +97,11 @@ const router = createRouter({
           path: 'pending',
           name: 'pharmacy-pending',
           component: () => import('../views/pharmacy/PendingView.vue'),
+        },
+        {
+          path: 'drugs',
+          name: 'pharmacy-drugs',
+          component: () => import('../views/pharmacy/DrugsView.vue'),
         },
         {
           path: 'my-schedules',
@@ -157,6 +163,11 @@ const router = createRouter({
           path: 'scheduling',
           name: 'admin-scheduling',
           component: () => import('../views/admin/SchedulingView.vue'),
+        },
+        {
+          path: 'finance',
+          name: 'admin-finance',
+          component: () => import('../views/admin/FinanceSummaryView.vue'),
         },
       ],
     },

@@ -5,8 +5,6 @@ import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
-import com.hospital.common.support.MedTechReportSupport;
-import com.hospital.common.support.MedTechReportSupport.ParsedPublishedText;
 import com.hospital.his.dto.doctor.CreateInspectionRequest;
 import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
@@ -29,6 +27,7 @@ public class DisposalOrderService {
     private final MedicalTechnologyRepository medicalTechnologyRepository;
     private final DisposalRequestRepository disposalRequestRepository;
     private final BillRepository billRepository;
+    private final DisposalRecordQueryService disposalRecordQueryService;
 
     @Transactional
     public Map<String, Object> createDisposalOrder(CreateInspectionRequest request) {
@@ -85,28 +84,6 @@ public class DisposalOrderService {
 
     public Map<String, Object> getDisposalResult(Long disposalRequestId) {
         Long doctorId = AuthContextHolder.require().getEmployeeId();
-        Map<String, Object> row = disposalRequestRepository.findByIdAndDoctor(disposalRequestId, doctorId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处置申请不存在"));
-        int status = ((Number) row.get("status")).intValue();
-        if (status < InspectionRequestStatus.RESULT_READY) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "处置结果尚未出具");
-        }
-        String itemName = (String) row.get("itemName");
-        String resultText = row.get("resultText") != null ? String.valueOf(row.get("resultText")) : "";
-        ParsedPublishedText parsed = MedTechReportSupport.parsePublishedText(resultText);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("disposalRequestId", row.get("disposalRequestId"));
-        result.put("itemName", itemName);
-        result.put("status", status);
-        result.put("resultText", resultText);
-        result.put("resultTime", row.get("resultTime"));
-        result.put("reportTime", row.get("resultTime"));
-        result.put("instrumentData", MedTechReportSupport.instrumentDataFor(itemName));
-        result.put("aiReportText", parsed.aiReportText());
-        result.put("doctorReportText", parsed.doctorReportText());
-        result.put("aiReportStatus",
-                !parsed.aiReportText().isBlank() || !parsed.doctorReportText().isBlank() ? "READY" : "PENDING");
-        return result;
+        return disposalRecordQueryService.getDisposalRecordForDoctor(disposalRequestId, doctorId);
     }
 }

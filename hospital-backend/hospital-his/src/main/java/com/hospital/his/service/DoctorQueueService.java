@@ -3,6 +3,7 @@ package com.hospital.his.service;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.his.repository.MedicalRecordRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DoctorQueueService {
 
+    private static final int MEDICAL_RECORD_SUBMITTED = 2;
+
     private final RegisterRepository registerRepository;
+    private final MedicalRecordRepository medicalRecordRepository;
 
     public Map<String, Object> listQueue(Integer visitState, String keyword, int page, int pageSize) {
         Long employeeId = AuthContextHolder.require().getEmployeeId();
@@ -79,6 +83,11 @@ public class DoctorQueueService {
         }
         if (currentState != VisitState.IN_CONSULTATION) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "仅接诊中状态可结束看诊");
+        }
+
+        int recordStatus = medicalRecordRepository.findStatusByRegisterId(registerId).orElse(0);
+        if (recordStatus != MEDICAL_RECORD_SUBMITTED) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "请先确诊提交病历后再结束看诊");
         }
 
         registerRepository.markFinished(registerId);

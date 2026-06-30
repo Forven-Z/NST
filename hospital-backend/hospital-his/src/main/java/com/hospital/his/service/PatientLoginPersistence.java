@@ -5,6 +5,7 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.patient.PatientLoginRequest;
 import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.util.BizNoGenerator;
+import com.hospital.his.util.IdCardUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,25 +48,30 @@ public class PatientLoginPersistence {
             String mrn = BizNoGenerator.medicalRecordNo();
             patientId = patientRepository.insertFamilyPatient(
                     mrn, request.getRealName().trim(), request.getGender(),
-                    request.getBirthDate(), idCard, phone, address);
+                    request.getBirthDate(), IdCardUtils.resolveAge(null, request.getBirthDate()),
+                    idCard, phone, address);
         }
 
         patientRepository.updateProfile(patientId, request.getRealName().trim(), request.getGender(),
-                request.getBirthDate(), phone, idCard, address, null);
+                request.getBirthDate(), IdCardUtils.resolveAge(null, request.getBirthDate()),
+                phone, idCard, address, null);
 
         return new UpsertResult(patientId, isNew);
     }
 
     @Transactional
-    public UpsertResult upsertForWindow(String patientName, Integer gender, LocalDate birthDate,
+    public UpsertResult upsertForWindow(String patientName, Integer gender, LocalDate birthDate, Integer age,
                                         String phone, String idCard, String address,
                                         Long settleCategoryId) {
         String normalizedPhone = StringUtils.hasText(phone) ? phone.trim() : null;
-        String normalizedIdCard = StringUtils.hasText(idCard) ? idCard.trim() : null;
+        String normalizedIdCard = IdCardUtils.normalizeIdCard(idCard);
 
-        if (!StringUtils.hasText(normalizedPhone) && !StringUtils.hasText(normalizedIdCard)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "请填写身份证号或手机号");
+        if (!StringUtils.hasText(normalizedPhone) || !StringUtils.hasText(normalizedIdCard)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "请填写身份证号和手机号");
         }
+
+        LocalDate resolvedBirthDate = IdCardUtils.resolveBirthDate(birthDate, age, normalizedIdCard);
+        Integer resolvedAge = IdCardUtils.resolveAge(age, resolvedBirthDate);
 
         Optional<Long> byPhone = normalizedPhone != null
                 ? patientRepository.findPatientIdByPhone(normalizedPhone) : Optional.empty();
@@ -90,7 +96,7 @@ public class PatientLoginPersistence {
             isNew = true;
             String mrn = BizNoGenerator.medicalRecordNo();
             patientId = patientRepository.insertFamilyPatient(
-                    mrn, patientName.trim(), gender, birthDate,
+                    mrn, patientName.trim(), gender, resolvedBirthDate, resolvedAge,
                     normalizedIdCard, normalizedPhone, address);
         }
 
@@ -98,7 +104,7 @@ public class PatientLoginPersistence {
             patientRepository.assertPhoneAvailable(normalizedPhone, patientId);
         }
 
-        patientRepository.updateProfile(patientId, patientName.trim(), gender, birthDate,
+        patientRepository.updateProfile(patientId, patientName.trim(), gender, resolvedBirthDate, resolvedAge,
                 normalizedPhone, normalizedIdCard, address, settleCategoryId);
 
         return new UpsertResult(patientId, isNew);

@@ -1,10 +1,10 @@
 <view class="container">
   <view class="card">
     <view class="card-title row-between">
-      <text>就诊人管理</text>
+      <text>家属管理</text>
       <text class="link" bindtap="goAdd">+ 添加</text>
     </view>
-    <view class="muted">一个账号可为家人添加就诊人，代其挂号；无身份证患儿须填写陪诊人信息</view>
+    <view class="muted">添加家属后需切换就诊账户登录，方可代其挂号、缴费与查报告</view>
   </view>
 
   <view wx:if="{{loading}}" class="empty">加载中...</view>

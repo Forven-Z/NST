@@ -602,9 +602,12 @@ psql -U postgres -d hospital -f docs\sql\seed-dict.sql
 
 ```cmd
 psql -U postgres -d hospital -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+psql -U postgres -d hospital -c "SELECT id, username, user_type FROM sys_user ORDER BY id;"
+psql -U postgres -d hospital -c "SELECT u.username, e.real_name, e.role_type FROM sys_user u JOIN employee e ON e.id = u.employee_id ORDER BY u.id;"
 ```
 
-期望：约 **26** 张表（具体以 `schema.sql` 为准）。
+期望：约 **26～28** 张表；`sys_user` 含 `doctor01` 等测试账号（见 [`sql/README.md`](./sql/README.md) §三）。  
+> 登录表为 **`sys_user`**，无 `staff_account` 表。
 
 #### 6.1.6 pgvector（向量扩展 · P4 前可暂缓）
 

@@ -1,7 +1,6 @@
 import { mockResult } from '../utils/mock'
 import {
   executeDisposal,
-  generateTechAiReport,
   getDisposalQueue,
   getTechResultDetail,
   saveDisposalResult,
@@ -23,16 +22,9 @@ export function mockDisposalResult(id, body) {
     disposalRequestId: row.disposalRequestId,
     status: row.status,
     resultText: row.resultText,
-    instrumentData: row.instrumentData,
-    aiReportText: row.aiReportText,
-    doctorReportText: row.doctorReportText,
   })
 }
 
 export function mockDisposalResultDetail(id) {
   return mockResult(getTechResultDetail('DISPOSAL', id))
-}
-
-export function mockDisposalGenerateAiReport(id) {
-  return mockResult(generateTechAiReport('DISPOSAL', id))
 }

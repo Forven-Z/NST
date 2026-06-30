@@ -1,8 +1,10 @@
 const { fetchProfile, fetchMyRegisters, fetchPendingBills, fetchFamilyMembers } = require('../../api/patient')
+const { fetchRegisterOrders } = require('../../api/orders')
 const { TABS, buildGridItems, findGridItem } = require('../../utils/home-services')
 const { isLoggedIn, requireLogin, switchAccount, readAccounts } = require('../../utils/auth')
 const accountStore = require('../../utils/account-store')
 const tripCard = require('../../utils/trip-card')
+const reportNav = require('../../utils/report-nav')
 
 Page({
   data: {
@@ -15,6 +17,7 @@ Page({
     tabs: TABS,
     activeTab: 'outpatient',
     gridItems: buildGridItems('outpatient'),
+    gridColClass: 'service-grid--five',
   },
 
   onShow() {
@@ -89,7 +92,14 @@ Page({
         registerId: reg.registerId,
       }).then(function (billRes) {
         var pending = (billRes && billRes.data && billRes.data.list) || []
-        that.setData({ trip: tripCard.buildTripCard(reg, pending) })
+        var ordersPromise = reg.visitState === 3
+          ? fetchRegisterOrders(reg.registerId).then(function (o) {
+            return ((o && o.data && o.data.list) || [])
+          }).catch(function () { return [] })
+          : Promise.resolve([])
+        return ordersPromise.then(function (ordersList) {
+          that.setData({ trip: tripCard.buildTripCard(reg, pending, ordersList) })
+        })
       })
     }).catch(function () {
       that.setData({ trip: null })
@@ -151,9 +161,11 @@ Page({
 
   onTabChange(e) {
     var key = e.currentTarget.dataset.key
+    var items = buildGridItems(key)
     this.setData({
       activeTab: key,
-      gridItems: buildGridItems(key),
+      gridItems: items,
+      gridColClass: items.length === 5 ? 'service-grid--five' : (items.length <= 3 ? 'service-grid--few' : ''),
     })
   },
 
@@ -168,8 +180,12 @@ Page({
     if (!requireLogin({ mode: 'modal', message: '请先登录' })) return
     var trip = this.data.trip
     if (!trip || !trip.actionUrl) return
-    if (trip.actionType === 'queue' || trip.actionType === 'registers' || trip.actionType === 'reports') {
+    if (trip.actionType === 'queue' || trip.actionType === 'registers' || trip.actionType === 'orders' || trip.actionType === 'visit') {
       wx.navigateTo({ url: trip.actionUrl })
+      return
+    }
+    if (trip.actionType === 'reports') {
+      reportNav.openReportsTab(trip.reportTab || 'all')
       return
     }
     if (trip.actionType === 'bills') {

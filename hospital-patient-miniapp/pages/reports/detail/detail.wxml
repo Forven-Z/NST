@@ -16,7 +16,132 @@
       <view wx:if="{{detail.bodyPart}}" class="line">部位：{{detail.bodyPart}}</view>
     </view>
 
-    <view class="card">
+    <view wx:if="{{detail.reportType === 'lab'}}" class="card lab-sheet">
+      <view class="lab-title">云脑医院检验报告单</view>
+      <view class="lab-sub">No. {{detail.reportNo}}</view>
+
+      <view class="info-grid">
+        <view class="info-item"><text class="label">姓名</text>{{detail.header.patientName}}</view>
+        <view class="info-item"><text class="label">性别</text>{{detail.header.genderLabel}}</view>
+        <view class="info-item"><text class="label">年龄</text>{{detail.header.ageLabel}}</view>
+        <view class="info-item"><text class="label">标本</text>{{detail.header.sampleType}}</view>
+        <view class="info-item"><text class="label">送检科室</text>{{detail.header.department}}</view>
+        <view class="info-item"><text class="label">诊断</text>{{detail.header.clinicalDiagnosis}}</view>
+      </view>
+
+      <view class="table-head">
+        <text class="col-name">项目</text>
+        <text class="col-result">结果</text>
+        <text class="col-unit">单位</text>
+        <text class="col-ref">参考</text>
+      </view>
+      <view class="table-row" wx:for="{{detail.items}}" wx:key="code">
+        <text class="col-name">{{item.name}}</text>
+        <text class="col-result {{item.flag === 'H' || item.flag === 'L' ? 'abnormal' : ''}}">
+          {{item.result}}{{item.flag === 'H' ? '↑' : item.flag === 'L' ? '↓' : ''}}
+        </text>
+        <text class="col-unit">{{item.unit || '—'}}</text>
+        <text class="col-ref">{{item.refRange || '—'}}</text>
+      </view>
+
+      <view class="analysis" wx:if="{{detail.analysis.aiReportText}}">
+        <view class="section-title">诊断分析</view>
+        <view class="result-text">{{detail.analysis.aiReportText}}</view>
+      </view>
+      <view class="analysis" wx:if="{{detail.analysis.doctorReportText}}">
+        <view class="section-title">检验医师意见</view>
+        <view class="result-text">{{detail.analysis.doctorReportText}}</view>
+      </view>
+
+      <view class="lab-footer muted">
+        <view>执行：{{detail.footer.executeTime}} · 报告：{{detail.footer.reportTime}}</view>
+        <view>送检：{{detail.footer.orderingDoctorName}} · 检验：{{detail.footer.testerName}} · 报告：{{detail.footer.reporterName}} · 审核：{{detail.footer.reviewerName}}</view>
+        <view>本结果仅对该份标本负责</view>
+      </view>
+    </view>
+
+    <view wx:elif="{{detail.reportType === 'check'}}" class="card lab-sheet">
+      <view class="lab-title">云脑医院 CT 检查报告单</view>
+      <view class="lab-sub">No. {{detail.reportNo}}</view>
+
+      <view class="info-grid">
+        <view class="info-item"><text class="label">姓名</text>{{detail.header.patientName}}</view>
+        <view class="info-item"><text class="label">性别</text>{{detail.header.genderLabel}}</view>
+        <view class="info-item"><text class="label">年龄</text>{{detail.header.ageLabel}}</view>
+        <view class="info-item"><text class="label">病案号</text>{{detail.header.medicalRecordNo}}</view>
+        <view class="info-item"><text class="label">模态</text>{{detail.header.modality || 'CT'}}</view>
+        <view class="info-item"><text class="label">送检科室</text>{{detail.header.department}}</view>
+        <view class="info-item"><text class="label">部位</text>{{detail.header.bodyPart}}</view>
+        <view class="info-item"><text class="label">诊断</text>{{detail.header.clinicalDiagnosis}}</view>
+      </view>
+
+      <view class="snapshot-section" wx:if="{{detail.reportType === 'check'}}">
+        <view class="section-title">影像三视图</view>
+        <view wx:if="{{snapshotsLoading}}" class="snapshot-hint muted">影像加载中…</view>
+        <view wx:elif="{{hasSnapshots}}" class="snapshot-grid">
+          <view
+            class="snapshot-item"
+            wx:for="{{snapshotViews}}"
+            wx:key="key"
+            data-index="{{index}}"
+            bindtap="onPreviewSnapshot"
+          >
+            <image class="snapshot-img" src="{{item.src}}" mode="aspectFill" />
+            <text class="snapshot-label">{{item.label}}</text>
+          </view>
+        </view>
+        <view wx:elif="{{snapshotsLoaded}}" class="snapshot-hint muted">文字报告已出，影像资料尚未上传或未配置 PACS 环境</view>
+      </view>
+
+      <view class="analysis" wx:if="{{detail.findings.findingsText}}">
+        <view class="section-title">CT 所见</view>
+        <view class="result-text">{{detail.findings.findingsText}}</view>
+      </view>
+      <view class="analysis" wx:if="{{detail.analysis.aiReportText}}">
+        <view class="section-title">诊断印象</view>
+        <view class="result-text">{{detail.analysis.aiReportText}}</view>
+      </view>
+      <view class="analysis" wx:if="{{detail.analysis.doctorReportText}}">
+        <view class="section-title">检查医师意见</view>
+        <view class="result-text">{{detail.analysis.doctorReportText}}</view>
+      </view>
+
+      <view class="lab-footer muted">
+        <view>检查：{{detail.footer.examTime}} · 报告：{{detail.footer.reportTime}}</view>
+        <view>送检：{{detail.footer.orderingDoctorName}} · 检查：{{detail.footer.executorName}} · 报告：{{detail.footer.reporterName}} · 审核：{{detail.footer.reviewerName}}</view>
+        <view>本报告仅供临床参考，以医师签阅为准</view>
+      </view>
+    </view>
+
+    <view wx:elif="{{detail.reportType === 'disposal'}}" class="card disposal-sheet">
+      <view class="lab-title">云脑医院处置记录</view>
+      <view class="lab-sub">No. {{detail.recordNo}}</view>
+
+      <view class="info-grid">
+        <view class="info-item"><text class="label">姓名</text>{{detail.header.patientName}}</view>
+        <view class="info-item"><text class="label">性别</text>{{detail.header.genderLabel}}</view>
+        <view class="info-item"><text class="label">年龄</text>{{detail.header.ageLabel}}</view>
+        <view class="info-item"><text class="label">病历号</text>{{detail.header.medicalRecordNo}}</view>
+        <view class="info-item"><text class="label">项目</text>{{detail.header.itemName}}</view>
+        <view class="info-item"><text class="label">送检科室</text>{{detail.header.department}}</view>
+      </view>
+
+      <view class="analysis" wx:if="{{detail.record.processText}}">
+        <view class="section-title">处置过程</view>
+        <view class="result-text">{{detail.record.processText}}</view>
+      </view>
+      <view class="analysis" wx:if="{{detail.record.outcomeText}}">
+        <view class="section-title">观察与结果</view>
+        <view class="result-text">{{detail.record.outcomeText}}</view>
+      </view>
+
+      <view class="lab-footer muted">
+        <view>执行：{{detail.footer.executeTime}} · 记录：{{detail.footer.recordTime}}</view>
+        <view>开立：{{detail.footer.orderingDoctorName}} · 执行：{{detail.footer.executorName}} · 记录：{{detail.footer.recorderName}} · 审核：{{detail.footer.reviewerName}}</view>
+      </view>
+    </view>
+
+    <view wx:else class="card">
       <view class="section-title">{{detail.contentSectionTitle}}</view>
       <view class="result-text">{{detail.resultText || '暂无详细内容'}}</view>
     </view>

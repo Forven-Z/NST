@@ -2,9 +2,16 @@ import request from './request'
 import { useMock } from '../utils/mock'
 import {
   mockAiSchedulingSuggest,
+  mockApplyScheduleTemplate,
+  mockBatchPublishSchedules,
+  mockBatchUpsertSchedules,
+  mockCopyScheduleWeek,
   mockCreateAdminSchedule,
+  mockFetchScheduleTemplate,
   mockPublishAdminSchedule,
+  mockReplaceScheduleTemplate,
   mockUpdateAdminSchedule,
+  mockWeekGrid,
 } from '../mock/admin-ai'
 import {
   mockAdminDepartmentDetail,
@@ -19,6 +26,7 @@ import {
   mockCreateEmployee,
   mockDeleteDepartment,
   mockDeleteEmployee,
+  mockFinanceDailySummary,
   mockUpdateDepartment,
   mockUpdateEmployee,
 } from '../mock/admin'
@@ -111,7 +119,7 @@ export function fetchAiSchedulingSuggest(params) {
 
 export function applyAiSchedulingReplace(schedulingId, data) {
   if (useMock()) return mockUpdateAdminSchedule(schedulingId, data)
-  return request.post(`/admin/scheduling/${schedulingId}/ai-replace`)
+  return request.post(`/admin/scheduling/${schedulingId}/ai-replace`, data || {})
 }
 
 export function updateAdminSchedule(schedulingId, data) {
@@ -122,4 +130,44 @@ export function updateAdminSchedule(schedulingId, data) {
   if (data.publishStatus != null) payload.publishStatus = data.publishStatus
   return request.put(`/admin/scheduling/${schedulingId}`, payload)
 }
-
+
+export function fetchFinanceDailySummary(params) {
+  if (useMock()) return mockFinanceDailySummary(params)
+  return request.get('/admin/finance/daily-summary', { params })
+}
+
+export function fetchWeekGrid(params) {
+  if (useMock()) return mockWeekGrid(params)
+  return request.get('/admin/scheduling/week-grid', { params })
+}
+
+export function batchUpsertSchedules(data) {
+  if (useMock()) return mockBatchUpsertSchedules(data)
+  return request.post('/admin/scheduling/batch-upsert', data)
+}
+
+export function copyScheduleWeek(data) {
+  if (useMock()) return mockCopyScheduleWeek(data)
+  return request.post('/admin/scheduling/copy-week', data)
+}
+
+export function applyScheduleTemplate(data) {
+  if (useMock()) return mockApplyScheduleTemplate(data)
+  return request.post('/admin/scheduling/apply-template', data)
+}
+
+export function batchPublishSchedules(data) {
+  if (useMock()) return mockBatchPublishSchedules(data)
+  return request.post('/admin/scheduling/batch-publish', data)
+}
+
+export function fetchScheduleTemplate(employeeId) {
+  if (useMock()) return mockFetchScheduleTemplate(employeeId)
+  return request.get(`/admin/scheduling/templates/${employeeId}`)
+}
+
+export function replaceScheduleTemplate(employeeId, data) {
+  if (useMock()) return mockReplaceScheduleTemplate(employeeId, data)
+  return request.put(`/admin/scheduling/templates/${employeeId}`, data)
+}
+

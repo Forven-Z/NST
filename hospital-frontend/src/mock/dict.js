@@ -2,10 +2,10 @@
  * Mock 字典与排班（门诊挂号）
  *
  * 排班规则依据公开资料归纳（见 mock/README.md §排班常识），非主观臆造：
- * - 普通号：各科室每个开诊半天均设普通门诊，住院/主治医师等轮流出诊
- * - 专家号：仅副主任医师及以上；多数固定每周 1～3 个半天，非每时段都有
- * - 开诊时段：常见上午 08:00–12:00、下午 13:00–17:00
+ * - 普通号：含周日；同一半天可多名医生同时出诊；每人固定休 1 天/周（上 6 天）
+ * - 专家号：每周 2 个上午
  */
+import { getWindowSessionContext, isWindowNoonVisible } from '../utils/window-session'
 
 export const MOCK_SETTLE_CATEGORIES = [
   { id: 1, categoryCode: 'SELF_PAY', categoryName: '自费' },
@@ -17,37 +17,24 @@ export const MOCK_REGIST_LEVELS = [
   { id: 2, levelCode: 'EXPERT', levelName: '专家号', registFee: 65 },
 ]
 
-/** 门诊科室（Mock 扩展；seed 中已有内科等） */
+/** 门诊科室（与 seed-dict.sql 对齐：内科 id=1、外科 id=6） */
 export const MOCK_OUTPATIENT_DEPTS = [
   { id: 1, deptCode: 'INTERNAL', deptName: '内科', deptType: 1, sortNo: 1 },
-  { id: 7, deptCode: 'SURGERY', deptName: '外科', deptType: 1, sortNo: 2 },
-  { id: 8, deptCode: 'PEDIATRICS', deptName: '儿科', deptType: 1, sortNo: 3 },
-  { id: 9, deptCode: 'OBSTETRICS', deptName: '妇产科', deptType: 1, sortNo: 4 },
+  { id: 6, deptCode: 'SURGERY', deptName: '外科', deptType: 1, sortNo: 6 },
 ]
 
 /**
  * role:
- * - regular：仅出普通门诊（主治医师/住院医师等）
- * - expert：可出专家门诊（对应副高及以上职称）；普通门诊由 regular 医生承担
+ * - regular：仅出普通门诊
+ * - expert：可出专家门诊（对应副高及以上职称）
  */
 export const MOCK_DOCTORS = [
-  // 内科
   { employeeId: 1, empNo: 'E001', realName: '张医生', title: '主治医师', deptId: 1, role: 'regular' },
-  { employeeId: 7, empNo: 'E007', realName: '刘医生', title: '住院医师', deptId: 1, role: 'regular' },
-  { employeeId: 11, empNo: 'E011', realName: '王教授', title: '主任医师', deptId: 1, role: 'expert' },
-  { employeeId: 12, empNo: 'E012', realName: '李主任', title: '副主任医师', deptId: 1, role: 'expert' },
-  // 外科
-  { employeeId: 8, empNo: 'E008', realName: '赵医生', title: '主治医师', deptId: 7, role: 'regular' },
-  { employeeId: 13, empNo: 'E013', realName: '钱医生', title: '住院医师', deptId: 7, role: 'regular' },
-  { employeeId: 14, empNo: 'E014', realName: '陈主任', title: '副主任医师', deptId: 7, role: 'expert' },
-  // 儿科
-  { employeeId: 9, empNo: 'E009', realName: '周医生', title: '主治医师', deptId: 8, role: 'regular' },
-  { employeeId: 15, empNo: 'E015', realName: '孙医生', title: '住院医师', deptId: 8, role: 'regular' },
-  { employeeId: 16, empNo: 'E016', realName: '郑主任', title: '副主任医师', deptId: 8, role: 'expert' },
-  // 妇产科
-  { employeeId: 10, empNo: 'E010', realName: '吴医生', title: '主治医师', deptId: 9, role: 'regular' },
-  { employeeId: 17, empNo: 'E017', realName: '冯医生', title: '住院医师', deptId: 9, role: 'regular' },
-  { employeeId: 18, empNo: 'E018', realName: '黄教授', title: '主任医师', deptId: 9, role: 'expert' },
+  { employeeId: 7, empNo: 'E007', realName: '李医生', title: '主治医师', deptId: 1, role: 'regular' },
+  { employeeId: 8, empNo: 'E008', realName: '陈教授', title: '主任医师', deptId: 1, role: 'expert' },
+  { employeeId: 9, empNo: 'E009', realName: '王医生', title: '主治医师', deptId: 6, role: 'regular' },
+  { employeeId: 10, empNo: 'E010', realName: '刘教授', title: '主任医师', deptId: 6, role: 'expert' },
+  { employeeId: 12, empNo: 'E012', realName: '赵医生', title: '主治医师', deptId: 6, role: 'regular' },
 ]
 
 /**
@@ -55,26 +42,13 @@ export const MOCK_DOCTORS = [
  * 参考：多数专家每周固定 1～3 天出诊，号源有限（百度健康·医学科普）
  */
 const EXPERT_CLINIC_SLOTS = {
-  11: [ // 王教授 内科：周一三五上午
+  8: [ // 陈教授 内科：周一、周四上午（每周 2 半天）
     { weekday: 1, noonType: 1 },
-    { weekday: 3, noonType: 1 },
+    { weekday: 4, noonType: 1 },
+  ],
+  10: [ // 刘教授 外科：周二、周五上午（每周 2 半天）
+    { weekday: 2, noonType: 1 },
     { weekday: 5, noonType: 1 },
-  ],
-  12: [ // 李主任 内科：周二四上午
-    { weekday: 2, noonType: 1 },
-    { weekday: 4, noonType: 1 },
-  ],
-  14: [ // 陈主任 外科：周三上午、周五下午
-    { weekday: 3, noonType: 1 },
-    { weekday: 5, noonType: 2 },
-  ],
-  16: [ // 郑主任 儿科：周二上午、周六上午
-    { weekday: 2, noonType: 1 },
-    { weekday: 6, noonType: 1 },
-  ],
-  18: [ // 黄教授 妇产科：周一下午、周四上午
-    { weekday: 1, noonType: 2 },
-    { weekday: 4, noonType: 1 },
   ],
 }
 
@@ -87,29 +61,39 @@ const NOON_SESSIONS = [
 const NORMAL_QUOTA = 40
 const EXPERT_QUOTA = 12
 
-function formatDate(d) {
+export function formatDate(d) {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
-function isClinicDay(weekday) {
-  // 周日多数医院无日常门诊（以当日公告为准）；Mock 跳过周日
-  return weekday !== 0
-}
-
-function isNormalSessionOpen(weekday, noonType) {
-  if (!isClinicDay(weekday)) return false
-  // 周六常仅开上午（参考多家医院「周六日出诊以公告为准」）
-  if (weekday === 6 && noonType === 2) return false
+function isNormalSessionOpen() {
   return true
 }
 
-function pickRegularDoctor(deptId, dayOffset, noonType, pool) {
-  if (!pool.length) return null
+/** 内科普通：张(1)休周日、李(7)休周三；其余日期两人同时在岗 */
+function listInternalRegularDoctors(weekday) {
+  const docs = []
+  if (weekday !== 0) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 1))
+  if (weekday !== 3) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 7))
+  return docs.filter(Boolean)
+}
+
+/** 外科普通：王(9)休周日、赵(12)休周三；其余日期两人同时在岗 */
+function listSurgeryRegularDoctors(weekday) {
+  const docs = []
+  if (weekday !== 0) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 9))
+  if (weekday !== 3) docs.push(MOCK_DOCTORS.find((d) => d.employeeId === 12))
+  return docs.filter(Boolean)
+}
+
+function listRegularDoctors(deptId, dayOffset, noonType, pool, weekday) {
+  if (deptId === 1) return listInternalRegularDoctors(weekday)
+  if (deptId === 6) return listSurgeryRegularDoctors()
+  if (!pool.length) return []
   const idx = (deptId * 7 + dayOffset * 2 + noonType) % pool.length
-  return pool[idx]
+  return [pool[idx]]
 }
 
 function hasExpertSlot(employeeId, weekday, noonType) {
@@ -123,14 +107,13 @@ function hasExpertSlot(employeeId, weekday, noonType) {
  */
 export const MOCK_STAFF_MEMBERS = [
   { employeeId: 2, empNo: 'E002', realName: '李检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
-  { employeeId: 3, empNo: 'E003', realName: '王检查', title: '放射技师', deptId: 2, roleType: 'CHECK_DOCTOR' },
+  { employeeId: 3, empNo: 'E003', realName: '王检查', title: '影像医师', deptId: 2, roleType: 'CHECK_DOCTOR' },
   { employeeId: 4, empNo: 'E004', realName: '赵药师', title: '主管药师', deptId: 4, roleType: 'PHARMACIST' },
   { employeeId: 5, empNo: 'E005', realName: '钱收费', title: '挂号收费员', deptId: 5, roleType: 'REGISTRAR' },
-  { employeeId: 8, empNo: 'E008', realName: '周检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
-  { employeeId: 19, empNo: 'E019', realName: '孙处置', title: '护士', deptId: 6, roleType: 'DISPOSAL_DOCTOR' },
-  { employeeId: 20, empNo: 'E020', realName: '吴检查', title: '放射技师', deptId: 2, roleType: 'CHECK_DOCTOR' },
-  { employeeId: 21, empNo: 'E021', realName: '郑药师', title: '药师', deptId: 4, roleType: 'PHARMACIST' },
-  { employeeId: 22, empNo: 'E022', realName: '冯收费', title: '挂号收费员', deptId: 5, roleType: 'REGISTRAR' },
+  { employeeId: 11, empNo: 'E011', realName: '孙处置', title: '处置医师', deptId: 7, roleType: 'DISPOSAL_DOCTOR' },
+  { employeeId: 13, empNo: 'E013', realName: '周检验', title: '检验师', deptId: 3, roleType: 'LAB_DOCTOR' },
+  { employeeId: 15, empNo: 'E015', realName: '李影像', title: '影像医师', deptId: 2, roleType: 'CHECK_DOCTOR' },
+  { employeeId: 16, empNo: 'E016', realName: '陈影像', title: '影像医师', deptId: 2, roleType: 'CHECK_DOCTOR' },
 ]
 
 const DUTY_SHIFT_NAMES = {
@@ -138,7 +121,7 @@ const DUTY_SHIFT_NAMES = {
   3: '检验值班',
   4: '药房值班',
   5: '窗口值班',
-  6: '处置值班',
+  7: '处置值班',
 }
 
 function buildStaffDutySchedules(startId) {
@@ -151,14 +134,13 @@ function buildStaffDutySchedules(startId) {
     const workDate = new Date(today)
     workDate.setDate(workDate.getDate() + dayOffset)
     const weekday = workDate.getDay()
-    if (weekday === 0) continue
 
     for (const staff of MOCK_STAFF_MEMBERS) {
       const onMorning = (staff.employeeId + dayOffset) % 3 !== 2
       const onAfternoon = (staff.employeeId + dayOffset) % 4 === 0
       const sessions = []
       if (onMorning) sessions.push(NOON_SESSIONS[0])
-      if (onAfternoon && weekday !== 6) sessions.push(NOON_SESSIONS[1])
+      if (onAfternoon) sessions.push(NOON_SESSIONS[1])
 
       for (const noon of sessions) {
         list.push({
@@ -205,11 +187,11 @@ function buildSchedules() {
       const expertPool = MOCK_DOCTORS.filter((d) => d.deptId === dept.id && d.role === 'expert')
 
       for (const noon of NOON_SESSIONS) {
-        if (!isNormalSessionOpen(weekday, noon.noonType)) continue
+        if (!isNormalSessionOpen()) continue
 
-        // ① 每个开诊半天必有普通号，医生轮流（保障日常号源）
-        const regDoc = pickRegularDoctor(dept.id, dayOffset, noon.noonType, regularPool)
-        if (regDoc) {
+        // ① 每个开诊半天：所有在岗普通医生各一条排班（可多人在岗）
+        const regDocs = listRegularDoctors(dept.id, dayOffset, noon.noonType, regularPool, weekday)
+        for (const regDoc of regDocs) {
           const used = dayOffset === 0 && noon.noonType === 1 ? 5 : (schedulingId % 4)
           list.push({
             schedulingId: schedulingId++,
@@ -231,7 +213,7 @@ function buildSchedules() {
             remainQuota: NORMAL_QUOTA - Math.min(used, NORMAL_QUOTA - 1),
             publishStatus: 1,
             scheduleKind: 1,
-            isRotating: true,
+            isRotating: false,
           })
         }
 
@@ -282,11 +264,30 @@ export function getDoctorsByDept(deptId) {
   return MOCK_DOCTORS.filter((d) => d.deptId === deptId)
 }
 
-export function getSchedules(deptId, employeeId, registLevelId) {
+export function resolveCurrentNoonType(date = new Date()) {
+  const h = date.getHours()
+  if (h < 13) return 1
+  if (h < 18) return 2
+  return 3
+}
+
+const NOON_LABEL = { 1: '上午', 2: '下午', 3: '晚上' }
+
+export function resolveCurrentNoonLabel(date = new Date()) {
+  return NOON_LABEL[resolveCurrentNoonType(date)] ?? '—'
+}
+
+export function getSchedules(deptId, employeeId, registLevelId, workDate, noonType) {
+  const ctx = getWindowSessionContext()
+  const targetDate = workDate || ctx.workDate
+  const targetNoon = noonType ?? ctx.noonType
+  const dept = Number(deptId)
   return MOCK_SCHEDULES.filter((s) => {
-    if (s.deptId !== deptId) return false
-    if (employeeId && s.employeeId !== employeeId) return false
-    if (registLevelId && s.registLevelId !== registLevelId) return false
+    if (Number(s.deptId) !== dept) return false
+    if (s.workDate !== targetDate) return false
+    if (!isWindowNoonVisible(s.noonType, targetNoon)) return false
+    if (employeeId != null && Number(s.employeeId) !== Number(employeeId)) return false
+    if (registLevelId != null && Number(s.registLevelId) !== Number(registLevelId)) return false
     return true
   })
 }
@@ -312,39 +313,84 @@ export function countExpertSessions(deptId, employeeId) {
 
 /** 医技/行政科室（与 seed-dict.sql 对齐） */
 export const MOCK_TECH_DEPARTMENTS = [
-  { id: 2, deptCode: 'RADIOLOGY', deptName: '放射科', deptType: 2, sortNo: 5 },
-  { id: 3, deptCode: 'LAB', deptName: '检验科', deptType: 2, sortNo: 6 },
-  { id: 4, deptCode: 'PHARMACY', deptName: '药房', deptType: 3, sortNo: 7 },
-  { id: 5, deptCode: 'REGISTRATION', deptName: '挂号收费处', deptType: 4, sortNo: 8 },
-  { id: 6, deptCode: 'DISPOSAL', deptName: '处置科', deptType: 2, sortNo: 9 },
-  { id: 10, deptCode: 'SYS_ADMIN', deptName: '系统管理科', deptType: 4, sortNo: 10 },
+  { id: 2, deptCode: 'RADIOLOGY', deptName: '放射科', deptType: 2, sortNo: 2 },
+  { id: 3, deptCode: 'LAB', deptName: '检验科', deptType: 2, sortNo: 3 },
+  { id: 4, deptCode: 'PHARMACY', deptName: '药房', deptType: 3, sortNo: 4 },
+  { id: 5, deptCode: 'REGISTRATION', deptName: '挂号收费处', deptType: 4, sortNo: 5 },
+  { id: 7, deptCode: 'DISPOSAL', deptName: '处置科', deptType: 2, sortNo: 7 },
+  { id: 8, deptCode: 'INFO_CENTER', deptName: '信息科', deptType: 4, sortNo: 8 },
 ]
 
 export const MOCK_ALL_DEPARTMENTS = [...MOCK_OUTPATIENT_DEPTS, ...MOCK_TECH_DEPARTMENTS]
 
-/** 医技项目（与 seed 一致） */
+/** 医技项目（与 seed-dict.sql / RAG TECHNOLOGY_GUIDE 对齐） */
 export const MOCK_MEDICAL_TECHNOLOGIES = [
   { id: 1, itemCode: 'CHK-CT-HEAD', itemName: '头部 CT', techType: 'CHECK', price: 280, deptId: 2 },
+  { id: 2, itemCode: 'INS-BLOOD', itemName: '血常规', techType: 'INSPECTION', price: 35, deptId: 3 },
+  { id: 3, itemCode: 'INS-CRP', itemName: 'C反应蛋白', techType: 'INSPECTION', price: 45, deptId: 3 },
+  { id: 4, itemCode: 'INS-PCT', itemName: '降钙素原', techType: 'INSPECTION', price: 80, deptId: 3 },
+  { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 7 },
+  { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 7 },
   { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '肺部 CT', techType: 'CHECK', price: 320, deptId: 2 },
   { id: 8, itemCode: 'CHK-TUMOR-SEG', itemName: '肿瘤 CT 分割', techType: 'CHECK', price: 450, deptId: 2 },
-  { id: 2, itemCode: 'INS-BLOOD', itemName: '血常规', techType: 'INSPECTION', price: 35, deptId: 3 },
-  { id: 3, itemCode: 'INS-GLU', itemName: '空腹血糖', techType: 'INSPECTION', price: 12, deptId: 3 },
-  { id: 4, itemCode: 'CHK-CXR', itemName: '胸部 X 线', techType: 'CHECK', price: 90, deptId: 2 },
-  { id: 5, itemCode: 'DIS-WASH', itemName: '洗胃', techType: 'DISPOSAL', price: 120, deptId: 6 },
-  { id: 6, itemCode: 'DIS-INF', itemName: '静脉输液', techType: 'DISPOSAL', price: 45, deptId: 6 },
+  { id: 9, itemCode: 'INS-URINE', itemName: '尿常规', techType: 'INSPECTION', price: 25, deptId: 3 },
+  { id: 10, itemCode: 'INS-STOOL', itemName: '粪便常规及隐血', techType: 'INSPECTION', price: 30, deptId: 3 },
+  { id: 11, itemCode: 'INS-LIVER', itemName: '肝功能', techType: 'INSPECTION', price: 55, deptId: 3 },
+  { id: 12, itemCode: 'INS-KIDNEY', itemName: '肾功能', techType: 'INSPECTION', price: 50, deptId: 3 },
+  { id: 13, itemCode: 'INS-GLU', itemName: '空腹血糖', techType: 'INSPECTION', price: 12, deptId: 3 },
+  { id: 14, itemCode: 'INS-HBA1C', itemName: '糖化血红蛋白', techType: 'INSPECTION', price: 60, deptId: 3 },
+  { id: 15, itemCode: 'INS-LIPID', itemName: '血脂四项', techType: 'INSPECTION', price: 70, deptId: 3 },
+  { id: 16, itemCode: 'INS-ELECTROLYTE', itemName: '电解质', techType: 'INSPECTION', price: 40, deptId: 3 },
+  { id: 17, itemCode: 'INS-COAG', itemName: '凝血功能', techType: 'INSPECTION', price: 65, deptId: 3 },
+  { id: 18, itemCode: 'INS-THYROID', itemName: '甲状腺功能', techType: 'INSPECTION', price: 90, deptId: 3 },
+  { id: 19, itemCode: 'INS-CARDIAC', itemName: '心肌标志物', techType: 'INSPECTION', price: 120, deptId: 3 },
+  { id: 20, itemCode: 'INS-RESP-AG', itemName: '呼吸道病原抗原', techType: 'INSPECTION', price: 85, deptId: 3 },
+  { id: 21, itemCode: 'CHK-CXR', itemName: '胸部 X 线', techType: 'CHECK', price: 90, deptId: 2 },
+  { id: 22, itemCode: 'CHK-MRI-BRAIN', itemName: '颅脑 MRI', techType: 'CHECK', price: 680, deptId: 2 },
+  { id: 23, itemCode: 'CHK-CT-ABD', itemName: '腹部 CT', techType: 'CHECK', price: 350, deptId: 2 },
+  { id: 24, itemCode: 'CHK-US-ABD', itemName: '腹部超声', techType: 'CHECK', price: 120, deptId: 2 },
+  { id: 25, itemCode: 'CHK-US-THYROID', itemName: '甲状腺超声', techType: 'CHECK', price: 100, deptId: 2 },
+  { id: 26, itemCode: 'CHK-US-URINARY', itemName: '泌尿系统超声', techType: 'CHECK', price: 110, deptId: 2 },
+  { id: 27, itemCode: 'CHK-ECG', itemName: '十二导联心电图', techType: 'CHECK', price: 30, deptId: 2 },
+  { id: 28, itemCode: 'CHK-ECHO', itemName: '超声心动图', techType: 'CHECK', price: 180, deptId: 2 },
+  { id: 29, itemCode: 'CHK-HOLTER', itemName: '动态心电图', techType: 'CHECK', price: 200, deptId: 2 },
+  { id: 30, itemCode: 'CHK-PFT', itemName: '肺功能检查', techType: 'CHECK', price: 150, deptId: 2 },
+  { id: 31, itemCode: 'DIS-DRESSING', itemName: '清创换药', techType: 'DISPOSAL', price: 80, deptId: 7 },
+  { id: 32, itemCode: 'DIS-NEB', itemName: '雾化吸入', techType: 'DISPOSAL', price: 35, deptId: 7 },
+  { id: 33, itemCode: 'DIS-O2', itemName: '氧疗', techType: 'DISPOSAL', price: 50, deptId: 7 },
+  { id: 34, itemCode: 'DIS-CATH', itemName: '导尿', techType: 'DISPOSAL', price: 40, deptId: 7 },
 ]
 
+/** 药品（与 seed / RAG DRUG-001～020 对齐） */
 export const MOCK_DRUGS = [
   { id: 1, drugCode: 'DRG-001', drugName: '阿莫西林胶囊', drugFormat: '0.25g×24粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 18.5, stockQty: 100 },
   { id: 2, drugCode: 'DRG-002', drugName: '布洛芬缓释胶囊', drugFormat: '0.3g×20粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 22, stockQty: 80 },
   { id: 3, drugCode: 'DRG-003', drugName: '对乙酰氨基酚片', drugFormat: '0.5g×20片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 8.5, stockQty: 200 },
+  { id: 4, drugCode: 'DRG-004', drugName: '氯雷他定片', drugFormat: '10mg×6片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 16, stockQty: 120 },
+  { id: 5, drugCode: 'DRG-005', drugName: '盐酸西替利嗪片', drugFormat: '10mg×12片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 14.5, stockQty: 100 },
+  { id: 6, drugCode: 'DRG-006', drugName: '盐酸氨溴索片', drugFormat: '30mg×20片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 19, stockQty: 90 },
+  { id: 7, drugCode: 'DRG-007', drugName: '乙酰半胱氨酸颗粒', drugFormat: '0.1g×10袋', drugDosage: '颗粒', drugType: '处方药', unit: '盒', retailPrice: 28, stockQty: 60 },
+  { id: 8, drugCode: 'DRG-008', drugName: '奥美拉唑肠溶胶囊', drugFormat: '20mg×14粒', drugDosage: '胶囊', drugType: '处方药', unit: '盒', retailPrice: 25, stockQty: 80 },
+  { id: 9, drugCode: 'DRG-009', drugName: '蒙脱石散', drugFormat: '3g×10袋', drugDosage: '散剂', drugType: 'OTC', unit: '盒', retailPrice: 12, stockQty: 150 },
+  { id: 10, drugCode: 'DRG-010', drugName: '口服补液盐散', drugFormat: '20.5g×3袋', drugDosage: '散剂', drugType: 'OTC', unit: '盒', retailPrice: 15, stockQty: 100 },
+  { id: 11, drugCode: 'DRG-011', drugName: '二甲双胍片', drugFormat: '0.5g×48片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 11, stockQty: 120 },
+  { id: 12, drugCode: 'DRG-012', drugName: '苯磺酸氨氯地平片', drugFormat: '5mg×7片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 18, stockQty: 100 },
+  { id: 13, drugCode: 'DRG-013', drugName: '氯沙坦钾片', drugFormat: '50mg×7片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 32, stockQty: 80 },
+  { id: 14, drugCode: 'DRG-014', drugName: '阿托伐他汀钙片', drugFormat: '20mg×7片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 38, stockQty: 70 },
+  { id: 15, drugCode: 'DRG-015', drugName: '硫酸沙丁胺醇吸入气雾剂', drugFormat: '100μg×200揿', drugDosage: '气雾剂', drugType: '处方药', unit: '瓶', retailPrice: 42, stockQty: 50 },
+  { id: 16, drugCode: 'DRG-016', drugName: '吸入用布地奈德混悬液', drugFormat: '1mg×5支', drugDosage: '混悬液', drugType: '处方药', unit: '盒', retailPrice: 68, stockQty: 40 },
+  { id: 17, drugCode: 'DRG-017', drugName: '阿奇霉素片', drugFormat: '0.25g×6片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 24, stockQty: 90 },
+  { id: 18, drugCode: 'DRG-018', drugName: '头孢呋辛酯片', drugFormat: '0.25g×12片', drugDosage: '片剂', drugType: '处方药', unit: '盒', retailPrice: 26.5, stockQty: 85 },
+  { id: 19, drugCode: 'DRG-019', drugName: '莫匹罗星软膏', drugFormat: '2% 5g', drugDosage: '软膏', drugType: 'OTC', unit: '支', retailPrice: 22, stockQty: 60 },
+  { id: 20, drugCode: 'DRG-020', drugName: '复方氨酚烷胺片', drugFormat: '12片', drugDosage: '片剂', drugType: 'OTC', unit: '盒', retailPrice: 9.5, stockQty: 180 },
 ]
 
 export const MOCK_DISEASES = [
-  { id: 101, diseaseCode: 'G43', diseaseName: '偏头痛' },
-  { id: 102, diseaseCode: 'G44', diseaseName: '紧张性头痛' },
-  { id: 103, diseaseCode: 'J06', diseaseName: '急性上呼吸道感染' },
-  { id: 104, diseaseCode: 'R51', diseaseName: '头痛' },
+  { id: 1, diseaseCode: 'J06.9', diseaseName: '急性上呼吸道感染', diseaseCategory: '呼吸系统' },
+  { id: 2, diseaseCode: 'I10', diseaseName: '原发性高血压', diseaseCategory: '循环系统' },
+  { id: 3, diseaseCode: 'R51', diseaseName: '头痛', diseaseCategory: '神经系统' },
+  { id: 4, diseaseCode: 'R50.9', diseaseName: '发热', diseaseCategory: '症状体征' },
+  { id: 5, diseaseCode: 'E11.9', diseaseName: '2型糖尿病', diseaseCategory: '内分泌' },
 ]
 
 export function getMedicalTechById(id) {
@@ -352,7 +398,71 @@ export function getMedicalTechById(id) {
 }
 
 export function getDrugById(id) {
-  return MOCK_DRUGS.find((d) => d.id === id)
+  return MOCK_DRUGS.find((d) => d.id === id && !d.disabled)
+}
+
+function nextMockDrugCode() {
+  const nums = MOCK_DRUGS.map((d) => {
+    const m = d.drugCode?.match(/^DRG-(\d+)$/)
+    return m ? parseInt(m[1], 10) : 0
+  })
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `DRG-${String(next).padStart(3, '0')}`
+}
+
+function nextMockDrugId() {
+  return MOCK_DRUGS.reduce((max, d) => Math.max(max, d.id), 0) + 1
+}
+
+export function getPharmacyDrugList(keyword, includeDisabled = false) {
+  const kw = keyword?.trim().toLowerCase()
+  return MOCK_DRUGS.filter((d) => {
+    if (!includeDisabled && d.disabled) return false
+    if (!kw) return true
+    return (
+      d.drugName?.toLowerCase().includes(kw) ||
+      d.drugCode?.toLowerCase().includes(kw)
+    )
+  }).map((d) => ({ ...d, disabled: !!d.disabled }))
+}
+
+export function createPharmacyDrug(body) {
+  const drug = {
+    id: nextMockDrugId(),
+    drugCode: nextMockDrugCode(),
+    drugName: body.drugName?.trim(),
+    drugFormat: body.drugFormat || null,
+    drugDosage: body.drugDosage || null,
+    drugType: body.drugType || null,
+    unit: body.unit || null,
+    retailPrice: body.retailPrice,
+    stockQty: body.stockQty,
+    disabled: false,
+  }
+  MOCK_DRUGS.push(drug)
+  return { ...drug }
+}
+
+export function updatePharmacyDrug(id, body) {
+  const drug = MOCK_DRUGS.find((d) => d.id === id)
+  if (!drug) throw new Error('药品不存在')
+  if (body.drugName != null) drug.drugName = body.drugName.trim()
+  if (body.drugFormat != null) drug.drugFormat = body.drugFormat || null
+  if (body.drugDosage != null) drug.drugDosage = body.drugDosage || null
+  if (body.drugType != null) drug.drugType = body.drugType || null
+  if (body.unit != null) drug.unit = body.unit || null
+  if (body.retailPrice != null) drug.retailPrice = body.retailPrice
+  if (body.stockQty != null) drug.stockQty = body.stockQty
+  return { ...drug, disabled: !!drug.disabled }
+}
+
+export function setPharmacyDrugDisabled(id, disabled) {
+  const drug = MOCK_DRUGS.find((d) => d.id === id)
+  if (!drug) throw new Error('药品不存在')
+  if (disabled && drug.disabled) throw new Error('药品已停用')
+  if (!disabled && !drug.disabled) throw new Error('药品未停用')
+  drug.disabled = disabled
+  return { ...drug, disabled: !!drug.disabled }
 }
 
 /** 窗口挂号成功后扣减号源 */

@@ -3,8 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   applyAiSchedulingReplace,
+  applyScheduleTemplate,
+  batchPublishSchedules,
+  batchUpsertSchedules,
+  copyScheduleWeek,
   createAdminSchedule,
-  fetchAdminSchedules,
+  fetchWeekGrid,
   fetchAiSchedulingSuggest,
   fetchDepartments,
   fetchEmployees,
@@ -12,6 +16,8 @@ import {
   publishAdminSchedule,
   updateAdminSchedule,
 } from '../../api/admin'
+import WeeklyScheduleGrid from '../../components/admin/WeeklyScheduleGrid.vue'
+import ScheduleTemplateDrawer from '../../components/admin/ScheduleTemplateDrawer.vue'
 import {
   approveLeaveRequest,
   fetchAdminLeaveRequests,
@@ -32,10 +38,20 @@ const leaveRequests = ref([])
 const allDepts = ref([])
 const registLevels = ref([])
 const aiSuggestions = ref([])
+const aiRiskItems = ref([])
+const aiWarnings = ref([])
 const candidateEmployees = ref([])
 const editCandidates = ref([])
 const publishingId = ref(null)
 const creating = ref(false)
+const weekStart = ref(getMondayIso(new Date()))
+const weekGrid = ref({ doctors: [], slots: [], draftCount: 0, publishedCount: 0 })
+const pendingChanges = ref([])
+const templateDrawerVisible = ref(false)
+const gridSaving = ref(false)
+const copyingWeek = ref(false)
+const applyingTemplate = ref(false)
+const batchPublishing = ref(false)
 
 const pendingLeaves = computed(() => leaveRequests.value.filter((l) => l.status === 0))
 const approvedLeaves = computed(() => leaveRequests.value.filter((l) => l.status === 1))
@@ -82,8 +98,262 @@ onMounted(async () => {
   ])
   allDepts.value = deptRes.data?.list ?? []
   registLevels.value = levelRes.data?.list ?? []
-  await Promise.all([loadSchedules(), loadLeaveRequests()])
+  deptFilter.value = outpatientDepts.value[0]?.id ?? allDepts.value[0]?.id ?? null
+  await Promise.all([loadWeekGrid(), loadLeaveRequests()])
 })
+
+function getMondayIso(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+function addDaysIso(iso, days) {
+  const d = new Date(`${iso}T12:00:00`)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+const weekEndLabel = computed(() => addDaysIso(weekStart.value, 6))
+
+const NOON_META = {
+  1: { noonLabel: '上午', timeRange: '08:00-12:00' },
+  2: { noonLabel: '下午', timeRange: '13:00-17:00' },
+  3: { noonLabel: '晚上', timeRange: '18:00-21:00' },
+}
+
+function defaultGridQuota(registLevelId) {
+  return Number(registLevelId) === 2 ? 15 : 30
+}
+
+function changeMatches(c, change) {
+  if (c.clear || change.clear) return false
+  if (c.schedulingId != null && change.schedulingId != null) {
+    return c.schedulingId === change.schedulingId
+  }
+  return c.employeeId === change.employeeId
+    && c.workDate === change.workDate
+    && c.noonType === change.noonType
+}
+
+function findSlotIndex(slots, change) {
+  if (change.schedulingId != null) {
+    const byId = slots.findIndex((s) => s.schedulingId === change.schedulingId)
+    if (byId >= 0) return byId
+  }
+  return slots.findIndex(
+    (s) => s.employeeId === change.employeeId
+      && s.workDate === change.workDate
+      && s.noonType === change.noonType,
+  )
+}
+
+function registLevelMeta(levelId) {
+  const level = registLevels.value.find((l) => l.id === levelId)
+  return {
+    registLevelId: levelId,
+    registLevelName: level?.levelName ?? '',
+    registFee: level?.registFee ?? level?.fee ?? 0,
+  }
+}
+
+function currentDeptMeta() {
+  const dept = allDepts.value.find((d) => d.id === deptFilter.value)
+  return { deptId: deptFilter.value, deptName: dept?.deptName ?? '' }
+}
+
+function recountGridStats(slots) {
+  let draftCount = 0
+  let publishedCount = 0
+  for (const slot of slots) {
+    const status = slot.publishStatus ?? 0
+    if (status === 0) draftCount += 1
+    else if (status === 1) publishedCount += 1
+  }
+  return { draftCount, publishedCount }
+}
+
+function syncGridSlots(nextSlots) {
+  const stats = recountGridStats(nextSlots)
+  weekGrid.value = {
+    ...weekGrid.value,
+    slots: nextSlots,
+    draftCount: stats.draftCount,
+    publishedCount: stats.publishedCount,
+  }
+  schedules.value = sortSchedules(nextSlots)
+}
+
+function applyPreviewChange(change) {
+  const slots = [...(weekGrid.value.slots ?? [])]
+
+  if (change.clear) {
+    const idx = findSlotIndex(slots, change)
+    if (idx >= 0) slots.splice(idx, 1)
+    syncGridSlots(slots)
+    return
+  }
+
+  const idx = findSlotIndex(slots, change)
+  const existing = idx >= 0 ? slots[idx] : null
+  const doctor = weekGrid.value.doctors?.find((d) => d.employeeId === change.employeeId)
+  const dept = currentDeptMeta()
+  const noon = NOON_META[change.noonType] ?? NOON_META[1]
+
+  if (existing) {
+    const published = (existing.publishStatus ?? 0) === 1
+    const usedQuota = existing.usedQuota ?? 0
+    const totalQuota = change.totalQuota ?? existing.totalQuota
+    const levelId = published
+      ? existing.registLevelId
+      : (change.registLevelId ?? existing.registLevelId ?? 1)
+    slots[idx] = {
+      ...existing,
+      ...registLevelMeta(levelId),
+      totalQuota,
+      remainQuota: Math.max(0, totalQuota - usedQuota),
+    }
+  } else {
+    const levelId = change.registLevelId ?? 1
+    const totalQuota = change.totalQuota ?? defaultGridQuota(levelId)
+    slots.push({
+      schedulingId: null,
+      employeeId: change.employeeId,
+      employeeName: doctor?.realName ?? '',
+      employeeTitle: doctor?.title ?? '',
+      workDate: change.workDate,
+      noonType: change.noonType,
+      ...noon,
+      ...dept,
+      ...registLevelMeta(levelId),
+      totalQuota,
+      usedQuota: 0,
+      remainQuota: totalQuota,
+      publishStatus: 0,
+      pendingLeave: false,
+      needsSubstitute: false,
+      leaveSubstituted: false,
+      scheduleKind: 1,
+    })
+  }
+  syncGridSlots(slots)
+}
+
+function onGridChange(change) {
+  const idx = pendingChanges.value.findIndex((c) => changeMatches(c, change))
+  if (change.clear) {
+    if (idx >= 0) {
+      const pending = pendingChanges.value[idx]
+      if (pending.schedulingId != null) {
+        pendingChanges.value[idx] = { schedulingId: pending.schedulingId, clear: true }
+      } else {
+        pendingChanges.value.splice(idx, 1)
+      }
+    } else if (change.schedulingId != null) {
+      pendingChanges.value.push({ schedulingId: change.schedulingId, clear: true })
+    }
+    applyPreviewChange(change)
+    return
+  }
+  const payload = { ...change }
+  if (payload.schedulingId == null) {
+    delete payload.schedulingId
+  }
+  if (idx >= 0) pendingChanges.value[idx] = payload
+  else pendingChanges.value.push(payload)
+  applyPreviewChange(change)
+}
+
+async function loadWeekGrid() {
+  if (!deptFilter.value) {
+    weekGrid.value = { doctors: [], slots: [], draftCount: 0, publishedCount: 0 }
+    schedules.value = []
+    return
+  }
+  loading.value = true
+  pendingChanges.value = []
+  try {
+    const res = await fetchWeekGrid({ deptId: deptFilter.value, weekStart: weekStart.value })
+    weekGrid.value = res.data ?? { doctors: [], slots: [], draftCount: 0, publishedCount: 0 }
+    weekStart.value = weekGrid.value.weekStart || weekStart.value
+    schedules.value = sortSchedules(weekGrid.value.slots ?? [])
+    if (weekGrid.value.prefilledFromTemplate) {
+      ElMessage.info('已根据固定模板自动预填本周草稿')
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '加载周排班失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onSaveGrid() {
+  if (!pendingChanges.value.length) return ElMessage.info('暂无修改')
+  gridSaving.value = true
+  try {
+    await batchUpsertSchedules({
+      deptId: deptFilter.value,
+      weekStart: weekStart.value,
+      changes: pendingChanges.value,
+    })
+    ElMessage.success('排班已保存')
+    await loadWeekGrid()
+  } catch (err) {
+    ElMessage.error(err.message || '保存失败')
+  } finally {
+    gridSaving.value = false
+  }
+}
+
+async function onCopyWeek() {
+  copyingWeek.value = true
+  try {
+    const res = await copyScheduleWeek({
+      deptId: deptFilter.value,
+      sourceWeekStart: addDaysIso(weekStart.value, -7),
+      targetWeekStart: weekStart.value,
+    })
+    ElMessage.success(res.data?.message || '复制完成')
+    await loadWeekGrid()
+  } catch (err) {
+    ElMessage.error(err.message || '复制失败')
+  } finally {
+    copyingWeek.value = false
+  }
+}
+
+async function onApplyTemplate() {
+  applyingTemplate.value = true
+  try {
+    const res = await applyScheduleTemplate({ deptId: deptFilter.value, weekStart: weekStart.value })
+    ElMessage.success(res.data?.message || '模板已应用')
+    await loadWeekGrid()
+  } catch (err) {
+    ElMessage.error(err.message || '应用模板失败')
+  } finally {
+    applyingTemplate.value = false
+  }
+}
+
+async function onBatchPublish() {
+  batchPublishing.value = true
+  try {
+    const res = await batchPublishSchedules({ deptId: deptFilter.value, weekStart: weekStart.value })
+    ElMessage.success(res.data?.message || '批量发布完成')
+    await loadWeekGrid()
+  } catch (err) {
+    ElMessage.error(err.message || '批量发布失败')
+  } finally {
+    batchPublishing.value = false
+  }
+}
+
+function shiftWeek(delta) {
+  weekStart.value = addDaysIso(weekStart.value, delta * 7)
+  loadWeekGrid()
+}
 
 async function loadCandidatesForCreate() {
   if (!createForm.deptId) {
@@ -151,7 +421,7 @@ async function onCreateSchedule() {
     })
     ElMessage.success('排班草稿已创建，请发布')
     createVisible.value = false
-    await loadSchedules()
+    await loadWeekGrid()
   } catch (err) {
     ElMessage.error(err.message || '创建失败')
   } finally {
@@ -164,7 +434,7 @@ async function onPublish(row) {
   try {
     await publishAdminSchedule(row.schedulingId)
     ElMessage.success('排班已发布')
-    await loadSchedules()
+    await loadWeekGrid()
   } catch (err) {
     ElMessage.error(err.message || '发布失败')
   } finally {
@@ -173,18 +443,7 @@ async function onPublish(row) {
 }
 
 async function loadSchedules() {
-  loading.value = true
-  try {
-    const res = await fetchAdminSchedules({
-      deptId: deptFilter.value || undefined,
-      pageSize: 100,
-    })
-    schedules.value = sortSchedules(res.data?.list ?? [])
-  } catch (err) {
-    ElMessage.error(err.message || '加载排班失败')
-  } finally {
-    loading.value = false
-  }
+  await loadWeekGrid()
 }
 
 async function loadLeaveRequests() {
@@ -202,9 +461,13 @@ async function loadLeaveRequests() {
 async function onAiSuggest() {
   aiLoading.value = true
   aiSuggestions.value = []
+  aiRiskItems.value = []
+  aiWarnings.value = []
   try {
     const res = await fetchAiSchedulingSuggest({ deptId: deptFilter.value || undefined })
     aiSuggestions.value = res.data?.suggestions ?? []
+    aiRiskItems.value = res.data?.riskItems ?? []
+    aiWarnings.value = res.data?.warnings ?? []
     ElMessage.success(res.data?.message || 'AI 排班建议已生成')
   } catch (err) {
     ElMessage.warning(err.message || 'AI 排班建议尚未接入')
@@ -221,7 +484,7 @@ async function onApplyAiReplace(suggestion) {
   const schedulingId = suggestion?.schedulingId
   if (!schedulingId) return
 
-  if (useMock() && suggestion?.replaceable && suggestion.proposedSchedule) {
+  if (suggestion?.replaceable && suggestion.proposedSchedule) {
     try {
       await ElMessageBox.confirm(
         `将应用 AI 建议：${suggestion.suggestion}`,
@@ -233,7 +496,10 @@ async function onApplyAiReplace(suggestion) {
     }
     replacingId.value = schedulingId
     try {
-      await updateAdminSchedule(schedulingId, suggestion.proposedSchedule)
+      await applyAiSchedulingReplace(schedulingId, {
+        ...suggestion.proposedSchedule,
+        leaveRequestId: suggestion.leaveRequestId,
+      })
       ElMessage.success('已应用 AI 推荐排班')
       await Promise.all([loadSchedules(), loadLeaveRequests()])
     } catch (err) {
@@ -246,7 +512,7 @@ async function onApplyAiReplace(suggestion) {
 
   replacingId.value = schedulingId
   try {
-    await applyAiSchedulingReplace(schedulingId, suggestion?.proposedSchedule)
+    await applyAiSchedulingReplace(schedulingId, suggestion || {})
   } catch (err) {
     ElMessage.warning(err.message || 'AI 替班尚未接入')
   } finally {
@@ -363,7 +629,7 @@ function rowClassName({ row }) {
     <div class="page-head">
       <h2 class="page-title">排班维护</h2>
       <p class="page-desc">
-        新建排班时从「员工管理」按科室筛选人员；发布后医生可在「我的排班」请假，本页审批并替班。
+        周排班网格批量编辑；发布后医生可在「我的排班」请假，本页审批并替班。
       </p>
     </div>
 
@@ -431,7 +697,7 @@ function rowClassName({ row }) {
                   link
                   type="warning"
                   :loading="replacingId === row.schedulingId"
-                  @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || { schedulingId: row.schedulingId })"
+                  @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || row)"
                 >
                   AI 替班
                 </el-button>
@@ -449,14 +715,46 @@ function rowClassName({ row }) {
       </el-tabs>
     </el-card>
 
-    <el-card shadow="never">
+    <el-card shadow="never" class="week-card">
       <div class="toolbar">
-        <span class="label">筛选科室</span>
-        <el-select v-model="deptFilter" clearable placeholder="全部门诊科室" style="width: 160px" @change="loadSchedules">
+        <span class="label">科室</span>
+        <el-select v-model="deptFilter" placeholder="选择门诊科室" style="width: 160px" @change="loadWeekGrid">
           <el-option v-for="d in outpatientDepts" :key="d.id" :label="d.deptName" :value="d.id" />
         </el-select>
-        <el-button type="primary" @click="openCreate">新建排班</el-button>
-        <el-button :loading="loading" @click="loadSchedules">刷新排班</el-button>
+        <el-button @click="shiftWeek(-1)">◀ 上周</el-button>
+        <span class="week-label">{{ weekStart }} ~ {{ weekEndLabel }}</span>
+        <el-button @click="shiftWeek(1)">下周 ▶</el-button>
+        <el-button :loading="copyingWeek" @click="onCopyWeek">复制上周</el-button>
+        <el-button :loading="applyingTemplate" @click="onApplyTemplate">应用模板</el-button>
+        <el-button type="primary" :loading="gridSaving" :disabled="!pendingChanges.length" @click="onSaveGrid">
+          保存{{ pendingChanges.length ? `(${pendingChanges.length})` : '' }}
+        </el-button>
+        <el-button
+          type="success"
+          :loading="batchPublishing"
+          :disabled="!(weekGrid.draftCount > 0)"
+          @click="onBatchPublish"
+        >
+          批量发布({{ weekGrid.draftCount ?? 0 }})
+        </el-button>
+        <el-button @click="templateDrawerVisible = true">管理模板</el-button>
+        <el-button :loading="loading" @click="loadWeekGrid">刷新</el-button>
+      </div>
+
+      <WeeklyScheduleGrid
+        v-loading="loading"
+        :doctors="weekGrid.doctors ?? []"
+        :slots="weekGrid.slots ?? []"
+        :week-start="weekStart"
+        :regist-levels="registLevels"
+        @change="onGridChange"
+      />
+    </el-card>
+
+    <el-card shadow="never">
+      <div class="toolbar list-toolbar">
+        <span class="label">本周排班列表</span>
+        <el-button type="primary" plain @click="openCreate">补录单条</el-button>
         <el-button type="primary" :loading="aiLoading" @click="onAiSuggest">
           获取 AI 排班建议
         </el-button>
@@ -522,7 +820,7 @@ function rowClassName({ row }) {
               link
               type="warning"
               :loading="replacingId === row.schedulingId"
-              @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || { schedulingId: row.schedulingId })"
+              @click="onApplyAiReplace(getAiSuggestion(row.schedulingId) || row)"
             >
               {{ row.needsSubstitute ? 'AI 替班' : 'AI 替换' }}
             </el-button>
@@ -530,10 +828,32 @@ function rowClassName({ row }) {
         </el-table-column>
       </el-table>
 
-      <el-card v-if="aiSuggestions.length" shadow="never" class="ai-suggest-card">
+      <el-card v-if="aiSuggestions.length || aiRiskItems.length || aiWarnings.length" shadow="never" class="ai-suggest-card">
         <template #header>
           <span>AI 排班建议详情</span>
         </template>
+        <el-alert
+          v-for="(w, index) in aiWarnings"
+          :key="`ai-warning-${index}`"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="ai-warning"
+          :title="w"
+        />
+        <div v-for="risk in aiRiskItems" :key="`risk-${risk.type}-${risk.schedulingId || risk.title}`" class="suggest-item">
+          <div class="suggest-head">
+            <strong>{{ risk.title }}</strong>
+            <el-tag
+              size="small"
+              :type="risk.level === 'HIGH' ? 'danger' : risk.level === 'MEDIUM' ? 'warning' : 'info'"
+            >
+              {{ risk.level || 'INFO' }}
+            </el-tag>
+          </div>
+          <p>{{ risk.description }}</p>
+          <p v-if="risk.suggestion">建议：{{ risk.suggestion }}</p>
+        </div>
         <div v-for="s in aiSuggestions" :key="s.schedulingId" class="suggest-item">
           <div class="suggest-head">
             <strong>{{ s.workDate }} {{ s.noonLabel }} · {{ s.employeeName }}</strong>
@@ -541,6 +861,8 @@ function rowClassName({ row }) {
             <el-tag size="small">置信度 {{ Math.round((s.confidence || 0) * 100) }}%</el-tag>
           </div>
           <p>{{ s.suggestion }}</p>
+          <p v-if="s.reason">原因：{{ s.reason }}</p>
+          <p v-if="s.warnings?.length" class="warning-text">注意：{{ s.warnings.join('；') }}</p>
           <el-button
             v-if="s.replaceable"
             size="small"
@@ -677,6 +999,13 @@ function rowClassName({ row }) {
         <el-button type="primary" :loading="creating" @click="onCreateSchedule">保存草稿</el-button>
       </template>
     </el-dialog>
+
+    <ScheduleTemplateDrawer
+      v-model:visible="templateDrawerVisible"
+      :doctors="weekGrid.doctors ?? []"
+      :regist-levels="registLevels"
+      @saved="loadWeekGrid"
+    />
   </div>
 </template>
 
@@ -720,6 +1049,22 @@ function rowClassName({ row }) {
   border-radius: 10px;
 }
 
+.week-card {
+  margin-bottom: 16px;
+  border-radius: 10px;
+}
+
+.week-label {
+  font-size: 13px;
+  color: #334155;
+  min-width: 180px;
+  text-align: center;
+}
+
+.list-toolbar {
+  margin-bottom: 12px;
+}
+
 .card-header {
   display: flex;
   align-items: center;
@@ -748,6 +1093,10 @@ function rowClassName({ row }) {
   border-radius: 8px;
 }
 
+.ai-warning {
+  margin-bottom: 8px;
+}
+
 .suggest-item {
   padding: 8px 0;
   border-bottom: 1px solid #f1f5f9;
@@ -769,6 +1118,10 @@ function rowClassName({ row }) {
   margin: 0 0 8px;
   font-size: 13px;
   color: #475569;
+}
+
+.warning-text {
+  color: #b45309 !important;
 }
 
 .muted {

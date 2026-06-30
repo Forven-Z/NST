@@ -96,6 +96,7 @@
 | 值 | 含义 |
 |----|------|
 | 10 | 已开立 |
+| 15 | 药师驳回 |
 | 20 | 已缴费 |
 | 30 | 已发药 |
 | 40 | 已退药 |
@@ -317,6 +318,30 @@ disease ──N:M── medical_record (medical_record_disease)
 **管理端**：可按日期范围查询含 **已取消(2)** 的历史排班；取消操作即 `publish_status := 2`。
 
 **请假关联**：职员对某排班申请请假写入 **`scheduling_leave_request`**（§3.9）；本表结构不变。批准待替班时 `employee_id` 仍为原医生；替班完成后更新 `employee_id` 并将请假置 **已替班(4)**。
+
+**周模板预填**：管理员维护的固定周模板见 **`scheduling_template`**（§3.5.1）；模板仅作批量排班时的预填来源，应用后仍写入本表（草稿/发布流程不变）。
+
+---
+
+### 3.5.1 `scheduling_template` — 排班周模板表
+
+> **业务定位**：管理员为职员维护「每周固定」出诊模板（职员 × 星期 × 午别）；用于管理端周网格批量排班时的 **预填**，不承载实际出诊记录。设计见 `docs/superpowers/specs/2026-06-28-scheduling-batch-design.md`。
+
+| 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
+|--------|----------|----|--------|-----|------|
+| id | BIGSERIAL | N | — | PK | 主键；系统自动生成的唯一标识，作为本条记录的身份 ID。 |
+| employee_id | BIGINT | N | — | — | FK → employee(id)；模板所属职员；出诊科室经 `employee.dept_id` 推导（与 `scheduling` 一致，本表不存 `dept_id`）。 |
+| weekday | SMALLINT | N | — | — | 星期；**ISO 8601 约定**：**1=周一** … **7=周日**；与周网格列对应。 |
+| noon_type | SMALLINT | N | — | — | 午别：1 上午 2 下午 3 晚上；与 `scheduling.noon_type` 一致。 |
+| regist_level_id | BIGINT | N | — | — | FK → regist_level(id)；号别；决定预填时的号别与默认号源规则。 |
+| total_quota | INTEGER | N | — | — | 总号源数；应用模板写入 `scheduling` 草稿时的 `total_quota` 预填值。 |
+| enabled | SMALLINT | N | 1 | — | 是否启用；**1 启用**、**0 停用**；停用模板不参与「应用模板」预填。 |
+| create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
+| update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
+
+**建议唯一约束**：同一职员、同一星期、同一午别仅一条模板——`UNIQUE (employee_id, weekday, noon_type)`（`ux_scheduling_template_slot`）。
+
+**与 `scheduling` 的关系**：模板 **仅作预填来源**；「应用模板」或周网格编辑后，实际排班仍 **INSERT/UPDATE `scheduling`**（含 `work_date`、`publish_status` 等），发布、挂号、请假闭环均以 `scheduling` 为准，本表不参与患者端查询。
 
 ---
 
@@ -614,8 +639,11 @@ disease ──N:M── medical_record (medical_record_disease)
 | patient_id | BIGINT | N | — | — | 患者 ID；冗余便于按患者查处方，须与 register.patient_id 一致。 |
 | doctor_id | BIGINT | N | — | — | FK → employee(id)；开立医生；门诊医生确认提交后写入，用于审计。 |
 | total_amount | NUMERIC(10,2) | N | 0 | — | 处方合计金额（元）；明细行 amount 汇总，生成待缴单依据。 |
-| status | SMALLINT | N | 10 | IX | 处方流转状态；10 已开立 20 已缴费 30 已发药 40 已退药 50 已退费，见 §1.5。 |
+| status | SMALLINT | N | 10 | IX | 处方流转状态；10 已开立 15 药师驳回 20 已缴费 30 已发药 40 已退药 50 已退费，见 §1.5。 |
 | pharmacist_id | BIGINT | Y | NULL | — | FK → employee(id)；发药药师；发药核对通过时写入。 |
+| reject_reason | VARCHAR(256) | Y | NULL | — | 药师驳回原因；`status=15` 时由药房填写。 |
+| reject_pharmacist_id | BIGINT | Y | NULL | — | FK → employee(id)；执行驳回的药师。 |
+| reject_time | TIMESTAMPTZ | Y | NULL | — | 药师驳回时间。 |
 | ai_draft_id | BIGINT | Y | NULL | — | FK → ai_prescription_draft(id)；来源 AI 草稿 ID；追溯 AI 辅助开立链路（补-25）。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 处方创建时间（医生确认提交 INSERT 时写入）；待缴列表按开立时间排序可用本字段。 |

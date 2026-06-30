@@ -1,4 +1,4 @@
-const { addFamilyMember } = require('../../../api/patient')
+const { addFamilyMember, fetchProfile } = require('../../../api/patient')
 const { switchAccount } = require('../../../utils/auth')
 const { RELATION_TYPES } = require('../../../utils/visit-state')
 const { normalizePhoneOptional, isValidPhone } = require('../../../utils/phone')

@@ -1,5 +1,6 @@
 var OUTPATIENT_TYPES = ['REGIST', 'REGISTER']
 var EXAM_TYPES = ['CHECK', 'LIS', 'INSPECTION', 'PACS', 'EXAM']
+var PHARMACY_TYPES = ['PHARMACY', 'DRUG', 'PRESCRIPTION']
 
 function bizTypeLabel(type) {
   var map = {
@@ -28,6 +29,21 @@ function matchesScope(bill, scope) {
   return true
 }
 
+function isPharmacyBill(bill) {
+  var t = (bill && bill.bizType) || ''
+  return PHARMACY_TYPES.indexOf(t) >= 0
+}
+
+function summarizePendingBills(bills) {
+  var examCount = 0
+  var pharmacyCount = 0
+  ;(bills || []).forEach(function (b) {
+    if (matchesScope(b, 'exam')) examCount += 1
+    else if (isPharmacyBill(b)) pharmacyCount += 1
+  })
+  return { examCount: examCount, pharmacyCount: pharmacyCount }
+}
+
 function buildBillsUrl(opts) {
   opts = opts || {}
   var parts = []
@@ -40,7 +56,10 @@ function buildBillsUrl(opts) {
 module.exports = {
   bizTypeLabel,
   matchesScope,
+  isPharmacyBill,
+  summarizePendingBills,
   buildBillsUrl,
   OUTPATIENT_TYPES,
   EXAM_TYPES,
+  PHARMACY_TYPES,
 }

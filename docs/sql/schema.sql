@@ -76,6 +76,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_scheduling_active_slot
     ON scheduling (work_date, employee_id, noon_type, regist_level_id)
     WHERE publish_status <> 2;
 
+CREATE TABLE IF NOT EXISTS scheduling_template (
+    id              BIGSERIAL PRIMARY KEY,
+    employee_id     BIGINT       NOT NULL REFERENCES employee(id),
+    weekday         SMALLINT     NOT NULL,
+    noon_type       SMALLINT     NOT NULL,
+    regist_level_id BIGINT       NOT NULL REFERENCES regist_level(id),
+    total_quota     INTEGER      NOT NULL,
+    enabled         SMALLINT     NOT NULL DEFAULT 1,
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_scheduling_template_weekday CHECK (weekday BETWEEN 1 AND 7),
+    CONSTRAINT ck_scheduling_template_noon CHECK (noon_type IN (1, 2, 3))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_scheduling_template_slot
+    ON scheduling_template (employee_id, weekday, noon_type);
+
 CREATE TABLE IF NOT EXISTS scheduling_leave_request (
     id                      BIGSERIAL PRIMARY KEY,
     scheduling_id           BIGINT       NOT NULL REFERENCES scheduling(id),
@@ -286,6 +302,7 @@ CREATE TABLE IF NOT EXISTS check_request (
     executor_id             BIGINT REFERENCES employee(id),
     execute_time            TIMESTAMPTZ,
     result_input_id         BIGINT REFERENCES employee(id),
+    reviewer_id             BIGINT REFERENCES employee(id),
     result_time             TIMESTAMPTZ,
     result_text             TEXT,
     result_attachment       VARCHAR(512),
@@ -313,6 +330,7 @@ CREATE TABLE IF NOT EXISTS inspection_request (
     executor_id             BIGINT REFERENCES employee(id),
     execute_time            TIMESTAMPTZ,
     result_input_id         BIGINT REFERENCES employee(id),
+    reviewer_id             BIGINT REFERENCES employee(id),
     result_time             TIMESTAMPTZ,
     result_text             TEXT,
     result_attachment       VARCHAR(512),
@@ -324,6 +342,23 @@ CREATE TABLE IF NOT EXISTS inspection_request (
 );
 CREATE INDEX IF NOT EXISTS ix_inspection_request_register_id ON inspection_request(register_id);
 CREATE INDEX IF NOT EXISTS ix_inspection_request_status ON inspection_request(status);
+
+-- 检验结果明细（LIS 仪器上传；报告由服务端拼接）
+CREATE TABLE IF NOT EXISTS inspection_result_item (
+    id                      BIGSERIAL PRIMARY KEY,
+    inspection_request_id   BIGINT       NOT NULL REFERENCES inspection_request(id) ON DELETE CASCADE,
+    sort_order              SMALLINT     NOT NULL DEFAULT 0,
+    item_code               VARCHAR(32),
+    item_name               VARCHAR(128) NOT NULL,
+    result_value            VARCHAR(64)  NOT NULL,
+    unit                    VARCHAR(32),
+    ref_range               VARCHAR(64),
+    abnormal_flag           VARCHAR(8),
+    create_time             TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_inspection_result_item_request
+    ON inspection_result_item(inspection_request_id);
+COMMENT ON COLUMN inspection_result_item.abnormal_flag IS 'H偏高 L偏低 N正常，空=未判定';
 
 CREATE TABLE IF NOT EXISTS disposal_request (
     id                      BIGSERIAL PRIMARY KEY,
@@ -340,6 +375,7 @@ CREATE TABLE IF NOT EXISTS disposal_request (
     executor_id             BIGINT REFERENCES employee(id),
     execute_time            TIMESTAMPTZ,
     result_input_id         BIGINT REFERENCES employee(id),
+    reviewer_id             BIGINT REFERENCES employee(id),
     result_time             TIMESTAMPTZ,
     result_text             TEXT,
     result_attachment       VARCHAR(512),
@@ -377,6 +413,9 @@ CREATE TABLE IF NOT EXISTS prescription (
     total_amount    NUMERIC(10,2) NOT NULL DEFAULT 0,
     status          SMALLINT     NOT NULL DEFAULT 10,
     pharmacist_id   BIGINT REFERENCES employee(id),
+    reject_reason         VARCHAR(256),
+    reject_pharmacist_id  BIGINT REFERENCES employee(id),
+    reject_time           TIMESTAMPTZ,
     ai_draft_id     BIGINT REFERENCES ai_prescription_draft(id),
     delmark         SMALLINT     NOT NULL DEFAULT 0,
     create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

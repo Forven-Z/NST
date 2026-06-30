@@ -1,27 +1,51 @@
-<view class="container">
+<view class="container registers-page">
   <view class="filter-row card">
     <text class="filter {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="onFilter">全部</text>
     <text class="filter {{filter === '0' ? 'active' : ''}}" data-filter="0" bindtap="onFilter">待支付</text>
     <text class="filter {{filter === '1' ? 'active' : ''}}" data-filter="1" bindtap="onFilter">已挂号</text>
+    <text class="filter {{filter === '2' ? 'active' : ''}}" data-filter="2" bindtap="onFilter">接诊中</text>
+    <text class="filter {{filter === '3' ? 'active' : ''}}" data-filter="3" bindtap="onFilter">已结束</text>
+    <text class="filter {{filter === '4' ? 'active' : ''}}" data-filter="4" bindtap="onFilter">已退号</text>
   </view>
 
-  <view wx:if="{{loading}}" class="empty">加载中...</view>
-  <view wx:elif="{{!list.length}}" class="empty">暂无挂号记录</view>
+  <view wx:if="{{!loggedIn}}" class="empty card guest-empty">
+    <view class="empty-title">登录后查看挂号记录</view>
+    <view class="muted">挂号事务：支付、候诊、退号；就诊内容请至「就诊记录」</view>
+    <button class="btn-primary guest-login-btn" bindtap="onGoLogin">登录病人账户</button>
+  </view>
+
+  <view wx:elif="{{loadError}}" class="empty card">
+    <view class="empty-title">加载失败</view>
+    <button class="btn-primary" size="mini" bindtap="onRetry">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !list.length}}" class="empty card">加载中…</view>
+  <view wx:elif="{{!list.length}}" class="empty card">暂无挂号记录</view>
   <view wx:else>
-    <view class="card" wx:for="{{list}}" wx:key="registerId">
+    <view
+      class="card register-row {{item.highlighted ? 'highlight' : ''}}"
+      wx:for="{{list}}"
+      wx:key="registerId"
+      data-item="{{item}}"
+      bindtap="onCardTap"
+    >
       <view class="row-between">
         <view class="doctor-name">{{item.deptName}} · {{item.doctorName}}</view>
         <view class="tag">{{item.stateLabel}}</view>
       </view>
       <view class="muted">{{item.patientName}} · {{item.registLevelName}}</view>
-      <view class="muted">{{item.workDate}} {{item.noonLabel}} · ¥{{item.registFee}}</view>
+      <view class="muted">{{item.workDateLabel}} {{item.noonLabel}} · ¥{{item.registFee}}</view>
+      <view class="hint muted" wx:if="{{item.cancelHint && !item.canCancel}}">{{item.cancelHint}}</view>
       <view class="actions">
-        <button wx:if="{{item.visitState === 0}}" size="mini" class="btn-primary" bindtap="goPay">去支付</button>
-        <button wx:if="{{item.canQueue}}" size="mini" bindtap="goQueue" data-id="{{item.registerId}}">排队情况</button>
-        <button wx:if="{{item.canCancel}}" size="mini" bindtap="onCancel" data-id="{{item.registerId}}">退号</button>
-        <button wx:if="{{item.visitState >= 1}}" size="mini" bindtap="goOrders" data-id="{{item.registerId}}">医嘱进度</button>
-        <button wx:if="{{item.visitState >= 2}}" size="mini" bindtap="goRecord" data-id="{{item.registerId}}">病历</button>
+        <button wx:if="{{item.visitState === 0}}" size="mini" class="btn-primary" data-id="{{item.registerId}}" catchtap="goPay">去支付</button>
+        <button wx:if="{{item.showVisitPay}}" size="mini" class="btn-primary" data-id="{{item.registerId}}" catchtap="goPayVisit">去缴费</button>
+        <button wx:if="{{item.canQueue}}" size="mini" data-id="{{item.registerId}}" catchtap="goQueue">候诊进度</button>
+        <button wx:if="{{item.canCancel}}" size="mini" data-id="{{item.registerId}}" catchtap="onCancel">退号</button>
       </view>
+      <view class="row-link muted" wx:if="{{item.visitState === 2 || item.visitState === 3}}">点击卡片查看就诊记录</view>
+      <view class="row-link muted" wx:else>点击卡片查看更多操作</view>
     </view>
+    <view wx:if="{{loadingMore}}" class="empty muted">加载更多…</view>
+    <view wx:elif="{{!hasMore && list.length}}" class="empty muted">没有更多了</view>
   </view>
 </view>

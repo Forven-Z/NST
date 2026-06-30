@@ -1,15 +1,44 @@
-<view class="container">
-  <view class="card" wx:if="{{!record}}">
-    <view class="card-title">电子病历</view>
-    <view class="muted">从「挂号记录」进入可自动带入单号；或手动输入</view>
-    <input class="input" placeholder="挂号单号 registerId" value="{{registerId}}" bindinput="onRegisterInput" />
-    <button class="btn-primary" loading="{{loading}}" bindtap="onQuery">查询</button>
+<view class="records-page">
+  <view class="member-bar card row-between" wx:if="{{loggedIn}}" bindtap="onSwitchMember">
+    <view>
+      <view class="member-label muted">当前就诊账户</view>
+      <view class="member-name">{{activeMemberName}}</view>
+    </view>
+    <text class="member-link">切换 ›</text>
   </view>
 
-  <view class="card" wx:if="{{record}}">
-    <view class="card-title">病历 · 单号 {{registerId}}</view>
-    <view class="field"><text class="k">主诉</text>{{record.readme || '—'}}</view>
-    <view class="field"><text class="k">诊断</text>{{record.diagnosis || '—'}}</view>
-    <view class="field"><text class="k">处理</text>{{record.cure || '—'}}</view>
+  <view wx:if="{{!loggedIn}}" class="empty card guest-empty">
+    <view class="empty-title">登录后查看就诊记录</view>
+    <view class="muted">每次门诊一条记录，含病历文书与医嘱进度</view>
+    <button class="btn-primary guest-login-btn" bindtap="onGoLogin">登录病人账户</button>
+  </view>
+
+  <view wx:elif="{{loading}}" class="empty card">加载中…</view>
+  <view wx:elif="{{!list.length}}" class="empty card">
+    <view class="empty-title">暂无就诊记录</view>
+    <view class="muted">完成挂号后，历次门诊将按就诊日期显示</view>
+  </view>
+  <view wx:else class="list-wrap">
+    <view
+      wx:for="{{list}}"
+      wx:key="registerId"
+      class="card record-row"
+      data-item="{{item}}"
+      bindtap="onDetail"
+    >
+      <view class="row-between">
+        <text class="visit-date">{{item.visitDateLabel}}</text>
+        <text class="tag">{{item.visitStateLabel}}</text>
+      </view>
+      <view class="dept-line">{{item.deptName}} · {{item.doctorName}}</view>
+      <view class="muted meta">{{item.patientName}} · {{item.registLevelName}}</view>
+      <view class="badge-row">
+        <text class="badge" wx:if="{{item.hasMedicalRecord}}">病历已提交</text>
+        <text class="badge" wx:if="{{item.orderCount > 0}}">医嘱 {{item.orderCount}} 项</text>
+        <text class="badge" wx:if="{{item.reportReadyCount > 0}}">报告 {{item.reportReadyCount}} 份</text>
+      </view>
+      <view class="summary">{{item.summarySnippet}}</view>
+      <view class="row-link">查看就诊详情 ›</view>
+    </view>
   </view>
 </view>

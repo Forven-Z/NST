@@ -81,6 +81,87 @@ public class InspectionRequestRepository {
                 .optional();
     }
 
+    public Optional<Map<String, Object>> findLabReportContext(Long id) {
+        return jdbcClient.sql("""
+                        SELECT ir.id AS inspection_request_id,
+                               ir.register_id,
+                               ir.patient_id,
+                               ir.status,
+                               ir.purpose,
+                               ir.body_part,
+                               ir.remark AS order_remark,
+                               ir.result_text,
+                               ir.result_time,
+                               ir.execute_time,
+                               mt.item_name,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               p.gender,
+                               p.age,
+                               d.dept_name AS department_name,
+                               mr.diagnosis AS clinical_diagnosis,
+                               e1.real_name AS tester_name,
+                               rep.real_name AS reporter_name,
+                               rev.real_name AS reviewer_name,
+                               doc.real_name AS ordering_doctor_name
+                        FROM inspection_request ir
+                        JOIN patient p ON ir.patient_id = p.id
+                        JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        JOIN register reg ON ir.register_id = reg.id
+                        JOIN department d ON reg.dept_id = d.id
+                        LEFT JOIN medical_record mr ON mr.register_id = ir.register_id AND mr.delmark = 0
+                        LEFT JOIN employee e1 ON ir.executor_id = e1.id
+                        LEFT JOIN employee rep ON ir.result_input_id = rep.id
+                        LEFT JOIN employee rev ON ir.reviewer_id = rev.id
+                        LEFT JOIN employee doc ON ir.doctor_id = doc.id
+                        WHERE ir.id = :id AND ir.delmark = 0
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> mapLabContext(rs))
+                .optional();
+    }
+
+    public Optional<Map<String, Object>> findLabReportContextByDoctor(Long id, Long doctorId) {
+        return jdbcClient.sql("""
+                        SELECT ir.id AS inspection_request_id,
+                               ir.register_id,
+                               ir.patient_id,
+                               ir.status,
+                               ir.purpose,
+                               ir.body_part,
+                               ir.remark AS order_remark,
+                               ir.result_text,
+                               ir.result_time,
+                               ir.execute_time,
+                               mt.item_name,
+                               p.medical_record_no,
+                               p.real_name AS patient_name,
+                               p.gender,
+                               p.age,
+                               d.dept_name AS department_name,
+                               mr.diagnosis AS clinical_diagnosis,
+                               e1.real_name AS tester_name,
+                               rep.real_name AS reporter_name,
+                               rev.real_name AS reviewer_name,
+                               doc.real_name AS ordering_doctor_name
+                        FROM inspection_request ir
+                        JOIN patient p ON ir.patient_id = p.id
+                        JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+                        JOIN register reg ON ir.register_id = reg.id
+                        JOIN department d ON reg.dept_id = d.id
+                        LEFT JOIN medical_record mr ON mr.register_id = ir.register_id AND mr.delmark = 0
+                        LEFT JOIN employee e1 ON ir.executor_id = e1.id
+                        LEFT JOIN employee rep ON ir.result_input_id = rep.id
+                        LEFT JOIN employee rev ON ir.reviewer_id = rev.id
+                        LEFT JOIN employee doc ON ir.doctor_id = doc.id
+                        WHERE ir.id = :id AND ir.doctor_id = :doctorId AND ir.delmark = 0
+                        """)
+                .param("id", id)
+                .param("doctorId", doctorId)
+                .query((rs, rowNum) -> mapLabContext(rs))
+                .optional();
+    }
+
     public java.util.List<Map<String, Object>> findByRegisterId(Long registerId) {
         return jdbcClient.sql("""
                         SELECT ir.id, ir.register_id, ir.patient_id, ir.medical_technology_id, ir.doctor_id,
@@ -127,6 +208,17 @@ public class InspectionRequestRepository {
                 .list();
     }
 
+    public int countPendingResultsByPatient(Long patientId) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM inspection_request
+                        WHERE patient_id = :patientId AND status >= 20 AND status < 40 AND delmark = 0
+                        """)
+                .param("patientId", patientId)
+                .query(Integer.class)
+                .single();
+        return count != null ? count : 0;
+    }
+
     private Map<String, Object> mapRow(java.sql.ResultSet rs) throws java.sql.SQLException {
         Map<String, Object> row = new HashMap<>();
         row.put("inspectionRequestId", rs.getLong("id"));
@@ -142,6 +234,32 @@ public class InspectionRequestRepository {
         row.put("resultText", rs.getString("result_text"));
         row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
         row.put("itemName", rs.getString("item_name"));
+        return row;
+    }
+
+    private Map<String, Object> mapLabContext(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new HashMap<>();
+        row.put("inspectionRequestId", rs.getLong("inspection_request_id"));
+        row.put("registerId", rs.getLong("register_id"));
+        row.put("patientId", rs.getLong("patient_id"));
+        row.put("status", rs.getInt("status"));
+        row.put("purpose", rs.getString("purpose"));
+        row.put("bodyPart", rs.getString("body_part"));
+        row.put("orderRemark", rs.getString("order_remark"));
+        row.put("resultText", rs.getString("result_text"));
+        row.put("resultTime", rs.getObject("result_time", OffsetDateTime.class));
+        row.put("executeTime", rs.getObject("execute_time", OffsetDateTime.class));
+        row.put("itemName", rs.getString("item_name"));
+        row.put("medicalRecordNo", rs.getString("medical_record_no"));
+        row.put("patientName", rs.getString("patient_name"));
+        row.put("gender", rs.getObject("gender") != null ? rs.getInt("gender") : null);
+        row.put("age", rs.getObject("age") != null ? rs.getInt("age") : null);
+        row.put("departmentName", rs.getString("department_name"));
+        row.put("clinicalDiagnosis", rs.getString("clinical_diagnosis"));
+        row.put("testerName", rs.getString("tester_name"));
+        row.put("reporterName", rs.getString("reporter_name"));
+        row.put("reviewerName", rs.getString("reviewer_name"));
+        row.put("orderingDoctorName", rs.getString("ordering_doctor_name"));
         return row;
     }
 }

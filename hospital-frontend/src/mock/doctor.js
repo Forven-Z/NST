@@ -17,7 +17,11 @@ import {
   getRegisterById,
   getRegisterOrders,
   getRegisterResults,
+  getPatientVisits,
+  getPatientVisitHub,
+  resubmitPrescriptionMock,
   saveMedicalRecord,
+  updatePrescriptionItems,
 } from './store'
 
 export function mockDoctorQueue(params) {
@@ -92,6 +96,22 @@ export function mockFetchRegisterOrders(registerId) {
   return mockResult(getRegisterOrders(registerId))
 }
 
+export function mockFetchPatientVisits(patientId, params) {
+  return mockResult(getPatientVisits(patientId, params))
+}
+
+export function mockFetchPatientVisitHub(patientId, registerId) {
+  return mockResult(getPatientVisitHub(patientId, registerId))
+}
+
+export function mockFetchPatientVisitOrderResult(patientId, kind, requestId) {
+  void patientId
+  if (kind === 'inspection') return mockFetchInspectionResult(requestId)
+  if (kind === 'check') return mockFetchCheckResult(requestId)
+  if (kind === 'disposal') return mockFetchDisposalResult(requestId)
+  return Promise.reject(new Error('不支持的结果类型'))
+}
+
 export function mockFetchRegisterResults(registerId) {
   return mockResult(getRegisterResults(registerId))
 }
@@ -103,6 +123,26 @@ export function mockCreatePrescription(data) {
     totalAmount: rx.totalAmount,
     status: rx.status,
     message: '处方已开立，请患者缴费后至药房取药',
+  })
+}
+
+export function mockUpdatePrescription(prescriptionId, data) {
+  const rx = updatePrescriptionItems(prescriptionId, data.items)
+  return mockResult({
+    prescriptionId: rx.prescriptionId,
+    totalAmount: rx.totalAmount,
+    status: rx.status,
+  })
+}
+
+export function mockResubmitPrescription(prescriptionId) {
+  const rx = resubmitPrescriptionMock(prescriptionId)
+  return mockResult({
+    prescriptionId: rx.prescriptionId,
+    totalAmount: rx.totalAmount,
+    status: rx.status,
+    billId: rx.billId,
+    message: '处方已重新提交，请通知患者缴费',
   })
 }
 

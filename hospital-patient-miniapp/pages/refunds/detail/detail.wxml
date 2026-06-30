@@ -1,0 +1,15 @@
+<view class="container refunds-detail" wx:if="{{refund}}">
+  <view class="card">
+    <view class="row-between">
+      <view class="title">{{refund.billTitle || '退费项目'}}</view>
+      <view class="price">¥{{refund.amount || refund.refundAmount}}</view>
+    </view>
+    <view class="muted">退款流水 #{{refund.refundId}}</view>
+  </view>
+  <view class="card">
+    <view class="line"><text class="label">退款时间</text>{{refund.refundTime || '—'}}</view>
+    <view class="line"><text class="label">退款渠道</text>{{refund.channelLabel || refund.channel || '—'}}</view>
+    <view class="line" wx:if="{{refund.reason}}"><text class="label">退款原因</text>{{refund.reason}}</view>
+    <view class="line" wx:if="{{refund.registerId}}"><text class="label">关联挂号</text>#{{refund.registerId}}</view>
+  </view>
+</view>

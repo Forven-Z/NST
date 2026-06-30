@@ -135,6 +135,18 @@ public class ImagingStudyRepository {
                 .update();
     }
 
+    public void mergeReportJson(Long studyId, String reportJson) {
+        jdbcClient.sql("""
+                        UPDATE imaging_study
+                        SET report_json = CAST(:reportJson AS jsonb),
+                            update_time = NOW()
+                        WHERE id = :id
+                        """)
+                .param("id", studyId)
+                .param("reportJson", reportJson)
+                .update();
+    }
+
     public void markFailed(Long studyId, String errorMessage) {
         String msg = errorMessage;
         if (msg != null && msg.length() > 512) {

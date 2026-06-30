@@ -102,3 +102,25 @@
 .list-wrap .card {
   margin-bottom: 16rpx;
 }
+
+.date-group-label {
+  padding: 8rpx 32rpx 12rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.tag-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.snap-badge {
+  font-size: 20rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 6rpx;
+  background: #fff7ed;
+  color: #ea580c;
+}

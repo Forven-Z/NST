@@ -1,6 +1,7 @@
 .filter-row {
   display: flex;
-  gap: 24rpx;
+  flex-wrap: wrap;
+  gap: 16rpx 24rpx;
 }
 
 .filter {
@@ -22,4 +23,38 @@
 
 .actions button {
   margin: 0 !important;
+}
+
+.register-row {
+  margin-bottom: 16rpx;
+}
+
+.register-row.highlight {
+  border: 2rpx solid #1677ff;
+}
+
+.hint {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+}
+
+.row-link {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  text-align: right;
+}
+
+.guest-empty {
+  padding: 48rpx 32rpx;
+  text-align: center;
+}
+
+.empty-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
+.guest-login-btn {
+  margin-top: 32rpx;
 }

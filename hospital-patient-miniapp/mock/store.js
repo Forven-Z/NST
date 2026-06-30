@@ -28,9 +28,11 @@ function syncPhoneRegistry() {
 let nextRegisterId = 31000
 let nextBillId = 82000
 let nextPaymentId = 90000
+let nextRefundId = 91000
 const registers = []
 const bills = []
 const payments = []
+const refunds = []
 const triageSessions = {}
 
 function ok(data) {
@@ -84,13 +86,47 @@ function filterBills(params) {
   }
   list = mergeMedicalBookBills(list)
   if (params.scope === 'outpatient') {
-    list = list.filter(function (b) { return b.bizType === 'REGIST' || b.bizType === 'REGISTER' })
+    list = list.filter(function (b) {
+      return b.bizType === 'REGIST' || b.bizType === 'REGISTER' || b.bizType === 'PRESCRIPTION'
+    })
   } else if (params.scope === 'exam') {
     list = list.filter(function (b) {
-      return ['CHECK', 'LIS', 'INSPECTION', 'PACS', 'EXAM'].indexOf(b.bizType) >= 0
+      return ['CHECK', 'LIS', 'INSPECTION', 'PACS', 'EXAM', 'DISPOSAL'].indexOf(b.bizType) >= 0
     })
   }
-  return list
+  return list.map(enrichMockBill)
+}
+
+function billTypeLabel(bizType) {
+  var map = {
+    REGIST: '挂号',
+    REGISTER: '挂号',
+    LIS: '检验',
+    INSPECTION: '检验',
+    CHECK: '检查',
+    PACS: '检查',
+    EXAM: '检查',
+    PRESCRIPTION: '处方',
+    DISPOSAL: '处置',
+    MEDICAL_BOOK: '病历本',
+  }
+  return map[bizType] || bizType || '—'
+}
+
+function enrichMockBill(b) {
+  var lineItems = [{ name: b.billTitle || b.itemName || '费用项', amount: b.amount }]
+  if (b.bizType === 'PRESCRIPTION') {
+    lineItems = [{
+      name: b.billTitle || '处方药品',
+      amount: b.amount,
+      usage: '口服 · 按医嘱',
+      qty: 1,
+    }]
+  }
+  return Object.assign({}, b, {
+    bizTypeLabel: billTypeLabel(b.bizType),
+    lineItems: lineItems,
+  })
 }
 
 function seedRegisters() {
@@ -113,7 +149,8 @@ function seedRegisters() {
     paymentId: 90001,
     paidAt: '2026-06-03 09:30:00',
     amount: 20,
-    channel: '模拟支付',
+    channel: 'WECHAT',
+    channelLabel: '微信',
     registerId: 3000,
     patientId: 10001,
     summary: '挂号费 · 内科',
@@ -449,6 +486,119 @@ function listPayments(params) {
     list = list.filter((p) => p.registerId === Number(params.registerId))
   }
   list.sort((a, b) => (b.paymentId || 0) - (a.paymentId || 0))
+  list = list.map(function (p) {
+    return Object.assign({}, p, {
+      channelLabel: p.channelLabel || p.channel || '—',
+    })
+  })
+  return ok({ list, page: 1, pageSize: 20 })
+}
+
+function getPaymentDetail(paymentId, params) {
+  params = params || {}
+  var pid = Number(paymentId)
+  var payment = payments.find(function (p) { return p.paymentId === pid })
+  if (!payment) return Promise.reject(new Error('支付记录不存在'))
+  if (params.patientId && payment.patientId !== Number(params.patientId)) {
+    return Promise.reject(new Error('无权查看'))
+  }
+  var linkedBills = bills.filter(function (b) {
+    return b.status === 1 && b.registerId === payment.registerId
+  }).slice(0, 5).map(function (b) {
+    return {
+      id: b.id,
+      billTitle: b.billTitle || b.itemName,
+      amount: b.amount,
+      bizType: b.bizType,
+      bizTypeLabel: billTypeLabel(b.bizType),
+    }
+  })
+  return ok(Object.assign({}, payment, { bills: linkedBills }))
+}
+
+function getPrescriptionDetail(prescriptionId) {
+  var id = Number(prescriptionId)
+  var mockMap = {
+    64001: {
+      prescriptionId: 64001,
+      registerId: 31001,
+      patientName: profile.realName,
+      doctorName: '张医生',
+      totalAmount: 86.5,
+      status: 20,
+      statusLabel: '待取药',
+      pickupHint: '请携带就诊卡至门诊药房窗口取药',
+      items: [
+        {
+          drugId: 1,
+          drugName: '阿莫西林胶囊',
+          drugFormat: '0.25g×24粒',
+          drugDosage: '胶囊剂',
+          quantity: 2,
+          amount: 36,
+          usageMethod: '口服',
+          dosage: '0.5g',
+          frequency: '每日3次',
+          days: 5,
+        },
+        {
+          drugId: 2,
+          drugName: '布洛芬缓释胶囊',
+          drugFormat: '0.3g×20粒',
+          drugDosage: '胶囊剂',
+          quantity: 1,
+          amount: 50.5,
+          usageMethod: '口服',
+          dosage: '0.3g',
+          frequency: '必要时',
+          days: 3,
+          entrust: '饭后服用',
+        },
+      ],
+    },
+    64002: {
+      prescriptionId: 64002,
+      registerId: 31001,
+      patientName: profile.realName,
+      doctorName: '张医生',
+      totalAmount: 28,
+      status: 15,
+      statusLabel: '已退费',
+      pickupHint: '处方已被药师驳回并退费，请联系医生修改后重新开方',
+      items: [
+        {
+          drugId: 3,
+          drugName: '布洛芬缓释胶囊',
+          drugFormat: '0.3g×20粒',
+          quantity: 1,
+          amount: 28,
+          usageMethod: '口服',
+          frequency: '必要时',
+        },
+      ],
+    },
+  }
+  var detail = mockMap[id]
+  if (!detail) return Promise.reject(new Error('处方不存在'))
+  return ok(detail)
+}
+
+function listRefunds(params) {
+  params = params || {}
+  let list = [...refunds]
+  if (params.patientId) {
+    list = list.filter(function (r) { return r.patientId === Number(params.patientId) })
+  }
+  if (params.registerId) {
+    list = list.filter(function (r) { return r.registerId === Number(params.registerId) })
+  }
+  list.sort(function (a, b) { return (b.refundId || 0) - (a.refundId || 0) })
+  list = list.map(function (r) {
+    return Object.assign({}, r, {
+      channelLabel: r.channelLabel || r.channel || '—',
+      amount: r.amount != null ? r.amount : r.refundAmount,
+    })
+  })
   return ok({ list, page: 1, pageSize: 20 })
 }
 
@@ -476,7 +626,8 @@ function mockPay(billIds) {
       paymentId: nextPaymentId,
       paidAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       amount: Math.round(paid * 100) / 100,
-      channel: '模拟支付',
+      channel: 'WECHAT',
+      channelLabel: '微信',
       registerId: first.registerId,
       patientId: first.patientId,
       summary: titles,
@@ -508,7 +659,13 @@ function addExamBillForDemo(registerId) {
 function cancelRegister(registerId) {
   const reg = registers.find((r) => r.registerId === Number(registerId))
   if (!reg) return Promise.reject(new Error('挂号记录不存在'))
-  if (reg.visitState !== 1) return Promise.reject(new Error('仅已挂号未接诊可退号'))
+  if (reg.visitState === 0) {
+    reg.visitState = 4
+    return ok({ registerId, visitState: 4, message: '待支付挂号已取消' })
+  }
+  if (reg.visitState !== 1 || reg.callTime) {
+    return Promise.reject(new Error('仅已挂号且医生未叫号可退号'))
+  }
   reg.visitState = 4
   return ok({ registerId, visitState: 4, message: '退号成功' })
 }
@@ -516,10 +673,50 @@ function cancelRegister(registerId) {
 function getMedicalRecord(registerId) {
   return ok({
     registerId: Number(registerId),
-    readme: '反复头痛 2 周',
+    visitDateLabel: '2026-06-04',
+    noonLabel: '上午',
+    deptName: '内科',
+    doctorName: '张医生',
+    patientName: profile.realName || '微信用户',
+    medicalRecordNo: profile.medicalRecordNo || 'MR202606040100',
+    statusLabel: '已确诊提交',
+    readme: '反复头痛 2 周，加重 3 天',
+    present: '患者 2 周前无明显诱因出现头痛，呈胀痛，以前额为主，无恶心呕吐。',
     diagnosis: '头痛待查',
-    cure: '建议完善检查',
+    cure: '建议完善头颅 CT；注意休息，避免熬夜；不适随诊。',
+    checkAdvice: '头部 CT 平扫',
+    diseaseEntries: [{ diseaseName: '头痛', diseaseType: 1 }],
   })
+}
+
+function listMedicalRecords(params) {
+  params = params || {}
+  var list = [
+    {
+      registerId: 3001,
+      visitDateLabel: '2026-06-04',
+      noonLabel: '上午',
+      deptName: '内科',
+      doctorName: '张医生',
+      registLevelName: '普通号',
+      patientName: profile.realName || '微信用户',
+      summary: '头痛待查',
+    },
+    {
+      registerId: 3002,
+      visitDateLabel: '2026-05-28',
+      noonLabel: '下午',
+      deptName: '内科',
+      doctorName: '李医生',
+      registLevelName: '专家号',
+      patientName: profile.realName || '微信用户',
+      summary: '上呼吸道感染',
+    },
+  ]
+  if (params.patientId && params.patientId !== patientId) {
+    list = []
+  }
+  return ok({ list: list, visitPatientId: params.patientId || patientId })
 }
 
 const REPORTS = [
@@ -530,13 +727,40 @@ const REPORTS = [
     type: 'lab',
     typeLabel: '检验',
     reportName: '血常规',
+    reportType: 'lab',
+    reportNo: 'INS-20260604-05001',
     patientName: '微信用户',
     reportTime: '2026-06-04 11:20',
-    summary: '白细胞略高，其余指标未见明显异常。',
+    summary: '白细胞偏高，其余指标未见明显异常。',
     purpose: '发热查因',
     bodyPart: '',
-    resultText: '白细胞 11.2×10^9/L（略高），中性粒细胞比例正常；血红蛋白、血小板均在参考范围内。建议结合临床随访。',
     registerId: 3001,
+    header: {
+      patientName: '微信用户',
+      genderLabel: '男',
+      ageLabel: '35岁',
+      sampleType: '全血',
+      department: '内科',
+      clinicalDiagnosis: '上呼吸道感染',
+    },
+    items: [
+      { code: 'WBC', name: '白细胞', result: '12.8', unit: '×10⁹/L', refRange: '3.5-9.5', flag: 'H' },
+      { code: 'RBC', name: '红细胞', result: '4.65', unit: '×10¹²/L', refRange: '4.3-5.8', flag: 'N' },
+      { code: 'HGB', name: '血红蛋白', result: '138', unit: 'g/L', refRange: '130-175', flag: 'N' },
+      { code: 'PLT', name: '血小板', result: '210', unit: '×10⁹/L', refRange: '125-350', flag: 'N' },
+    ],
+    analysis: {
+      aiReportText: '【AI 智能检验报告 · 血常规】\n异常项目：白细胞 12.8×10⁹/L↑。\nAI 提示：存在偏离参考范围指标，建议结合临床排查感染可能，请检验师审核确认。',
+      doctorReportText: '已镜检复查，结合临床考虑细菌性感染可能。',
+      aiReportStatus: 'READY',
+    },
+    footer: {
+      testTime: '2026-06-04 11:10',
+      reportTime: '2026-06-04 11:20',
+      testerName: '周检验',
+      reviewerName: '周检验',
+    },
+    resultText: '白细胞 12.8×10⁹/L↑，其余指标正常。',
   },
   {
     id: 6001,
@@ -545,13 +769,44 @@ const REPORTS = [
     type: 'exam',
     typeLabel: '检查',
     reportName: '头部 CT 平扫',
+    reportType: 'check',
+    reportNo: 'CHK-20260604-06001',
     patientName: '微信用户',
     reportTime: '2026-06-04 15:40',
     summary: '未见明显占位性病变，建议结合临床。',
     purpose: '头痛查因',
     bodyPart: '头部',
-    resultText: '颅脑 CT 平扫：脑实质密度未见明显异常，脑室系统形态正常，中线结构居中。未见明显占位性病变及出血灶。建议结合临床。',
+    resultText: '【检查所见】\n颅脑 CT 平扫：脑实质密度未见明显异常，脑室系统形态正常，中线结构居中。未见明显占位性病变及出血灶。\nAI：未见明显异常密度影，建议结合临床。',
     registerId: 3001,
+    hasSnapshots: true,
+    header: {
+      patientName: '微信用户',
+      genderLabel: '男',
+      ageLabel: '35岁',
+      medicalRecordNo: 'MR202606040100',
+      modality: 'CT',
+      department: '放射科',
+      bodyPart: '头部',
+      clinicalDiagnosis: '头痛待查',
+    },
+    findings: {
+      findingsText: '颅脑 CT 平扫：脑实质密度未见明显异常，脑室系统形态正常，中线结构居中。未见明显占位性病变及出血灶。',
+      hasSnapshots: false,
+    },
+    analysis: {
+      aiReportText: '未见明显异常密度影，建议结合临床。',
+      doctorReportText: '',
+      aiReportStatus: 'READY',
+    },
+    footer: {
+      examTime: '2026-06-04 15:20',
+      reportTime: '2026-06-04 15:40',
+      orderingDoctorName: '张医生',
+      executorName: '李检查',
+      reporterName: '李检查',
+      reviewerName: '李检查',
+    },
+    status: 40,
   },
   {
     id: 7001,
@@ -560,13 +815,35 @@ const REPORTS = [
     type: 'disposal',
     typeLabel: '处置记录',
     reportName: '洗胃',
+    reportType: 'disposal',
+    recordNo: 'DIS-20260604-07001',
     patientName: '微信用户',
     reportTime: '2026-06-04 16:10',
     summary: '洗胃完成，患者生命体征平稳。',
     purpose: '急性中毒',
     bodyPart: '',
-    resultText: '洗胃完成，出入量记录完整，洗出液清亮；洗胃后生命体征平稳，未诉明显不适。嘱观察后离院。',
     registerId: 3001,
+    header: {
+      patientName: '微信用户',
+      genderLabel: '男',
+      ageLabel: '35岁',
+      medicalRecordNo: 'MR202606040100',
+      department: '处置科',
+      itemName: '洗胃',
+      clinicalDiagnosis: '急性中毒',
+      purpose: '急性中毒',
+    },
+    record: {
+      processText: '左侧卧位，16Fr 胃管；温盐水 500ml 入/450ml 出（澄清）；过程顺利，未见误吸。',
+      outcomeText: '洗胃后 BP 118/76 mmHg，HR 78 次/分，SpO₂ 98%；患者未诉明显不适，嘱观察。',
+    },
+    footer: {
+      executeTime: '2026-06-04 16:00',
+      recordTime: '2026-06-04 16:10',
+      executorName: '孙处置',
+      recorderName: '孙处置',
+    },
+    resultText: '【处置过程】\n左侧卧位洗胃…\n【观察与结果】\n生命体征平稳…',
   },
 ]
 
@@ -593,7 +870,13 @@ function listReports(params) {
   }
   const type = params.type
   if (type && type !== 'all') list = list.filter(function (r) { return r.type === type })
-  return ok({ list: list })
+  list = list.map(function (r) {
+    var full = REPORTS.find(function (x) { return x.id === r.id })
+    return Object.assign({}, r, {
+      hasSnapshots: !!(full && full.hasSnapshots),
+    })
+  })
+  return ok({ list: list, pendingCount: 1, visitPatientId: params.patientId || patientId })
 }
 
 function getReportDetail(type, requestId) {
@@ -606,27 +889,43 @@ function getReportDetail(type, requestId) {
     type: row.type,
     typeLabel: row.typeLabel,
     reportName: row.reportName,
+    reportType: row.reportType,
+    recordNo: row.recordNo,
     registerId: row.registerId,
     patientId: row.patientId,
     purpose: row.purpose,
     bodyPart: row.bodyPart,
     resultText: row.resultText,
     reportTime: row.reportTime,
+    header: row.header,
+    items: row.items,
+    analysis: row.analysis,
+    record: row.record,
+    footer: row.footer,
     status: 40,
   })
 }
 
+function orderActionForMock(kind, status) {
+  if (status === 10) return 'pay'
+  if (kind === 'prescription') {
+    if (status === 15 || status === 20 || status === 30 || status === 40) return 'prescription'
+    return 'none'
+  }
+  if (status >= 40) return 'report'
+  return 'none'
+}
+
 function getRegisterOrders(registerId) {
   var rid = Number(registerId)
-  var list = [
+  var raw = [
     {
       kind: 'inspection',
       typeLabel: '检验',
       requestId: 5001,
       itemName: '血常规',
       status: 40,
-      statusLabel: '已出结果',
-      registerId: rid,
+      statusLabel: '已出报告',
     },
     {
       kind: 'check',
@@ -634,8 +933,7 @@ function getRegisterOrders(registerId) {
       requestId: 6001,
       itemName: '头部 CT 平扫',
       status: 20,
-      statusLabel: '已缴费',
-      registerId: rid,
+      statusLabel: '待检查',
     },
     {
       kind: 'disposal',
@@ -643,8 +941,15 @@ function getRegisterOrders(registerId) {
       requestId: 7001,
       itemName: '洗胃',
       status: 40,
-      statusLabel: '已出结果',
-      registerId: rid,
+      statusLabel: '已出报告',
+    },
+    {
+      kind: 'prescription',
+      typeLabel: '处方',
+      requestId: 64002,
+      itemName: '布洛芬缓释胶囊',
+      status: 15,
+      statusLabel: '已退费',
     },
     {
       kind: 'prescription',
@@ -652,12 +957,26 @@ function getRegisterOrders(registerId) {
       requestId: 64001,
       itemName: '阿莫西林胶囊',
       status: 20,
-      statusLabel: '已缴费',
-      registerId: rid,
+      statusLabel: '待取药',
     },
   ]
+  var list = raw.map(function (row) {
+    return Object.assign({}, row, {
+      registerId: rid,
+      action: orderActionForMock(row.kind, row.status),
+    })
+  })
   return ok({
     registerId: rid,
+    registerSummary: {
+      registerId: rid,
+      deptName: '内科',
+      doctorName: '张医生',
+      workDate: '2026-06-04',
+      noonLabel: '上午',
+      patientName: profile.realName,
+      registLevelName: '普通号',
+    },
     list: list,
     checks: list.filter(function (o) { return o.kind === 'check' }),
     inspections: list.filter(function (o) { return o.kind === 'inspection' }),
@@ -679,7 +998,7 @@ function matchTriageDept(text) {
     return { deptId: 9, deptCode: 'OBGYN', deptName: '妇产科', matchedDeptName: '妇产科', confidence: 0.82 }
   }
   if (value.indexOf('外伤') >= 0 || value.indexOf('肿块') >= 0 || value.indexOf('摔') >= 0 || value.indexOf('伤口') >= 0) {
-    return { deptId: 7, deptCode: 'SURGERY', deptName: '外科', matchedDeptName: '外科', confidence: 0.78 }
+    return { deptId: 6, deptCode: 'SURGERY', deptName: '外科', matchedDeptName: '外科', confidence: 0.78 }
   }
   return { deptId: 1, deptCode: 'INTERNAL', deptName: '内科', matchedDeptName: '内科', confidence: 0.74 }
 }
@@ -782,6 +1101,76 @@ function triageChat(body) {
   })
 }
 
+function listVisits(params) {
+  params = params || {}
+  var list = [
+    {
+      registerId: 3001,
+      visitState: 3,
+      visitStateLabel: '看诊结束',
+      visitDateLabel: '2026-06-04',
+      workDate: '2026-06-04',
+      noonLabel: '上午',
+      deptName: '内科',
+      doctorName: '张医生',
+      registLevelName: '普通号',
+      patientName: profile.realName || '微信用户',
+      hasMedicalRecord: true,
+      medicalRecordStatus: 2,
+      orderCount: 3,
+      reportReadyCount: 2,
+      summarySnippet: '头痛待查',
+    },
+    {
+      registerId: 3002,
+      visitState: 2,
+      visitStateLabel: '接诊中',
+      visitDateLabel: '2026-05-28',
+      workDate: '2026-05-28',
+      noonLabel: '下午',
+      deptName: '内科',
+      doctorName: '李医生',
+      registLevelName: '专家号',
+      patientName: profile.realName || '微信用户',
+      hasMedicalRecord: false,
+      medicalRecordStatus: 1,
+      orderCount: 1,
+      reportReadyCount: 0,
+      summarySnippet: '医嘱 1 项',
+    },
+  ]
+  if (params.patientId && params.patientId !== patientId) {
+    list = []
+  }
+  return ok({ list: list, page: params.page || 1, pageSize: params.pageSize || 20, visitPatientId: params.patientId || patientId })
+}
+
+function getVisitHub(registerId) {
+  var rid = Number(registerId)
+  var recordRes = getMedicalRecord(rid)
+  var record = recordRes.data
+  var ordersRes = getRegisterOrders(rid)
+  var hasMedicalRecord = rid === 3001
+  return ok({
+    registerSummary: {
+      registerId: rid,
+      visitState: rid === 3002 ? 2 : 3,
+      visitStateLabel: rid === 3002 ? '接诊中' : '看诊结束',
+      visitDateLabel: record.visitDateLabel || '2026-06-04',
+      noonLabel: record.noonLabel || '上午',
+      deptName: record.deptName || '内科',
+      doctorName: record.doctorName || '张医生',
+      registLevelName: '普通号',
+      patientName: record.patientName || profile.realName,
+      medicalRecordNo: record.medicalRecordNo,
+    },
+    hasMedicalRecord: hasMedicalRecord,
+    medicalRecordStatus: hasMedicalRecord ? 2 : 1,
+    medicalRecord: hasMedicalRecord ? record : null,
+    orders: ordersRes.data,
+  })
+}
+
 module.exports = {
   login,
   patientLogin,
@@ -798,9 +1187,15 @@ module.exports = {
   queueStatus,
   listBills,
   listPayments,
+  getPaymentDetail,
+  listRefunds,
   mockPay,
+  getPrescriptionDetail,
   cancelRegister,
   getMedicalRecord,
+  listMedicalRecords,
+  listVisits,
+  getVisitHub,
   listReports,
   getReportDetail,
   getRegisterOrders,

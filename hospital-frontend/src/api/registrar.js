@@ -4,10 +4,15 @@ import {
   mockDepartments,
   mockDoctors,
   mockPatientBills,
+  mockPatientPaymentsQuery,
+  mockPatientRefundsQuery,
+  mockPatientRegistersQuery,
+  mockCancelRegister,
   mockRefundBill,
   mockRegistLevels,
   mockSchedules,
   mockSettleCategories,
+  mockShiftSummary,
   mockWindowCharge,
   mockWindowRegister,
 } from '../mock/registrar'
@@ -40,8 +45,20 @@ export function fetchRegistrarSchedules(params) {
 }
 
 export function fetchPatientBills(medicalRecordNo, params) {
-  if (useMock()) return mockPatientBills(medicalRecordNo, params)
+  if (useMock()) return mockPatientBillsQuery({ medicalRecordNo, ...params })
   return request.get(`/registrar/patients/${medicalRecordNo}/bills`, { params })
+}
+
+/** 收费查账：病历号 / 身份证 / 姓名 / patientId，均为精确匹配（姓名重名返回 candidates） */
+export function fetchPatientBillsByQuery(params) {
+  if (useMock()) return mockPatientBillsQuery(params)
+  return request.get('/registrar/patients/bills', { params })
+}
+
+/** 退号查挂号：病历号 / 身份证 / 姓名 / patientId，均为精确匹配（姓名重名返回 candidates） */
+export function fetchPatientRegistersByQuery(params) {
+  if (useMock()) return mockPatientRegistersQuery(params)
+  return request.get('/registrar/patients/registers', { params })
 }
 
 export function refundBill(data) {
@@ -50,6 +67,7 @@ export function refundBill(data) {
 }
 
 export function cancelRegister(registerId, data) {
+  if (useMock()) return mockCancelRegister(registerId, data)
   return request.post(`/registrar/registers/${registerId}/cancel`, data)
 }
 
@@ -61,4 +79,22 @@ export function windowRegister(data) {
 export function windowCharge(data) {
   if (useMock()) return mockWindowCharge(data)
   return request.post('/registrar/charges', data)
+}
+
+/** 患者已付流水：病历号 / 身份证 / 姓名 / patientId */
+export function fetchPatientPaymentsByQuery(params) {
+  if (useMock()) return mockPatientPaymentsQuery(params)
+  return request.get('/registrar/patients/payments', { params })
+}
+
+/** 患者退款记录：病历号 / 身份证 / 姓名 / patientId */
+export function fetchPatientRefundsByQuery(params) {
+  if (useMock()) return mockPatientRefundsQuery(params)
+  return request.get('/registrar/patients/refunds', { params })
+}
+
+/** 当班收费汇总（当前登录收费员） */
+export function fetchShiftSummary(params) {
+  if (useMock()) return mockShiftSummary(params?.workDate)
+  return request.get('/registrar/shift-summary', { params })
 }

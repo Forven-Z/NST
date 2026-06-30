@@ -18,6 +18,7 @@ import {
   updateDepartment,
   updateEmployee,
 } from './staff-registry'
+import { getShiftSummary } from './store'
 
 export function mockAdminDepartments(params) {
   return mockResult({ list: listDepartments(params), page: 1, pageSize: 50 })
@@ -97,4 +98,56 @@ export function mockAdminSchedules(params) {
   if (params?.deptId) list = list.filter((s) => s.deptId === Number(params.deptId))
   list = sortSchedulesByDate(list)
   return mockResult({ list: list.map(enrichScheduleAdminRow), page: 1, pageSize: 100 })
+}
+
+/** 全院财务汇总 Mock：复用 store 中 payment/refund 聚合 */
+export function mockFinanceDailySummary(params) {
+  const from = params?.dateFrom || new Date().toISOString().slice(0, 10)
+  const to = params?.dateTo || from
+  const dates = []
+  const start = new Date(from)
+  const end = new Date(to)
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10))
+  }
+  let paymentCount = 0
+  let paymentTotal = 0
+  let refundCount = 0
+  let refundTotal = 0
+  const payChannelMap = {}
+  const refundChannelMap = {}
+  for (const date of dates) {
+    const day = getShiftSummary(date)
+    paymentCount += day.paymentCount || 0
+    paymentTotal += Number(day.paymentTotal || 0)
+    refundCount += day.refundCount || 0
+    refundTotal += Number(day.refundTotal || 0)
+    for (const row of day.paymentsByChannel || []) {
+      const ch = row.channel
+      if (!payChannelMap[ch]) {
+        payChannelMap[ch] = { ...row, count: 0, totalAmount: 0 }
+      }
+      payChannelMap[ch].count += row.count || 0
+      payChannelMap[ch].totalAmount += Number(row.totalAmount || 0)
+    }
+    for (const row of day.refundsByChannel || []) {
+      const ch = row.channel
+      if (!refundChannelMap[ch]) {
+        refundChannelMap[ch] = { ...row, count: 0, totalAmount: 0 }
+      }
+      refundChannelMap[ch].count += row.count || 0
+      refundChannelMap[ch].totalAmount += Number(row.totalAmount || 0)
+    }
+  }
+  return mockResult({
+    dateFrom: from,
+    dateTo: to,
+    paymentCount,
+    paymentTotal: Math.round(paymentTotal * 100) / 100,
+    refundCount,
+    refundTotal: Math.round(refundTotal * 100) / 100,
+    netTotal: Math.round((paymentTotal - refundTotal) * 100) / 100,
+    paymentsByChannel: Object.values(payChannelMap),
+    refundsByChannel: Object.values(refundChannelMap),
+  })
 }

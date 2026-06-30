@@ -12,6 +12,7 @@ import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
 import com.hospital.his.security.AuthContext;
 import com.hospital.his.security.AuthContextHolder;
+import com.hospital.his.util.IdCardUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,10 +41,14 @@ public class RegistrarRegisterService {
         Long registrarId = requireRegistrar();
 
         Long settleCategoryId = request.getSettleCategoryId() != null ? request.getSettleCategoryId() : 1L;
+        LocalDate birthDate = IdCardUtils.resolveBirthDate(
+                request.getBirthDate(), request.getAge(), request.getIdCard());
+        Integer age = IdCardUtils.resolveAge(request.getAge(), birthDate);
         PatientLoginPersistence.UpsertResult upsert = patientLoginPersistence.upsertForWindow(
                 request.getPatientName(),
                 request.getGender(),
-                request.getBirthDate(),
+                birthDate,
+                age,
                 request.getPhone(),
                 request.getIdCard(),
                 request.getAddress(),
@@ -68,6 +73,12 @@ public class RegistrarRegisterService {
         LocalDate visitDate = (LocalDate) scheduling.get("workDate");
         int noonType = toInt(scheduling.get("noonType"));
         boolean needRecordBook = Boolean.TRUE.equals(request.getNeedRecordBook());
+
+        if (registerRepository.existsActiveRegister(
+                patientId, request.getEmployeeId(), visitDate, noonType)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "该患者今日已在该医生该午别挂号，请勿重复提交");
+        }
 
         long registerId = registerRepository.insertRegister(
                 patientId,
@@ -104,7 +115,9 @@ public class RegistrarRegisterService {
         result.put("registerId", registerId);
         result.put("patientId", patientId);
         result.put("medicalRecordNo", medicalRecordNo);
+        result.put("patientName", request.getPatientName());
         result.put("billIds", billIds);
+        result.put("billId", billIds.isEmpty() ? null : billIds.get(0));
         result.put("amount", totalAmount);
         result.put("visitState", VisitState.PENDING_PAYMENT);
         result.put("deptName", scheduling.get("deptName"));

@@ -1,0 +1,27 @@
+<view class="payment-detail-page">
+  <view wx:if="{{loading}}" class="empty card">加载中…</view>
+  <view wx:elif="{{!detail}}" class="empty card">缴费记录不存在</view>
+  <block wx:else>
+    <view class="card head-card">
+      <view class="amount-row">
+        <text class="amount-label">实付金额</text>
+        <text class="amount">¥{{detail.amount}}</text>
+      </view>
+      <view class="muted">支付流水 #{{detail.paymentId}}</view>
+      <view class="muted">{{detail.paidAt}} · {{detail.channelLabel || detail.channel}}</view>
+      <view class="summary">{{detail.summary}}</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">账单明细</view>
+      <view wx:if="{{!bills.length}}" class="muted">暂无明细</view>
+      <view wx:for="{{bills}}" wx:key="id" class="bill-line">
+        <view class="row-between">
+          <view class="bill-name">{{item.billTitle}}</view>
+          <view class="price">¥{{item.amount}}</view>
+        </view>
+        <view class="tag">{{item.bizTypeLabel}}</view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -65,6 +65,21 @@ function fetchPayments(params) {
   return get('/patient/payments', params)
 }
 
+function fetchPaymentDetail(paymentId, params) {
+  if (useMock()) return store.getPaymentDetail(paymentId, params)
+  return get('/patient/payments/' + paymentId, params)
+}
+
+function fetchPrescription(prescriptionId) {
+  if (useMock()) return store.getPrescriptionDetail(prescriptionId)
+  return get('/patient/prescriptions/' + prescriptionId)
+}
+
+function fetchRefunds(params) {
+  if (useMock()) return store.listRefunds(params)
+  return get('/patient/refunds', params)
+}
+
 function mockPayment(billIds) {
   if (useMock()) return store.mockPay(billIds)
   return post('/patient/payments', { billIds })
@@ -73,6 +88,11 @@ function mockPayment(billIds) {
 function cancelRegister(registerId, reason) {
   if (useMock()) return store.cancelRegister(registerId)
   return post(`/patient/registers/${registerId}/cancel`, { reason })
+}
+
+function fetchMedicalRecords(params) {
+  if (useMock()) return store.listMedicalRecords(params)
+  return get('/patient/medical-records', params)
 }
 
 function fetchMedicalRecord(registerId) {
@@ -95,6 +115,12 @@ function triageChat(data) {
   return post('/ai/triage/chat', data)
 }
 
+function bindTriageRegister(sessionId, registerId) {
+  if (!sessionId || !registerId) return Promise.resolve({ success: true, data: { bound: false } })
+  if (useMock()) return Promise.resolve({ success: true, data: { sessionNo: sessionId, registerId, bound: true } })
+  return post(`/ai/triage/sessions/${encodeURIComponent(sessionId)}/bind-register`, { registerId })
+}
+
 module.exports = {
   fetchProfile,
   updateProfile,
@@ -109,10 +135,15 @@ module.exports = {
   fetchBills,
   fetchPendingBills,
   fetchPayments,
+  fetchPaymentDetail,
+  fetchPrescription,
+  fetchRefunds,
   mockPayment,
   cancelRegister,
   fetchMedicalRecord,
+  fetchMedicalRecords,
   fetchReports,
   fetchReportDetail,
   triageChat,
+  bindTriageRegister,
 }

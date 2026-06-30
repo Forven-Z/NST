@@ -35,4 +35,4 @@ Write-Host "=== CUDA check ==="
 & $VenvPy -c 'import torch; print("torch", torch.__version__); print("cuda_available", torch.cuda.is_available()); print("gpu", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NONE")'
 
 Write-Host ""
-Write-Host "Done. Run: scripts\start-r-pacs-ai.bat"
+Write-Host "Done. Run: .\scripts\start-hospital-ai.ps1"

@@ -157,6 +157,104 @@ public class SchedulingRepository {
                 .list();
     }
 
+    public List<Map<String, Object>> listWeekByDept(Long deptId, LocalDate weekStart, LocalDate weekEnd) {
+        return jdbcClient.sql("""
+                        SELECT s.id AS scheduling_id,
+                               e.dept_id,
+                               d.dept_name,
+                               s.employee_id,
+                               e.real_name AS employee_name,
+                               e.title AS employee_title,
+                               s.regist_level_id,
+                               rl.level_name AS regist_level_name,
+                               rl.regist_fee,
+                               s.work_date,
+                               s.noon_type,
+                               s.total_quota,
+                               s.used_quota,
+                               s.publish_status
+                        FROM scheduling s
+                        JOIN employee e ON s.employee_id = e.id
+                        JOIN department d ON e.dept_id = d.id
+                        JOIN regist_level rl ON s.regist_level_id = rl.id
+                        WHERE e.dept_id = :deptId
+                          AND e.delmark = 0
+                          AND s.work_date BETWEEN :weekStart AND :weekEnd
+                          AND s.publish_status <> 2
+                        ORDER BY s.work_date, s.employee_id, s.noon_type
+                        """)
+                .param("deptId", deptId)
+                .param("weekStart", weekStart)
+                .param("weekEnd", weekEnd)
+                .query(this::mapScheduleRow)
+                .list();
+    }
+
+    public boolean existsActiveSlot(Long employeeId, LocalDate workDate, Integer noonType) {
+        return jdbcClient.sql("""
+                        SELECT 1 FROM scheduling
+                        WHERE employee_id = :employeeId
+                          AND work_date = :workDate
+                          AND noon_type = :noonType
+                          AND publish_status <> 2
+                        LIMIT 1
+                        """)
+                .param("employeeId", employeeId)
+                .param("workDate", workDate)
+                .param("noonType", noonType)
+                .query(Integer.class)
+                .optional()
+                .isPresent();
+    }
+
+    public int updateDraft(Long id, Long registLevelId, Integer totalQuota) {
+        return jdbcClient.sql("""
+                        UPDATE scheduling SET
+                            regist_level_id = COALESCE(:registLevelId, regist_level_id),
+                            total_quota = COALESCE(:totalQuota, total_quota),
+                            update_time = NOW()
+                        WHERE id = :id AND publish_status = 0
+                        """)
+                .param("id", id)
+                .param("registLevelId", registLevelId)
+                .param("totalQuota", totalQuota)
+                .update();
+    }
+
+    public int updatePublishedQuota(Long id, Integer totalQuota) {
+        return jdbcClient.sql("""
+                        UPDATE scheduling SET total_quota = :totalQuota, update_time = NOW()
+                        WHERE id = :id AND publish_status = 1 AND used_quota <= :totalQuota
+                        """)
+                .param("id", id)
+                .param("totalQuota", totalQuota)
+                .update();
+    }
+
+    public int cancelDraft(Long id) {
+        return jdbcClient.sql("""
+                        UPDATE scheduling SET publish_status = 2, update_time = NOW()
+                        WHERE id = :id AND publish_status = 0 AND used_quota = 0
+                        """)
+                .param("id", id)
+                .update();
+    }
+
+    public int batchPublishWeek(Long deptId, LocalDate weekStart, LocalDate weekEnd) {
+        return jdbcClient.sql("""
+                        UPDATE scheduling s SET publish_status = 1, update_time = NOW()
+                        FROM employee e
+                        WHERE s.employee_id = e.id
+                          AND e.dept_id = :deptId
+                          AND s.work_date BETWEEN :weekStart AND :weekEnd
+                          AND s.publish_status = 0
+                        """)
+                .param("deptId", deptId)
+                .param("weekStart", weekStart)
+                .param("weekEnd", weekEnd)
+                .update();
+    }
+
     private Map<String, Object> mapScheduleRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         Map<String, Object> row = new HashMap<>();
         row.put("schedulingId", rs.getLong("scheduling_id"));

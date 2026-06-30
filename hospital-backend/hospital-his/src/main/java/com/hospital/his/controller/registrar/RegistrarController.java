@@ -69,6 +69,60 @@ public class RegistrarController {
         return Result.success(registrarQueryService.listSchedules(deptId, employeeId, registLevelId, workDate));
     }
 
+    @GetMapping("/patients/registers")
+    public Result<Map<String, Object>> listPatientRegistersByQuery(
+            @RequestParam(required = false) String medicalRecordNo,
+            @RequestParam(required = false) String idCard,
+            @RequestParam(required = false) String realName,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(required = false) Integer visitState) {
+        return Result.success(registrarQueryService.listRegistersByQuery(
+                medicalRecordNo, idCard, realName, patientId, visitState));
+    }
+
+    @GetMapping("/patients/bills")
+    public Result<Map<String, Object>> listPatientBillsByQuery(
+            @RequestParam(required = false) String medicalRecordNo,
+            @RequestParam(required = false) String idCard,
+            @RequestParam(required = false) String realName,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(required = false) Integer status) {
+        return Result.success(registrarQueryService.listBillsByQuery(
+                medicalRecordNo, idCard, realName, patientId, status));
+    }
+
+    @GetMapping("/patients/payments")
+    public Result<Map<String, Object>> listPatientPaymentsByQuery(
+            @RequestParam(required = false) String medicalRecordNo,
+            @RequestParam(required = false) String idCard,
+            @RequestParam(required = false) String realName,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(required = false) Long registerId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return Result.success(registrarQueryService.listPaymentsByQuery(
+                medicalRecordNo, idCard, realName, patientId, registerId, page, pageSize));
+    }
+
+    @GetMapping("/patients/refunds")
+    public Result<Map<String, Object>> listPatientRefundsByQuery(
+            @RequestParam(required = false) String medicalRecordNo,
+            @RequestParam(required = false) String idCard,
+            @RequestParam(required = false) String realName,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(required = false) Long registerId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return Result.success(registrarQueryService.listRefundsByQuery(
+                medicalRecordNo, idCard, realName, patientId, registerId, page, pageSize));
+    }
+
+    @GetMapping("/shift-summary")
+    public Result<Map<String, Object>> shiftSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate) {
+        return Result.success(registrarQueryService.shiftSummary(workDate));
+    }
+
     @GetMapping("/patients/{medicalRecordNo}/bills")
     public Result<Map<String, Object>> listPatientBills(
             @PathVariable String medicalRecordNo,

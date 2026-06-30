@@ -1,4 +1,7 @@
 const { fetchReports } = require('../../api/patient')
+const { consumePendingReportTab } = require('../../utils/report-nav')
+const { groupReportsByDate } = require('../../utils/report-list')
+const { showMemberSwitchSheet } = require('../../utils/member-switch')
 const { isLoggedIn, requireLogin } = require('../../utils/auth')
 const patientContext = require('../../utils/patient-context')
 
@@ -7,7 +10,11 @@ Page({
     loggedIn: false,
     tab: 'all',
     list: [],
+    groups: [],
     loading: false,
+    loadError: false,
+    pendingCount: 0,
+    emptyHint: '',
     activeMemberName: '本人',
     visitPatientId: null,
   },
@@ -22,17 +29,36 @@ Page({
 
   onShow() {
     var loggedIn = isLoggedIn()
-    this.setData({ loggedIn: loggedIn })
+    var tab = consumePendingReportTab(this.data.tab)
+    this.setData({ loggedIn: loggedIn, tab: tab })
     if (!loggedIn) {
-      this.setData({ list: [], loading: false, activeMemberName: '—' })
+      this.setData({
+        list: [],
+        groups: [],
+        loading: false,
+        pendingCount: 0,
+        emptyHint: '',
+        activeMemberName: '—',
+      })
       return
     }
+    this.syncMember()
+    this.load()
+  },
+
+  onPullDownRefresh() {
+    var that = this
+    this.load().finally(function () {
+      wx.stopPullDownRefresh()
+    })
+  },
+
+  syncMember() {
     var active = patientContext.getActiveMember()
     this.setData({
-      activeMemberName: active.realName + (active.isSelf ? '（本人）' : ''),
+      activeMemberName: active.realName || '就诊人',
       visitPatientId: active.memberPatientId,
     })
-    this.load()
   },
 
   onGoLogin() {
@@ -57,16 +83,32 @@ Page({
     if (active.memberPatientId) {
       params.patientId = active.memberPatientId
     }
-    this.setData({ loading: true })
-    fetchReports(params).then(function (res) {
+    this.setData({ loading: true, loadError: false })
+    return fetchReports(params).then(function (res) {
+      var data = (res && res.data) || {}
+      var list = data.list || []
+      var pendingCount = data.pendingCount || 0
+      var emptyHint = ''
+      if (!list.length && pendingCount > 0) {
+        emptyHint = '您有 ' + pendingCount + ' 项检验/检查/处置进行中，结果出具后将显示在此'
+      } else if (!list.length) {
+        emptyHint = '医生开单并完成检验/检查/处置后，结果将显示在此'
+      }
       that.setData({
-        list: (res && res.data && res.data.list) || [],
+        list: list,
+        groups: groupReportsByDate(list),
+        pendingCount: pendingCount,
+        emptyHint: emptyHint,
         loading: false,
+        loadError: false,
       })
-    }).catch(function (err) {
-      that.setData({ loading: false })
-      wx.showToast({ title: (err && err.message) || '加载失败', icon: 'none' })
+    }).catch(function () {
+      that.setData({ loading: false, loadError: true })
     })
+  },
+
+  onRetry() {
+    this.load()
   },
 
   onDetail(e) {
@@ -78,7 +120,13 @@ Page({
     })
   },
 
-  goHomeSwitch() {
-    wx.switchTab({ url: '/pages/home/home' })
+  onSwitchMember() {
+    var that = this
+    showMemberSwitchSheet({
+      onSwitched: function () {
+        that.syncMember()
+        that.load()
+      },
+    })
   },
 })

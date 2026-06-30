@@ -82,6 +82,23 @@ public class MinioStorageService {
         return "studies/" + checkRequestId + "/";
     }
 
+    public String reportSnapshotPrefix(Long checkRequestId) {
+        return studyResultPrefix(checkRequestId) + "report/";
+    }
+
+    public void uploadBytes(String objectKey, byte[] data, String contentType) {
+        try {
+            client.putObject(PutObjectArgs.builder()
+                    .bucket(minioProperties.getBucket())
+                    .object(objectKey)
+                    .stream(new java.io.ByteArrayInputStream(data), data.length, -1)
+                    .contentType(contentType)
+                    .build());
+        } catch (Exception e) {
+            throw new IllegalStateException("上传 MinIO 失败: " + objectKey, e);
+        }
+    }
+
     public String bucket() {
         return minioProperties.getBucket();
     }

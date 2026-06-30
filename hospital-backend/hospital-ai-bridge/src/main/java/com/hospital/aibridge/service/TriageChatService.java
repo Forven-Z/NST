@@ -46,9 +46,10 @@ public class TriageChatService {
         TriageSession session = sessionStore.getOrCreate(request.getSessionId(), request.getPatientId());
         if (questionPolicy.isInitialMessage(request.getMessage())) {
             TriageChatResponse response = initialResponse(session);
+            response = responseSanitizer.sanitize(response);
             session.setStage(response.getStage());
             sessionStore.addMessage(session, "assistant", response.getReply());
-            return responseSanitizer.sanitize(response);
+            return response;
         }
 
         String message = request.getMessage().trim();
@@ -56,8 +57,9 @@ public class TriageChatService {
 
         TriageChatResponse emergencyResponse = ruleEngine.emergencyResponse(session, message);
         if (emergencyResponse != null) {
+            emergencyResponse = responseSanitizer.sanitize(emergencyResponse);
             sessionStore.addMessage(session, "assistant", emergencyResponse.getReply());
-            return responseSanitizer.sanitize(emergencyResponse);
+            return emergencyResponse;
         }
 
         String fullText = buildFullText(session);
@@ -67,11 +69,13 @@ public class TriageChatService {
                 .map(result -> buildFromAi(session, fullText, result, forceRecommendation))
                 .orElseGet(() -> buildFallback(session, message,
                         !forceRecommendation && !questionPolicy.shouldRecommend(session, fullText)));
+        response = responseSanitizer.sanitize(response);
 
         session.setStage(response.getStage());
         session.setSummary(response.getSummary());
+        session.setRecommendedDepartments(response.getRecommendedDepartments());
         sessionStore.addMessage(session, "assistant", response.getReply());
-        return responseSanitizer.sanitize(response);
+        return response;
     }
 
     private TriageChatResponse initialResponse(TriageSession session) {

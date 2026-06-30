@@ -85,6 +85,59 @@ try {
     Test-Step 'GET patient/schedules' $false $_.Exception.Message
 }
 
+$patientId = $login.data.patientId
+
+try {
+    $regs = Invoke-RestMethod -Uri "$base/patient/registers?patientId=$patientId" -Headers $headers
+    Test-Step 'GET patient/registers' ($regs.code -eq 200) ($regs | ConvertTo-Json -Compress)
+    if ($regs.code -eq 200 -and $regs.data.list.Count -gt 0) {
+        $registerId = $regs.data.list[0].registerId
+        $orders = Invoke-RestMethod -Uri "$base/patient/registers/$registerId/orders" -Headers $headers
+        $ordersOk = $orders.code -eq 200 -and $null -ne $orders.data.list -and $null -ne $orders.data.registerId
+        Test-Step 'GET patient/registers/{id}/orders' $ordersOk ($orders | ConvertTo-Json -Compress)
+        $visits = Invoke-RestMethod -Uri "$base/patient/visits?patientId=$patientId" -Headers $headers
+        Test-Step 'GET patient/visits' ($visits.code -eq 200 -and $null -ne $visits.data.list) ($visits | ConvertTo-Json -Compress)
+        $hub = Invoke-RestMethod -Uri "$base/patient/visits/$registerId/hub" -Headers $headers
+        $hubOk = $hub.code -eq 200 -and $null -ne $hub.data.registerSummary -and $null -ne $hub.data.orders
+        Test-Step 'GET patient/visits/{id}/hub' $hubOk ($hub | ConvertTo-Json -Compress)
+    }
+} catch {
+    Test-Step 'GET patient/registers' $false $_.Exception.Message
+}
+
+try {
+    $bills = Invoke-RestMethod -Uri "$base/patient/bills?status=0&patientId=$patientId" -Headers $headers
+    Test-Step 'GET patient/bills' ($bills.code -eq 200) ($bills | ConvertTo-Json -Compress)
+} catch {
+    Test-Step 'GET patient/bills' $false $_.Exception.Message
+}
+
+try {
+    $reports = Invoke-RestMethod -Uri "$base/patient/reports?patientId=$patientId" -Headers $headers
+    Test-Step 'GET patient/reports' ($reports.code -eq 200 -and $null -ne $reports.data.pendingCount) ($reports | ConvertTo-Json -Compress)
+} catch {
+    Test-Step 'GET patient/reports' $false $_.Exception.Message
+}
+
+try {
+    $records = Invoke-RestMethod -Uri "$base/patient/medical-records?patientId=$patientId" -Headers $headers
+    Test-Step 'GET patient/medical-records' ($records.code -eq 200) ($records | ConvertTo-Json -Compress)
+} catch {
+    Test-Step 'GET patient/medical-records' $false $_.Exception.Message
+}
+
+try {
+    $payments = Invoke-RestMethod -Uri "$base/patient/payments?patientId=$patientId" -Headers $headers
+    Test-Step 'GET patient/payments' ($payments.code -eq 200) ($payments | ConvertTo-Json -Compress)
+    if ($payments.code -eq 200 -and $payments.data.list.Count -gt 0) {
+        $pid = $payments.data.list[0].paymentId
+        $detail = Invoke-RestMethod -Uri "$base/patient/payments/$pid?patientId=$patientId" -Headers $headers
+        Test-Step 'GET patient/payments/{id}' ($detail.code -eq 200 -and $detail.data.bills) ($detail | ConvertTo-Json -Compress)
+    }
+} catch {
+    Test-Step 'GET patient/payments' $false $_.Exception.Message
+}
+
 Write-Host ''
 Write-Host "Passed $passed / Failed $failed"
 if ($failed -eq 0) {

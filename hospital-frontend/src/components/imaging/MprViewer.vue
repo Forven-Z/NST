@@ -8,13 +8,14 @@
       <span class="load-pct">{{ loadProgress }}%</span>
     </div>
 
-    <p v-if="secondaryLoading && showViews" class="load-sub banner">
-      {{ overlayBannerText }}
-    </p>
-
     <div class="mpr-content" :class="{ visible: showViews }">
-      <div class="mpr-row top">
-        <div class="view-cell expandable" @click="openExpandedView('axial')">
+      <p v-if="secondaryLoading && showViews" class="load-sub banner">
+        {{ overlayBannerText }}
+      </p>
+
+      <div class="mpr-body">
+        <div class="mpr-row top">
+          <div class="view-cell expandable" @click="openExpandedView('axial')">
           <div class="view-head">
             <span class="view-title">轴位 Axial</span>
             <span v-if="ready" class="zoom-hint">点击放大</span>
@@ -71,9 +72,9 @@
             <span>{{ sliceX }} / {{ Math.max(dims.x - 1, 0) }}</span>
           </div>
         </div>
-      </div>
+        </div>
 
-      <div v-if="linkedSlices && ready" class="unified-slider">
+        <div v-if="linkedSlices && ready" class="unified-slider">
         <label>联动切片</label>
         <input
           type="range"
@@ -147,6 +148,7 @@
             </p>
           </div>
         </div>
+      </div>
       </div>
 
       <div class="mpr-toolbar">
@@ -241,6 +243,22 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Niivue } from "@niivue/niivue";
+
+let glCapturePatchInstalled = false;
+function installGlCapturePatch() {
+  if (glCapturePatchInstalled || typeof HTMLCanvasElement === "undefined") return;
+  glCapturePatchInstalled = true;
+  const original = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function getContextPatched(type, attrs, ...rest) {
+    const isGl =
+      type === "webgl2" || type === "webgl" || type === "experimental-webgl";
+    if (isGl) {
+      return original.call(this, type, { ...(attrs || {}), preserveDrawingBuffer: true }, ...rest);
+    }
+    return original.call(this, type, attrs, ...rest);
+  };
+}
+installGlCapturePatch();
 
 const props = defineProps({
   ctUrl: { type: String, default: "" },
@@ -1070,6 +1088,105 @@ onBeforeUnmount(() => {
   if (opacityRaf) cancelAnimationFrame(opacityRaf);
   nvAxial = nvCoronal = nvSagittal = nvRender = nvMask = nvExpand = null;
 });
+
+function canvasToDataUrl(nv, canvas) {
+  if (!canvas?.width || !canvas?.height || !nv?.volumes?.length) return null;
+  if (typeof nv.resizeListener === "function") {
+    nv.resizeListener();
+  }
+  nv.drawScene();
+  try {
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
+async function waitForCaptureReady(timeoutMs = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const axialReady = !!nvAxial?.volumes?.length;
+    const coronalReady = !!nvCoronal?.volumes?.length;
+    const sagittalReady = !!nvSagittal?.volumes?.length;
+    if (
+      ready.value &&
+      !loading.value &&
+      !secondaryLoading.value &&
+      axialReady &&
+      coronalReady &&
+      sagittalReady
+    ) {
+      return true;
+    }
+    await deferPause(80);
+  }
+  return !!nvAxial?.volumes?.length;
+}
+
+async function captureReportSnapshotsAsync() {
+  const captureReady = await waitForCaptureReady();
+  if (!captureReady) return null;
+
+  await nextTick();
+  await yieldFrame();
+  await yieldFrame();
+
+  const prevMode = displayMode.value;
+  if (maskOverlayReady.value && prevMode !== "ct") {
+    displayMode.value = "ct";
+    applyDisplayMode();
+    await yieldFrame();
+  }
+
+  let axial = canvasToDataUrl(nvAxial, axialRef.value);
+  let coronal = canvasToDataUrl(nvCoronal, coronalRef.value);
+  let sagittal = canvasToDataUrl(nvSagittal, sagittalRef.value);
+
+  if (!axial || !coronal || !sagittal) {
+    await deferPause(250);
+    await yieldFrame();
+    axial = axial || canvasToDataUrl(nvAxial, axialRef.value);
+    coronal = coronal || canvasToDataUrl(nvCoronal, coronalRef.value);
+    sagittal = sagittal || canvasToDataUrl(nvSagittal, sagittalRef.value);
+  }
+
+  if (prevMode !== displayMode.value) {
+    displayMode.value = prevMode;
+    applyDisplayMode();
+  }
+
+  if (!axial && !coronal && !sagittal) return null;
+
+  return {
+    axial,
+    coronal,
+    sagittal,
+    meta: {
+      sliceX: sliceX.value,
+      sliceY: sliceY.value,
+      sliceZ: sliceZ.value,
+      maskOverlayReady: maskOverlayReady.value,
+      capturedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function captureReportSnapshots() {
+  return {
+    axial: canvasToDataUrl(nvAxial, axialRef.value),
+    coronal: canvasToDataUrl(nvCoronal, coronalRef.value),
+    sagittal: canvasToDataUrl(nvSagittal, sagittalRef.value),
+    meta: {
+      sliceX: sliceX.value,
+      sliceY: sliceY.value,
+      sliceZ: sliceZ.value,
+      maskOverlayReady: maskOverlayReady.value,
+      capturedAt: new Date().toISOString(),
+    },
+  };
+}
+
+defineExpose({ captureReportSnapshots, captureReportSnapshotsAsync, waitForCaptureReady });
 </script>
 
 <style scoped>
@@ -1088,6 +1205,8 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex: 1;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -1096,8 +1215,15 @@ onBeforeUnmount(() => {
 .mpr-content.visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+.mpr-body {
   flex: 1;
-  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .mpr-root.is-loading .mpr-content {
@@ -1145,13 +1271,14 @@ onBeforeUnmount(() => {
 }
 
 .load-sub.banner {
-  margin: 0 0 8px;
+  margin: 0;
   padding: 6px 10px;
   font-size: 12px;
   color: #9eb4c8;
   background: #182430;
   border-radius: 6px;
   border: 1px solid #2a4058;
+  flex-shrink: 0;
 }
 
 .mpr-row {
@@ -1162,13 +1289,13 @@ onBeforeUnmount(() => {
 .mpr-row.top {
   grid-template-columns: repeat(3, 1fr);
   flex: 3 1 0;
-  min-height: 320px;
+  min-height: 0;
 }
 
 .mpr-row.bottom {
   grid-template-columns: 1fr 1fr;
   flex: 2 1 0;
-  min-height: 220px;
+  min-height: 0;
 }
 
 .unified-slider {
@@ -1181,6 +1308,7 @@ onBeforeUnmount(() => {
   background: #101820;
   border: 1px solid #243040;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .unified-slider input[type="range"] {
@@ -1257,22 +1385,22 @@ onBeforeUnmount(() => {
 .view-canvas {
   flex: 1;
   width: 100%;
-  min-height: 200px;
+  min-height: 0;
   display: block;
 }
 
 .view-canvas.short {
-  min-height: 180px;
+  min-height: 0;
 }
 
 .canvas-shell {
   position: relative;
   flex: 1;
-  min-height: 180px;
+  min-height: 0;
 }
 
 .canvas-shell.short {
-  min-height: 180px;
+  min-height: 0;
 }
 
 .canvas-hidden {
@@ -1341,6 +1469,7 @@ onBeforeUnmount(() => {
   background: #101820;
   border: 1px solid #243040;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .toolbar-left,

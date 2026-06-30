@@ -1,0 +1,73 @@
+.payment-detail-page {
+  padding: 24rpx 32rpx 48rpx;
+  min-height: 100vh;
+  background: #f5f7fa;
+  box-sizing: border-box;
+}
+
+.head-card .amount-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.amount-label {
+  font-size: 28rpx;
+  color: #64748b;
+}
+
+.amount {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1677ff;
+}
+
+.summary {
+  margin-top: 16rpx;
+  font-size: 28rpx;
+  color: #334155;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 20rpx;
+}
+
+.bill-line {
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.bill-line:last-child {
+  border-bottom: none;
+}
+
+.bill-name {
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.price {
+  font-size: 28rpx;
+  color: #1677ff;
+  font-weight: 600;
+}
+
+.tag {
+  display: inline-block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.empty {
+  text-align: center;
+  padding: 48rpx;
+  color: #94a3b8;
+}
