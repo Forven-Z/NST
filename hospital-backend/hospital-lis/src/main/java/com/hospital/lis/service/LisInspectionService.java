@@ -3,11 +3,14 @@ package com.hospital.lis.service;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.common.execute.AbstractMedTechExecuteTemplate;
+import com.hospital.common.execute.MedTechExecuteCoordinator;
 import com.hospital.common.support.LabReportComposer;
 import com.hospital.common.support.LabReportItemTemplates;
 import com.hospital.common.support.MedTechSignSupport;
 import com.hospital.lis.client.AiBridgeLabReportClient;
 import com.hospital.lis.dto.InspectionResultRequest;
+import com.hospital.lis.order.LisMedTechOrderCoordinator;
 import com.hospital.lis.repository.InspectionRequestRepository;
 import com.hospital.lis.repository.InspectionResultItemRepository;
 import com.hospital.lis.security.AuthContextHolder;
@@ -22,10 +25,11 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-public class LisInspectionService {
+public class LisInspectionService extends AbstractMedTechExecuteTemplate {
 
     private final InspectionRequestRepository inspectionRequestRepository;
     private final InspectionResultItemRepository inspectionResultItemRepository;
+    private final LisMedTechOrderCoordinator lisMedTechOrderCoordinator;
     private final LisAiReportCache lisAiReportCache;
     private final AiBridgeLabReportClient aiBridgeLabReportClient;
 
@@ -41,22 +45,12 @@ public class LisInspectionService {
 
     @Transactional
     public Map<String, Object> execute(Long inspectionRequestId) {
-        Long executorId = AuthContextHolder.require().getEmployeeId();
-        Map<String, Object> row = inspectionRequestRepository.findByIdForUpdate(inspectionRequestId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
+        return executeOrder(inspectionRequestId);
+    }
 
-        int currentStatus = ((Number) row.get("status")).intValue();
-        if (currentStatus != InspectionRequestStatus.PAID) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费申请可执行");
-        }
-
-        inspectionRequestRepository.markExecuted(inspectionRequestId, executorId);
-        seedInstrumentItemsIfAbsent(inspectionRequestId);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("inspectionRequestId", inspectionRequestId);
-        result.put("status", InspectionRequestStatus.EXECUTED);
-        return result;
+    @Override
+    protected void onAfterExecute(Long orderId) {
+        seedInstrumentItemsIfAbsent(orderId);
     }
 
     public Map<String, Object> getResultDetail(Long inspectionRequestId) {
@@ -84,15 +78,8 @@ public class LisInspectionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
 
         int currentStatus = ((Number) locked.get("status")).intValue();
-        if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
-            if (currentStatus < InspectionRequestStatus.EXECUTED) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "报告尚未录入，无法审核");
-            }
-        } else if (currentStatus != InspectionRequestStatus.PAID
-                && currentStatus != InspectionRequestStatus.EXECUTED
-                && currentStatus != InspectionRequestStatus.RESULT_READY) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "当前状态不可录入结果");
-        }
+        boolean signAsReviewerOnly = Boolean.TRUE.equals(request.getSignAsReviewerOnly());
+        assertCanSaveResult(currentStatus, signAsReviewerOnly);
 
         Map<String, Object> context = inspectionRequestRepository.findLabReportContext(inspectionRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
@@ -107,25 +94,41 @@ public class LisInspectionService {
                 existingReporterId);
 
         String resultText = resolveResultText(request, context, items);
-        if (!Boolean.TRUE.equals(request.getSignAsReviewerOnly()) && resultText.isBlank()) {
+        if (!signAsReviewerOnly && resultText.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请生成 AI 报告或填写检验医师意见");
         }
 
-        inspectionRequestRepository.saveResult(
+        int targetStatus = resolveSaveResultTarget(currentStatus, signAsReviewerOnly, sign.pendingReview());
+        applySaveResultStatus(inspectionRequestId, currentStatus, targetStatus);
+
+        inspectionRequestRepository.saveResultContent(
                 inspectionRequestId,
                 sign.reporterId(),
                 sign.reviewerId(),
                 resultText,
-                Boolean.TRUE.equals(request.getSignAsReviewerOnly()));
+                signAsReviewerOnly);
         lisAiReportCache.evict(inspectionRequestId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("inspectionRequestId", inspectionRequestId);
-        result.put("status", sign.pendingReview()
-                ? InspectionRequestStatus.EXECUTED
-                : InspectionRequestStatus.RESULT_READY);
+        result.put("status", targetStatus);
         result.put("resultText", resultText);
         return result;
+    }
+
+    @Override
+    protected MedTechExecuteCoordinator coordinator() {
+        return lisMedTechOrderCoordinator;
+    }
+
+    @Override
+    protected Long requireExecutorId() {
+        return AuthContextHolder.require().getEmployeeId();
+    }
+
+    @Override
+    protected String orderIdResultKey() {
+        return "inspectionRequestId";
     }
 
     private Map<String, Object> enrichLabReport(Map<String, Object> context) {
@@ -154,7 +157,7 @@ public class LisInspectionService {
     }
 
     private String resolveResultText(InspectionResultRequest request, Map<String, Object> context,
-                                       List<Map<String, Object>> items) {
+                                     List<Map<String, Object>> items) {
         if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
             return context.get("resultText") != null ? String.valueOf(context.get("resultText")).trim() : "";
         }

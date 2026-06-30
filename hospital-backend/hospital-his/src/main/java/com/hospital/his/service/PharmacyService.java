@@ -4,14 +4,13 @@ import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.PrescriptionStatus;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.pharmacy.RejectPrescriptionRequest;
-import com.hospital.his.repository.DrugRepository;
+import com.hospital.his.order.state.OrderStatusCoordinator;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +28,8 @@ public class PharmacyService {
             PrescriptionStatus.REFUNDED, "已退费");
 
     private final PrescriptionRepository prescriptionRepository;
-    private final DrugRepository drugRepository;
     private final RefundService refundService;
+    private final OrderStatusCoordinator orderStatusCoordinator;
 
     public Map<String, Object> listPending(Integer status, int page, int pageSize) {
         requirePharmacist();
@@ -67,9 +66,7 @@ public class PharmacyService {
 
         refundService.refundPrescriptionBillForPharmacyReject(prescriptionId, reason, pharmacistId);
 
-        if (prescriptionRepository.markPharmacyRejected(prescriptionId, pharmacistId, reason) == 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费未发药处方可拒绝");
-        }
+        orderStatusCoordinator.pharmacyReject(prescriptionId, pharmacistId, reason);
 
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);
@@ -81,29 +78,12 @@ public class PharmacyService {
     @Transactional
     public Map<String, Object> dispense(Long prescriptionId) {
         Long pharmacistId = requirePharmacist();
-        Map<String, Object> prescription = prescriptionRepository.findByIdForUpdate(prescriptionId)
+        prescriptionRepository.findByIdForUpdate(prescriptionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处方不存在"));
 
-        if (((Number) prescription.get("status")).intValue() != PrescriptionStatus.PAID) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费处方可发药");
-        }
+        orderStatusCoordinator.dispensePrescription(prescriptionId, pharmacistId);
 
         List<Map<String, Object>> items = prescriptionRepository.findItemsByPrescriptionId(prescriptionId);
-        for (Map<String, Object> item : items) {
-            Long drugId = ((Number) item.get("drugId")).longValue();
-            BigDecimal quantity = (BigDecimal) item.get("quantity");
-            Map<String, Object> drug = drugRepository.findByIdForUpdate(drugId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "药品不存在"));
-            int stock = drug.get("stockQty") != null ? ((Number) drug.get("stockQty")).intValue() : 0;
-            if (quantity.compareTo(BigDecimal.valueOf(stock)) > 0) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST,
-                        "库存不足: " + drug.get("drugName") + "，当前库存 " + stock);
-            }
-            drugRepository.deductStock(drugId, quantity);
-        }
-
-        prescriptionRepository.markDispensed(prescriptionId, pharmacistId);
-
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);
         result.put("status", PrescriptionStatus.DISPENSED);
@@ -114,22 +94,12 @@ public class PharmacyService {
     @Transactional
     public Map<String, Object> returnDrug(Long prescriptionId) {
         requirePharmacist();
-        Map<String, Object> prescription = prescriptionRepository.findByIdForUpdate(prescriptionId)
+        prescriptionRepository.findByIdForUpdate(prescriptionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处方不存在"));
 
-        if (((Number) prescription.get("status")).intValue() != PrescriptionStatus.DISPENSED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已发药处方可退药");
-        }
+        orderStatusCoordinator.returnPrescriptionDrug(prescriptionId);
 
         List<Map<String, Object>> items = prescriptionRepository.findItemsByPrescriptionId(prescriptionId);
-        for (Map<String, Object> item : items) {
-            Long drugId = ((Number) item.get("drugId")).longValue();
-            BigDecimal quantity = (BigDecimal) item.get("quantity");
-            drugRepository.restoreStock(drugId, quantity);
-        }
-
-        prescriptionRepository.markReturned(prescriptionId);
-
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);
         result.put("status", PrescriptionStatus.RETURNED);

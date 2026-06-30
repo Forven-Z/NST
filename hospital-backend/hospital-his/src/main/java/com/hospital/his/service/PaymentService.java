@@ -3,9 +3,6 @@ package com.hospital.his.service;
 import com.hospital.common.constant.BillBizType;
 import com.hospital.common.constant.BillStatus;
 import com.hospital.common.constant.ErrorCode;
-import com.hospital.common.constant.InspectionRequestStatus;
-import com.hospital.common.constant.PrescriptionStatus;
-import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.patient.MockPaymentRequest;
 import com.hospital.his.repository.BillRepository;
@@ -13,9 +10,11 @@ import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
 import com.hospital.his.repository.PatientRepository;
-import com.hospital.his.repository.PrescriptionRepository;
+import com.hospital.his.order.handler.MedicalOrderHandlerRegistry;
 import com.hospital.his.repository.PaymentRepository;
+import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RegisterRepository;
+import com.hospital.his.visit.VisitLifecycleCoordinator;
 import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,6 +42,8 @@ public class PaymentService {
     private final PrescriptionRepository prescriptionRepository;
     private final DisposalRequestRepository disposalRequestRepository;
     private final PatientFamilyService patientFamilyService;
+    private final VisitLifecycleCoordinator visitLifecycleCoordinator;
+    private final MedicalOrderHandlerRegistry medicalOrderHandlerRegistry;
 
     @Transactional
     public Map<String, Object> mockPay(MockPaymentRequest request) {
@@ -89,7 +90,7 @@ public class PaymentService {
         long bizId = ((Number) bill.get("bizId")).longValue();
 
         if (BillBizType.REGISTER.equals(bizType)) {
-            registerRepository.updateVisitState(bizId, VisitState.REGISTERED);
+            visitLifecycleCoordinator.payRegistration(bizId);
             registerRepository.findById(bizId).ifPresent(reg -> {
                 BigDecimal registFee = (BigDecimal) reg.get("registFee");
                 BigDecimal billAmount = (BigDecimal) bill.get("amount");
@@ -101,14 +102,8 @@ public class PaymentService {
         } else if (BillBizType.MEDICAL_BOOK.equals(bizType)) {
             long patientId = ((Number) bill.get("patientId")).longValue();
             patientRepository.updateNeedMedicalBook(patientId, true);
-        } else if (BillBizType.INSPECTION.equals(bizType)) {
-            inspectionRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
-        } else if (BillBizType.CHECK.equals(bizType)) {
-            checkRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
-        } else if (BillBizType.PRESCRIPTION.equals(bizType)) {
-            prescriptionRepository.updateStatus(bizId, PrescriptionStatus.PAID);
-        } else if (BillBizType.DISPOSAL.equals(bizType)) {
-            disposalRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+        } else if (medicalOrderHandlerRegistry.handles(bizType)) {
+            medicalOrderHandlerRegistry.handler(bizType).onBillPaid(bizId);
         }
     }
 

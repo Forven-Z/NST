@@ -52,6 +52,36 @@ public class InspectionRequestRepository {
                 .update();
     }
 
+    public int updateStatusIfCurrent(Long id, int expectedFrom, int newStatus) {
+        return jdbcClient.sql("""
+                        UPDATE inspection_request SET status = :newStatus, update_time = NOW()
+                        WHERE id = :id AND delmark = 0 AND status = :expectedFrom
+                        """)
+                .param("id", id)
+                .param("expectedFrom", expectedFrom)
+                .param("newStatus", newStatus)
+                .update();
+    }
+
+    public Optional<Map<String, Object>> findByIdForUpdate(Long id) {
+        return jdbcClient.sql("""
+                        SELECT id, status, register_id, patient_id
+                        FROM inspection_request
+                        WHERE id = :id AND delmark = 0
+                        FOR UPDATE
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("id", rs.getLong("id"));
+                    row.put("status", rs.getInt("status"));
+                    row.put("registerId", rs.getLong("register_id"));
+                    row.put("patientId", rs.getLong("patient_id"));
+                    return row;
+                })
+                .optional();
+    }
+
     public Optional<Map<String, Object>> findById(Long id) {
         return jdbcClient.sql("""
                         SELECT ir.id, ir.register_id, ir.patient_id, ir.medical_technology_id, ir.doctor_id,

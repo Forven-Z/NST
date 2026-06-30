@@ -1,5 +1,6 @@
 package com.hospital.pacs.repository;
 
+import com.hospital.common.execute.MedTechOrderStatusWriter;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Repository
-public class CheckRequestRepository {
+public class CheckRequestRepository implements MedTechOrderStatusWriter {
 
     private final JdbcClient jdbcClient;
 
@@ -148,14 +149,65 @@ public class CheckRequestRepository {
     }
 
     public void markExecuted(Long id, Long executorId) {
-        jdbcClient.sql("""
+        markExecutedIfCurrent(id, com.hospital.common.constant.InspectionRequestStatus.PAID, executorId);
+    }
+
+    public int markExecutedIfCurrent(Long id, int expectedFrom, Long executorId) {
+        return jdbcClient.sql("""
                         UPDATE check_request
                         SET status = 30, executor_id = :executorId, execute_time = :now, update_time = NOW()
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("expectedFrom", expectedFrom)
+                .param("executorId", executorId)
+                .param("now", OffsetDateTime.now())
+                .update();
+    }
+
+    public int updateStatusIfCurrent(Long id, int expectedFrom, int newStatus) {
+        return jdbcClient.sql("""
+                        UPDATE check_request SET status = :newStatus, update_time = NOW()
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("expectedFrom", expectedFrom)
+                .param("newStatus", newStatus)
+                .update();
+    }
+
+    public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
+        saveResultContent(id, resultInputId, reviewerId, resultText, reviewOnly);
+    }
+
+    public void saveResultContent(Long id, Long resultInputId, Long reviewerId, String resultText,
+                                  boolean reviewOnly) {
+        if (reviewOnly) {
+            jdbcClient.sql("""
+                            UPDATE check_request
+                            SET reviewer_id = :reviewerId,
+                                result_time = :now,
+                                update_time = NOW()
+                            WHERE id = :id
+                            """)
+                    .param("id", id)
+                    .param("reviewerId", reviewerId)
+                    .param("now", OffsetDateTime.now())
+                    .update();
+            return;
+        }
+        jdbcClient.sql("""
+                        UPDATE check_request
+                        SET result_input_id = :resultInputId, reviewer_id = :reviewerId,
+                            result_time = :now,
+                            result_text = :resultText, result_attachment = NULL, update_time = NOW()
                         WHERE id = :id
                         """)
                 .param("id", id)
-                .param("executorId", executorId)
+                .param("resultInputId", resultInputId)
+                .param("reviewerId", reviewerId)
                 .param("now", OffsetDateTime.now())
+                .param("resultText", resultText)
                 .update();
     }
 
@@ -185,38 +237,5 @@ public class CheckRequestRepository {
         row.put("reviewerId", rs.getObject("reviewer_id") != null ? rs.getLong("reviewer_id") : null);
         row.put("orderingDoctorName", rs.getString("ordering_doctor_name"));
         return row;
-    }
-
-    public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
-        if (reviewOnly) {
-            jdbcClient.sql("""
-                            UPDATE check_request
-                            SET reviewer_id = :reviewerId,
-                                status = 40,
-                                result_time = :now,
-                                update_time = NOW()
-                            WHERE id = :id
-                            """)
-                    .param("id", id)
-                    .param("reviewerId", reviewerId)
-                    .param("now", OffsetDateTime.now())
-                    .update();
-            return;
-        }
-        int status = reviewerId != null ? 40 : 30;
-        jdbcClient.sql("""
-                        UPDATE check_request
-                        SET status = :status, result_input_id = :resultInputId, reviewer_id = :reviewerId,
-                            result_time = :now,
-                            result_text = :resultText, result_attachment = NULL, update_time = NOW()
-                        WHERE id = :id
-                        """)
-                .param("id", id)
-                .param("status", status)
-                .param("resultInputId", resultInputId)
-                .param("reviewerId", reviewerId)
-                .param("now", OffsetDateTime.now())
-                .param("resultText", resultText)
-                .update();
     }
 }
