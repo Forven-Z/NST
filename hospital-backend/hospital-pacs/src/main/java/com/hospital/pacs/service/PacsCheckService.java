@@ -3,12 +3,9 @@ package com.hospital.pacs.service;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
-import com.hospital.common.execute.AbstractMedTechExecuteTemplate;
-import com.hospital.common.execute.MedTechExecuteCoordinator;
 import com.hospital.common.support.CheckReportComposer;
 import com.hospital.common.support.MedTechSignSupport;
 import com.hospital.pacs.dto.CheckResultRequest;
-import com.hospital.pacs.order.PacsMedTechOrderCoordinator;
 import com.hospital.pacs.repository.CheckRequestRepository;
 import com.hospital.pacs.security.AuthContextHolder;
 import com.hospital.pacs.support.PacsAiReportCache;
@@ -17,22 +14,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class PacsCheckService extends AbstractMedTechExecuteTemplate {
+public class PacsCheckService {
 
     private final CheckRequestRepository checkRequestRepository;
     private final ImagingService imagingService;
-    private final PacsMedTechOrderCoordinator pacsMedTechOrderCoordinator;
     private final PacsAiReportCache pacsAiReportCache;
 
+    @Transactional
     public Map<String, Object> listQueue(Integer status, int page, int pageSize) {
+        autoAssignPaidRequests();
         int offset = Math.max(page - 1, 0) * pageSize;
         Integer queryStatus = status != null ? status : InspectionRequestStatus.PAID;
+        Long executorId = queueExecutorFilter();
         return Map.of(
-                "list", checkRequestRepository.findQueue(queryStatus, offset, pageSize),
+                "list", checkRequestRepository.findQueue(queryStatus, executorId, offset, pageSize),
                 "page", page,
                 "pageSize", pageSize
         );
