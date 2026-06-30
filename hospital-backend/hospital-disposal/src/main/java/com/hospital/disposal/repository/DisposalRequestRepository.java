@@ -1,5 +1,6 @@
 package com.hospital.disposal.repository;
 
+import com.hospital.common.execute.MedTechOrderStatusWriter;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Repository
-public class DisposalRequestRepository {
+public class DisposalRequestRepository implements MedTechOrderStatusWriter {
 
     private final JdbcClient jdbcClient;
 

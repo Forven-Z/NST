@@ -3,6 +3,8 @@ package com.hospital.lis.service;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.common.execute.AbstractMedTechExecuteTemplate;
+import com.hospital.common.execute.MedTechExecuteCoordinator;
 import com.hospital.common.support.LabReportComposer;
 import com.hospital.common.support.LabReportItemTemplates;
 import com.hospital.common.support.MedTechSignSupport;
@@ -23,7 +25,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-public class LisInspectionService {
+public class LisInspectionService extends AbstractMedTechExecuteTemplate {
 
     private final InspectionRequestRepository inspectionRequestRepository;
     private final InspectionResultItemRepository inspectionResultItemRepository;
@@ -43,17 +45,12 @@ public class LisInspectionService {
 
     @Transactional
     public Map<String, Object> execute(Long inspectionRequestId) {
-        Long executorId = AuthContextHolder.require().getEmployeeId();
-        inspectionRequestRepository.findByIdForUpdate(inspectionRequestId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
+        return executeOrder(inspectionRequestId);
+    }
 
-        lisMedTechOrderCoordinator.execute(inspectionRequestId, executorId);
-        seedInstrumentItemsIfAbsent(inspectionRequestId);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("inspectionRequestId", inspectionRequestId);
-        result.put("status", InspectionRequestStatus.EXECUTED);
-        return result;
+    @Override
+    protected void onAfterExecute(Long orderId) {
+        seedInstrumentItemsIfAbsent(orderId);
     }
 
     public Map<String, Object> getResultDetail(Long inspectionRequestId) {
@@ -82,8 +79,7 @@ public class LisInspectionService {
 
         int currentStatus = ((Number) locked.get("status")).intValue();
         boolean signAsReviewerOnly = Boolean.TRUE.equals(request.getSignAsReviewerOnly());
-        com.hospital.common.order.MedTechOrderSaveResultSupport.assertCanSaveResult(
-                currentStatus, signAsReviewerOnly);
+        assertCanSaveResult(currentStatus, signAsReviewerOnly);
 
         Map<String, Object> context = inspectionRequestRepository.findLabReportContext(inspectionRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
@@ -102,9 +98,8 @@ public class LisInspectionService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请生成 AI 报告或填写检验医师意见");
         }
 
-        int targetStatus = lisMedTechOrderCoordinator.resolveSaveResultTarget(
-                currentStatus, signAsReviewerOnly, sign.pendingReview());
-        lisMedTechOrderCoordinator.applySaveResultStatus(inspectionRequestId, currentStatus, targetStatus);
+        int targetStatus = resolveSaveResultTarget(currentStatus, signAsReviewerOnly, sign.pendingReview());
+        applySaveResultStatus(inspectionRequestId, currentStatus, targetStatus);
 
         inspectionRequestRepository.saveResultContent(
                 inspectionRequestId,
@@ -119,6 +114,21 @@ public class LisInspectionService {
         result.put("status", targetStatus);
         result.put("resultText", resultText);
         return result;
+    }
+
+    @Override
+    protected MedTechExecuteCoordinator coordinator() {
+        return lisMedTechOrderCoordinator;
+    }
+
+    @Override
+    protected Long requireExecutorId() {
+        return AuthContextHolder.require().getEmployeeId();
+    }
+
+    @Override
+    protected String orderIdResultKey() {
+        return "inspectionRequestId";
     }
 
     private Map<String, Object> enrichLabReport(Map<String, Object> context) {
@@ -147,7 +157,7 @@ public class LisInspectionService {
     }
 
     private String resolveResultText(InspectionResultRequest request, Map<String, Object> context,
-                                       List<Map<String, Object>> items) {
+                                     List<Map<String, Object>> items) {
         if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
             return context.get("resultText") != null ? String.valueOf(context.get("resultText")).trim() : "";
         }
