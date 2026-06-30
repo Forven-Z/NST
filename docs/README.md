@@ -22,6 +22,7 @@
 | **L3 参考** | [PROJECT_REQUIREMENTS.md](./PROJECT_REQUIREMENTS.md) | 需求、角色、答辩材料 |
 | **L3 参考** | [BUSINESS_FLOW.md](./BUSINESS_FLOW.md) | 业务流程与状态图 |
 | **L3 参考** | [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) | ADR 已定稿 |
+| **L3 参考** | [REFACTORING_DESIGN_PATTERNS.md](./REFACTORING_DESIGN_PATTERNS.md) | **HIS 设计模式重构**（ADR-018 · 就诊 State → 处方 Strategy → 医技 Template） |
 | **L4 按需** | [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md) | Windows 首次装环境 |
 | **活文档** | [PROGRESS.md](./PROGRESS.md) | 实现进度（每周更新） |
 | **SQL** | [sql/README.md](./sql/README.md) | 建表与 seed |

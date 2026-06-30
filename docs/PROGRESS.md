@@ -102,6 +102,20 @@
 
 ---
 
+## 五·一、HIS 设计模式重构（ADR-018）
+
+| 阶段 | 内容 | 状态 | 文档 |
+|------|------|------|------|
+| 1 | **①** VisitTransitions | 🟨 | [REFACTORING §4.1](./REFACTORING_DESIGN_PATTERNS.md#41-图-1--visittransitions--registervisit_state) — 代码已落地，待验收 |
+| 2 | **②** SM1 + SM2 | ⬜ | [REFACTORING §4.2～4.3](./REFACTORING_DESIGN_PATTERNS.md#42-图-2--medtechordertransitions--检验--检查--处置sm1) |
+| 3 | **③** MedicalOrderHandler + Registry | ⬜ | [REFACTORING §五](./REFACTORING_DESIGN_PATTERNS.md#五handler-设计步骤-③) |
+| 4 | **④** AbstractMedTechExecuteTemplate | ⬜ | [REFACTORING §六](./REFACTORING_DESIGN_PATTERNS.md#六template-method--医技执行步骤-④) |
+| 5 | **⑧** 拆微服务 | ⬜ | §八 + ADR-019 |
+
+> 每阶段完成后跑对应验收脚本并更新上表。
+
+---
+
 ## 六、阻塞与风险
 
 | 日期 | 描述 | 影响 | 处理 |
@@ -119,6 +133,8 @@
 | 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
 | 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |
 | 2026-06-04 | ADR-015：AI 开单 suggest + ai-draft；`TEAM_COLLABORATION` §九 六人分工 |
+| 2026-06-30 | REFACTORING v2.3：2 层叙述 + 3 表；Handler + 单模板三子类（ADR-018 同步） |
+| 2026-06-30 | REFACTORING v2.4：处方 SM2 库存联动（开立预扣、退费/退药/驳回回增、不足拒开） |
 | 2026-05-31 | 文档精简：合并 INTEGRATION/RATIONALE/TECH 至 RUNBOOK/IMPLEMENTATION/MICROSERVICES |
 | 2026-05-31 | 退号/退费/退药：患者退号、窗口退费、药师退药+退费；验收 4/4 PASS |
 | 2026-05-31 | 药房发药闭环：开处方→缴费→待发药→发药；验收 4/4 PASS |

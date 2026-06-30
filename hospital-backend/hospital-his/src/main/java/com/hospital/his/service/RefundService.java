@@ -19,6 +19,7 @@ import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
 import com.hospital.his.security.AuthContext;
 import com.hospital.his.security.AuthContextHolder;
+import com.hospital.his.visit.VisitLifecycleCoordinator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ public class RefundService {
     private final PatientRepository patientRepository;
     private final PatientFamilyService patientFamilyService;
     private final RegisterLifecycleService registerLifecycleService;
+    private final VisitLifecycleCoordinator visitLifecycleCoordinator;
 
     @Transactional
     public Map<String, Object> refundByPatient(Long billId, String reason) {
@@ -184,7 +186,7 @@ public class RefundService {
     private void updateBizAfterRefund(String bizType, Long bizId, Map<String, Object> bill) {
         switch (bizType) {
             case BillBizType.REGISTER -> {
-                registerRepository.updateVisitState(bizId, VisitState.CANCELLED);
+                visitLifecycleCoordinator.cancelRegistered(bizId);
                 registerRepository.findById(bizId).ifPresent(reg -> {
                     if (reg.get("schedulingId") != null) {
                         schedulingRepository.decrementUsedQuota(((Number) reg.get("schedulingId")).longValue());

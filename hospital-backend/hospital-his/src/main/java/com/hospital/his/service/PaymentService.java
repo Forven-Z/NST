@@ -5,7 +5,6 @@ import com.hospital.common.constant.BillStatus;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.constant.PrescriptionStatus;
-import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.patient.MockPaymentRequest;
 import com.hospital.his.repository.BillRepository;
@@ -16,6 +15,7 @@ import com.hospital.his.repository.PatientRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.PaymentRepository;
 import com.hospital.his.repository.RegisterRepository;
+import com.hospital.his.visit.VisitLifecycleCoordinator;
 import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,6 +43,7 @@ public class PaymentService {
     private final PrescriptionRepository prescriptionRepository;
     private final DisposalRequestRepository disposalRequestRepository;
     private final PatientFamilyService patientFamilyService;
+    private final VisitLifecycleCoordinator visitLifecycleCoordinator;
 
     @Transactional
     public Map<String, Object> mockPay(MockPaymentRequest request) {
@@ -89,7 +90,7 @@ public class PaymentService {
         long bizId = ((Number) bill.get("bizId")).longValue();
 
         if (BillBizType.REGISTER.equals(bizType)) {
-            registerRepository.updateVisitState(bizId, VisitState.REGISTERED);
+            visitLifecycleCoordinator.payRegistration(bizId);
             registerRepository.findById(bizId).ifPresent(reg -> {
                 BigDecimal registFee = (BigDecimal) reg.get("registFee");
                 BigDecimal billAmount = (BigDecimal) bill.get("amount");

@@ -358,7 +358,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | unit | VARCHAR(16) | Y | NULL | — | 计价/发药单位；如盒、支、瓶。 |
 | retail_price | NUMERIC(10,2) | N | — | — | 零售价【补-22】；零售单价（元）；开立处方时快照至明细，改价不影响历史处方。 |
 | manufacturer | VARCHAR(128) | Y | NULL | — | 生产厂家；药品溯源与库房管理。 |
-| stock_qty | INTEGER | Y | 0 | — | 库存数量（简化，一期单库）；当前库存数量；发药扣减、退药回增（一期简化单库）。 |
+| stock_qty | INTEGER | Y | 0 | — | 库存数量（简化，一期单库）；**开立处方时预扣**、**退费/药师驳回/退药回增**；库存不足则医生无法开立该药品。 |
 | delmark | SMALLINT | N | 0 | — | 逻辑删除标记；0 表示有效，1 表示已删除（业务列表默认不展示已删记录）。 |
 | create_time | TIMESTAMPTZ | N | NOW() | — | 记录创建时间；用于审计追溯、列表排序。 |
 | update_time | TIMESTAMPTZ | N | NOW() | — | 记录最后更新时间；业务数据变更时由系统刷新。 |
