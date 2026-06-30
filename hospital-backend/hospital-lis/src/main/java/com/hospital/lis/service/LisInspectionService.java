@@ -8,6 +8,7 @@ import com.hospital.common.support.LabReportItemTemplates;
 import com.hospital.common.support.MedTechSignSupport;
 import com.hospital.lis.client.AiBridgeLabReportClient;
 import com.hospital.lis.dto.InspectionResultRequest;
+import com.hospital.lis.order.LisMedTechOrderCoordinator;
 import com.hospital.lis.repository.InspectionRequestRepository;
 import com.hospital.lis.repository.InspectionResultItemRepository;
 import com.hospital.lis.security.AuthContextHolder;
@@ -26,6 +27,7 @@ public class LisInspectionService {
 
     private final InspectionRequestRepository inspectionRequestRepository;
     private final InspectionResultItemRepository inspectionResultItemRepository;
+    private final LisMedTechOrderCoordinator lisMedTechOrderCoordinator;
     private final LisAiReportCache lisAiReportCache;
     private final AiBridgeLabReportClient aiBridgeLabReportClient;
 
@@ -42,15 +44,10 @@ public class LisInspectionService {
     @Transactional
     public Map<String, Object> execute(Long inspectionRequestId) {
         Long executorId = AuthContextHolder.require().getEmployeeId();
-        Map<String, Object> row = inspectionRequestRepository.findByIdForUpdate(inspectionRequestId)
+        inspectionRequestRepository.findByIdForUpdate(inspectionRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
 
-        int currentStatus = ((Number) row.get("status")).intValue();
-        if (currentStatus != InspectionRequestStatus.PAID) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费申请可执行");
-        }
-
-        inspectionRequestRepository.markExecuted(inspectionRequestId, executorId);
+        lisMedTechOrderCoordinator.execute(inspectionRequestId, executorId);
         seedInstrumentItemsIfAbsent(inspectionRequestId);
 
         Map<String, Object> result = new HashMap<>();
@@ -84,15 +81,9 @@ public class LisInspectionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
 
         int currentStatus = ((Number) locked.get("status")).intValue();
-        if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
-            if (currentStatus < InspectionRequestStatus.EXECUTED) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "报告尚未录入，无法审核");
-            }
-        } else if (currentStatus != InspectionRequestStatus.PAID
-                && currentStatus != InspectionRequestStatus.EXECUTED
-                && currentStatus != InspectionRequestStatus.RESULT_READY) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "当前状态不可录入结果");
-        }
+        boolean signAsReviewerOnly = Boolean.TRUE.equals(request.getSignAsReviewerOnly());
+        com.hospital.common.order.MedTechOrderSaveResultSupport.assertCanSaveResult(
+                currentStatus, signAsReviewerOnly);
 
         Map<String, Object> context = inspectionRequestRepository.findLabReportContext(inspectionRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
@@ -107,23 +98,25 @@ public class LisInspectionService {
                 existingReporterId);
 
         String resultText = resolveResultText(request, context, items);
-        if (!Boolean.TRUE.equals(request.getSignAsReviewerOnly()) && resultText.isBlank()) {
+        if (!signAsReviewerOnly && resultText.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请生成 AI 报告或填写检验医师意见");
         }
 
-        inspectionRequestRepository.saveResult(
+        int targetStatus = lisMedTechOrderCoordinator.resolveSaveResultTarget(
+                currentStatus, signAsReviewerOnly, sign.pendingReview());
+        lisMedTechOrderCoordinator.applySaveResultStatus(inspectionRequestId, currentStatus, targetStatus);
+
+        inspectionRequestRepository.saveResultContent(
                 inspectionRequestId,
                 sign.reporterId(),
                 sign.reviewerId(),
                 resultText,
-                Boolean.TRUE.equals(request.getSignAsReviewerOnly()));
+                signAsReviewerOnly);
         lisAiReportCache.evict(inspectionRequestId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("inspectionRequestId", inspectionRequestId);
-        result.put("status", sign.pendingReview()
-                ? InspectionRequestStatus.EXECUTED
-                : InspectionRequestStatus.RESULT_READY);
+        result.put("status", targetStatus);
         result.put("resultText", resultText);
         return result;
     }

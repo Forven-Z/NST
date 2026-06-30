@@ -19,6 +19,8 @@ import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
 import com.hospital.his.security.AuthContext;
 import com.hospital.his.security.AuthContextHolder;
+import com.hospital.his.order.MedTechOrderKind;
+import com.hospital.his.order.state.OrderStatusCoordinator;
 import com.hospital.his.visit.VisitLifecycleCoordinator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,7 @@ public class RefundService {
     private final PatientFamilyService patientFamilyService;
     private final RegisterLifecycleService registerLifecycleService;
     private final VisitLifecycleCoordinator visitLifecycleCoordinator;
+    private final OrderStatusCoordinator orderStatusCoordinator;
 
     @Transactional
     public Map<String, Object> refundByPatient(Long billId, String reason) {
@@ -203,10 +206,10 @@ public class RefundService {
                 long patientId = ((Number) bill.get("patientId")).longValue();
                 patientRepository.updateNeedMedicalBook(patientId, false);
             }
-            case BillBizType.INSPECTION -> inspectionRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
-            case BillBizType.CHECK -> checkRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
-            case BillBizType.PRESCRIPTION -> prescriptionRepository.updateStatus(bizId, PrescriptionStatus.REFUNDED);
-            case BillBizType.DISPOSAL -> disposalRequestRepository.updateStatus(bizId, InspectionRequestStatus.REFUNDED);
+            case BillBizType.INSPECTION -> orderStatusCoordinator.refundMedTechOrder(MedTechOrderKind.INSPECTION, bizId);
+            case BillBizType.CHECK -> orderStatusCoordinator.refundMedTechOrder(MedTechOrderKind.CHECK, bizId);
+            case BillBizType.PRESCRIPTION -> orderStatusCoordinator.refundPrescription(bizId);
+            case BillBizType.DISPOSAL -> orderStatusCoordinator.refundMedTechOrder(MedTechOrderKind.DISPOSAL, bizId);
             default -> {
             }
         }

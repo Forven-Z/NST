@@ -116,23 +116,44 @@ public class InspectionRequestRepository {
     }
 
     public void markExecuted(Long id, Long executorId) {
-        jdbcClient.sql("""
+        markExecutedIfCurrent(id, com.hospital.common.constant.InspectionRequestStatus.PAID, executorId);
+    }
+
+    public int markExecutedIfCurrent(Long id, int expectedFrom, Long executorId) {
+        return jdbcClient.sql("""
                         UPDATE inspection_request
                         SET status = 30, executor_id = :executorId, execute_time = :now, update_time = NOW()
-                        WHERE id = :id
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
                         """)
                 .param("id", id)
+                .param("expectedFrom", expectedFrom)
                 .param("executorId", executorId)
                 .param("now", OffsetDateTime.now())
                 .update();
     }
 
+    public int updateStatusIfCurrent(Long id, int expectedFrom, int newStatus) {
+        return jdbcClient.sql("""
+                        UPDATE inspection_request SET status = :newStatus, update_time = NOW()
+                        WHERE id = :id AND status = :expectedFrom AND delmark = 0
+                        """)
+                .param("id", id)
+                .param("expectedFrom", expectedFrom)
+                .param("newStatus", newStatus)
+                .update();
+    }
+
     public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
+        saveResultContent(id, resultInputId, reviewerId, resultText, reviewOnly);
+    }
+
+    /** 仅更新结果字段；status 须已由 {@link com.hospital.lis.order.LisMedTechOrderCoordinator} 迁移。 */
+    public void saveResultContent(Long id, Long resultInputId, Long reviewerId, String resultText,
+                                  boolean reviewOnly) {
         if (reviewOnly) {
             jdbcClient.sql("""
                             UPDATE inspection_request
                             SET reviewer_id = :reviewerId,
-                                status = 40,
                                 result_time = :now,
                                 update_time = NOW()
                             WHERE id = :id
@@ -143,11 +164,9 @@ public class InspectionRequestRepository {
                     .update();
             return;
         }
-        int status = reviewerId != null ? 40 : 30;
         jdbcClient.sql("""
                         UPDATE inspection_request
-                        SET status = :status,
-                            result_input_id = :resultInputId,
+                        SET result_input_id = :resultInputId,
                             reviewer_id = :reviewerId,
                             result_time = :now,
                             result_text = :resultText,
@@ -156,7 +175,6 @@ public class InspectionRequestRepository {
                         WHERE id = :id
                         """)
                 .param("id", id)
-                .param("status", status)
                 .param("resultInputId", resultInputId)
                 .param("reviewerId", reviewerId)
                 .param("now", OffsetDateTime.now())

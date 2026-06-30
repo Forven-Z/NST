@@ -14,6 +14,7 @@ import com.hospital.common.support.MedTechSignSupport;
 
 import com.hospital.pacs.dto.CheckResultRequest;
 
+import com.hospital.pacs.order.PacsMedTechOrderCoordinator;
 import com.hospital.pacs.repository.CheckRequestRepository;
 
 import com.hospital.pacs.security.AuthContextHolder;
@@ -46,6 +47,8 @@ public class PacsCheckService {
 
     private final ImagingService imagingService;
 
+    private final PacsMedTechOrderCoordinator pacsMedTechOrderCoordinator;
+
     private final PacsAiReportCache pacsAiReportCache;
 
 
@@ -76,21 +79,11 @@ public class PacsCheckService {
 
         Long executorId = AuthContextHolder.require().getEmployeeId();
 
-        Map<String, Object> row = checkRequestRepository.findByIdForUpdate(checkRequestId)
+        checkRequestRepository.findByIdForUpdate(checkRequestId)
 
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
 
-
-
-        if (((Number) row.get("status")).intValue() != InspectionRequestStatus.PAID) {
-
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费申请可执行");
-
-        }
-
-
-
-        checkRequestRepository.markExecuted(checkRequestId, executorId);
+        pacsMedTechOrderCoordinator.execute(checkRequestId, executorId);
 
         return Map.of("checkRequestId", checkRequestId, "status", InspectionRequestStatus.EXECUTED);
 
@@ -125,22 +118,8 @@ public class PacsCheckService {
 
 
         int status = ((Number) context.get("status")).intValue();
-
-        if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
-
-            if (status < InspectionRequestStatus.EXECUTED) {
-
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "报告尚未录入，无法审核");
-
-            }
-
-        } else if (status != InspectionRequestStatus.PAID && status != InspectionRequestStatus.EXECUTED) {
-
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "当前状态不可录入结果");
-
-        }
-
-
+        boolean signAsReviewerOnly = Boolean.TRUE.equals(request.getSignAsReviewerOnly());
+        com.hospital.common.order.MedTechOrderSaveResultSupport.assertCanSaveResult(status, signAsReviewerOnly);
 
         Long existingReporterId = context.get("resultInputId") != null
 
@@ -160,15 +139,17 @@ public class PacsCheckService {
 
         String resultText = resolveResultText(request, context);
 
-        if (!Boolean.TRUE.equals(request.getSignAsReviewerOnly()) && resultText.isBlank()) {
+        if (!signAsReviewerOnly && resultText.isBlank()) {
 
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请生成 AI 报告或填写检查医师意见");
 
         }
 
+        int targetStatus = pacsMedTechOrderCoordinator.resolveSaveResultTarget(
+                status, signAsReviewerOnly, sign.pendingReview());
+        pacsMedTechOrderCoordinator.applySaveResultStatus(checkRequestId, status, targetStatus);
 
-
-        checkRequestRepository.saveResult(
+        checkRequestRepository.saveResultContent(
 
                 checkRequestId,
 
@@ -178,7 +159,7 @@ public class PacsCheckService {
 
                 resultText,
 
-                Boolean.TRUE.equals(request.getSignAsReviewerOnly()));
+                signAsReviewerOnly);
 
         pacsAiReportCache.evict(checkRequestId);
 
@@ -188,9 +169,7 @@ public class PacsCheckService {
 
         result.put("checkRequestId", checkRequestId);
 
-        result.put("status", sign.pendingReview()
-                ? InspectionRequestStatus.EXECUTED
-                : InspectionRequestStatus.RESULT_READY);
+        result.put("status", targetStatus);
         result.put("resultText", resultText);
         return result;
 

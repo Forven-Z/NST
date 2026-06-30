@@ -3,8 +3,6 @@ package com.hospital.his.service;
 import com.hospital.common.constant.BillBizType;
 import com.hospital.common.constant.BillStatus;
 import com.hospital.common.constant.ErrorCode;
-import com.hospital.common.constant.InspectionRequestStatus;
-import com.hospital.common.constant.PrescriptionStatus;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.patient.MockPaymentRequest;
 import com.hospital.his.repository.BillRepository;
@@ -12,6 +10,8 @@ import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
 import com.hospital.his.repository.PatientRepository;
+import com.hospital.his.order.MedTechOrderKind;
+import com.hospital.his.order.state.OrderStatusCoordinator;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.PaymentRepository;
 import com.hospital.his.repository.RegisterRepository;
@@ -44,6 +44,7 @@ public class PaymentService {
     private final DisposalRequestRepository disposalRequestRepository;
     private final PatientFamilyService patientFamilyService;
     private final VisitLifecycleCoordinator visitLifecycleCoordinator;
+    private final OrderStatusCoordinator orderStatusCoordinator;
 
     @Transactional
     public Map<String, Object> mockPay(MockPaymentRequest request) {
@@ -103,13 +104,13 @@ public class PaymentService {
             long patientId = ((Number) bill.get("patientId")).longValue();
             patientRepository.updateNeedMedicalBook(patientId, true);
         } else if (BillBizType.INSPECTION.equals(bizType)) {
-            inspectionRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+            orderStatusCoordinator.payMedTechOrder(MedTechOrderKind.INSPECTION, bizId);
         } else if (BillBizType.CHECK.equals(bizType)) {
-            checkRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+            orderStatusCoordinator.payMedTechOrder(MedTechOrderKind.CHECK, bizId);
         } else if (BillBizType.PRESCRIPTION.equals(bizType)) {
-            prescriptionRepository.updateStatus(bizId, PrescriptionStatus.PAID);
+            orderStatusCoordinator.payPrescription(bizId);
         } else if (BillBizType.DISPOSAL.equals(bizType)) {
-            disposalRequestRepository.updateStatus(bizId, InspectionRequestStatus.PAID);
+            orderStatusCoordinator.payMedTechOrder(MedTechOrderKind.DISPOSAL, bizId);
         }
     }
 

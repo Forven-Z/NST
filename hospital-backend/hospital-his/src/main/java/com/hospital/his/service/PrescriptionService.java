@@ -12,6 +12,7 @@ import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.DrugRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RegisterRepository;
+import com.hospital.his.order.state.OrderStatusCoordinator;
 import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class PrescriptionService {
     private final DrugRepository drugRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final BillRepository billRepository;
+    private final OrderStatusCoordinator orderStatusCoordinator;
 
     @Transactional
     public Map<String, Object> createPrescription(CreatePrescriptionRequest request) {
@@ -40,6 +42,7 @@ public class PrescriptionService {
         Long patientId = ((Number) register.get("patientId")).longValue();
 
         ItemBuildResult built = buildItemSnapshots(request.getItems());
+        orderStatusCoordinator.onPrescriptionOrdered(built.snapshots());
         long prescriptionId = prescriptionRepository.insertPrescription(
                 request.getRegisterId(), patientId, doctorId, built.totalAmount(), PrescriptionStatus.ORDERED);
         persistItems(prescriptionId, built.snapshots());
@@ -84,9 +87,7 @@ public class PrescriptionService {
         Long patientId = ((Number) prescription.get("patientId")).longValue();
         Long registerId = ((Number) prescription.get("registerId")).longValue();
 
-        if (prescriptionRepository.clearRejectFieldsAndSetOrdered(prescriptionId, totalAmount) == 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅药师驳回处方可重新提交");
-        }
+        orderStatusCoordinator.resubmitPrescription(prescriptionId, totalAmount);
 
         String billTitle = "处方费 #" + prescriptionId;
         long billId = billRepository.findByBiz(BillBizType.PRESCRIPTION, prescriptionId)
@@ -152,7 +153,7 @@ public class PrescriptionService {
         BigDecimal totalAmount = BigDecimal.ZERO;
         int sortNo = 0;
         for (CreatePrescriptionRequest.PrescriptionItemRequest item : items) {
-            Map<String, Object> drug = drugRepository.findById(item.getDrugId())
+            Map<String, Object> drug = drugRepository.findByIdForUpdate(item.getDrugId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "药品不存在: " + item.getDrugId()));
             BigDecimal unitPrice = (BigDecimal) drug.get("retailPrice");
             BigDecimal amount = unitPrice.multiply(item.getQuantity()).setScale(2, RoundingMode.HALF_UP);

@@ -14,6 +14,8 @@ import com.hospital.common.support.MedTechSignSupport;
 
 import com.hospital.disposal.dto.DisposalResultRequest;
 
+import com.hospital.disposal.order.DisposalMedTechOrderCoordinator;
+
 import com.hospital.disposal.repository.DisposalRequestRepository;
 
 import com.hospital.disposal.security.AuthContextHolder;
@@ -41,6 +43,8 @@ public class DisposalExecuteService {
 
 
     private final DisposalRequestRepository disposalRequestRepository;
+
+    private final DisposalMedTechOrderCoordinator disposalMedTechOrderCoordinator;
 
 
 
@@ -70,23 +74,11 @@ public class DisposalExecuteService {
 
         Long executorId = AuthContextHolder.require().getEmployeeId();
 
-        Map<String, Object> row = disposalRequestRepository.findByIdForUpdate(disposalRequestId)
+        disposalRequestRepository.findByIdForUpdate(disposalRequestId)
 
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处置申请不存在"));
 
-
-
-        int currentStatus = ((Number) row.get("status")).intValue();
-
-        if (currentStatus != InspectionRequestStatus.PAID) {
-
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费申请可执行");
-
-        }
-
-
-
-        disposalRequestRepository.markExecuted(disposalRequestId, executorId);
+        disposalMedTechOrderCoordinator.execute(disposalRequestId, executorId);
 
 
 
@@ -129,24 +121,9 @@ public class DisposalExecuteService {
 
 
         int currentStatus = ((Number) locked.get("status")).intValue();
-
-        if (Boolean.TRUE.equals(request.getSignAsReviewerOnly())) {
-
-            if (currentStatus < InspectionRequestStatus.EXECUTED) {
-
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "记录尚未录入，无法审核");
-
-            }
-
-        } else if (currentStatus != InspectionRequestStatus.PAID
-
-                && currentStatus != InspectionRequestStatus.EXECUTED) {
-
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "当前状态不可录入结果");
-
-        }
-
-
+        boolean signAsReviewerOnly = Boolean.TRUE.equals(request.getSignAsReviewerOnly());
+        com.hospital.common.order.MedTechOrderSaveResultSupport.assertCanSaveResult(
+                currentStatus, signAsReviewerOnly);
 
         Map<String, Object> context = disposalRequestRepository.findDisposalRecordContext(disposalRequestId)
 
@@ -172,15 +149,17 @@ public class DisposalExecuteService {
 
         String resultText = resolveResultText(request, context);
 
-        if (!Boolean.TRUE.equals(request.getSignAsReviewerOnly()) && resultText.isBlank()) {
+        if (!signAsReviewerOnly && resultText.isBlank()) {
 
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请填写处置过程或观察与结果");
 
         }
 
+        int targetStatus = disposalMedTechOrderCoordinator.resolveSaveResultTarget(
+                currentStatus, signAsReviewerOnly, sign.pendingReview());
+        disposalMedTechOrderCoordinator.applySaveResultStatus(disposalRequestId, currentStatus, targetStatus);
 
-
-        disposalRequestRepository.saveResult(
+        disposalRequestRepository.saveResultContent(
 
                 disposalRequestId,
 
@@ -190,7 +169,7 @@ public class DisposalExecuteService {
 
                 resultText,
 
-                Boolean.TRUE.equals(request.getSignAsReviewerOnly()));
+                signAsReviewerOnly);
 
 
 
@@ -198,9 +177,7 @@ public class DisposalExecuteService {
 
         result.put("disposalRequestId", disposalRequestId);
 
-        result.put("status", sign.pendingReview()
-                ? InspectionRequestStatus.EXECUTED
-                : InspectionRequestStatus.RESULT_READY);
+        result.put("status", targetStatus);
 
         result.put("resultText", resultText);
 
