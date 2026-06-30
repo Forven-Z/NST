@@ -1,7 +1,8 @@
 # CT 金属伪影 CNN — 集成说明与变更清单
 
 > **负责人**：wsh（CNN / hospital-ai）  
-> **版本**：v1.1 | 2026-06-15  
+> **版本**：v1.2 | 2026-06-04  
+> **状态**：头部 + 肺部 CNN 已合并 main；`taskType` 三态已落地（肿瘤仍为 STUB）
 > **依据**：`PROJECT_REQUIREMENTS.md` §0.1.5、`API.md` §六/§十一、`MICROSERVICES.md` §2.6
 
 ---
@@ -209,16 +210,16 @@ hospital-ai 内网（pacs 调用）：
 | 训练工程 | `6.3/BrainCT` | `6.3/BrainCT-Lung`（Dice ≈ 0.87） |
 | 前端 | 同一 `ImagingAiView.vue` + `MprViewer.vue` | 同上；标题按 `itemName` 显示「肺部 CT 伪影检测」 |
 | 无权重时 | hospital-ai **无法启动**（缺 `best.pth`） | 仅肺部任务 **STUB 失败**，头部不受影响 |
+| 环境变量（可选） | `MODEL_WEIGHT_PATH=model/weights/best.pth` | `LUNG_MODEL_WEIGHT_PATH=model/weights/lung_artifact_best.pth` |
 
 **肺部验收**（在 §六 基础上增加）：
 
 1. 执行 `seed-demo-check.sql` 后，队列可见 **#62002 肺部 CT**
 2. 从 **62002 所在行** 进入影像 AI 工作台（勿用 62001）
-3. 可上传 **NIfTI**（`ct_mask_gui/out/volumes/*.nii`）或 DICOM 文件夹
+3. 可上传 **NIfTI** 或 DICOM 文件夹
 4. `GET /v1/health` → `lungModelLoaded: true`
 5. 62001 头部 CT 回归不变
-
-实现细节另见：`docs/LUNG_INTEGRATION_TEAM_CHANGELOG.md`（仅 wsh 侧增量说明）。
+6. 工作台**不应**再出现 CNN 生成的文字报告块（文字报告由 LLM 组负责）
 
 ---
 
@@ -237,7 +238,7 @@ hospital-ai 内网（pacs 调用）：
 ### 11.2 拉代码后（每人执行一次）
 
 ```powershell
-cd NST-work
+cd <仓库根目录>
 
 # 1. Python 环境与 GPU torch（若尚未安装）
 powershell -ExecutionPolicy Bypass -File scripts\setup-hospital-ai.ps1
@@ -274,3 +275,66 @@ GET http://127.0.0.1:8000/v1/health
 1. 训练产出覆盖 `shared/model-weights/` 中对应 `.pth`
 2. `git commit` + `push`
 3. 组员 `git pull` 后重新运行 `scripts/install-model-weights.ps1` 并重启 hospital-ai
+
+---
+
+## 十二、taskType 与 modality 对照（已实现）
+
+| 检查项目示例（`item_name`） | `imaging_study.modality` | Python `taskType` | 模型状态 |
+|----------------------------|--------------------------|-------------------|----------|
+| 头部 CT | `CT_HEAD` | `HEAD_CT_ARTIFACT` | ✅ `best.pth` |
+| 肺部 CT | `CT_LUNG` | `LUNG_CT_ARTIFACT` | ✅ `lung_artifact_best.pth`（Dice ≈ 0.87） |
+| 肿瘤 CT 分割 | `TUMOR_SEG` | `TUMOR_SEG` | ⬜ STUB：明确失败 |
+| 其他含 CT | `CT_HEAD` | `HEAD_CT_ARTIFACT` | 默认兼容 demo |
+
+**推断规则**（`ImagingService.java`，前后端一致）：
+
+1. `itemName` / `bodyPart` / `purpose` 含 **胸、肺、CHEST、LUNG** → `CT_LUNG`
+2. 含 **肿瘤、病灶、肿物** → `TUMOR_SEG`
+3. 含 **头、颅、脑、HEAD** 或无法判断 → `CT_HEAD`
+
+演示检查单：`seed-demo-check.sql` 含 **#62001 头部**、**#62002 肺部**、**#62006 肿瘤**（肿瘤用于 STUB 验收）。可选 `seed-demo-check-extra.sql` 补充 #62003–#62005。
+
+**设计约束**（ADR 与实现一致）：不新建表、不改 `schema.sql`；任务类型写入已有 `imaging_study.modality` 与 `report_json`。
+
+---
+
+## 十三、PACS 队列与影像工作台（前端行为）
+
+| 场景 | 行为 |
+|------|------|
+| CHECK + **status=20** | 操作列**只保留「开始执行」**；先 execute（20→30）再跳转 `/pacs/imaging-ai` |
+| CHECK + **status=30** | 「影像 AI 工作台」+ 队列内「录入结果」 |
+| CHECK + **status=40** | **「查看影像」**（`view=1` 查看模式，自动加载 MinIO 预览） |
+| 工作台（非查看） | 右上角 **「录入结果」**，与队列弹窗相同 |
+| 查看模式 | 无「录入结果」按钮 |
+| 肺部标题 | 按 `itemName` 显示 **「肺部 CT 伪影检测」** |
+
+相关前端：`TechQueuePanel.vue`、`ImagingAiView.vue`、`MprViewer.vue`。
+
+---
+
+## 十四、附录：肺部数据与训练里程碑（答辩留痕）
+
+> 训练工程不在 Git 仓库内；集成与权重已随 main 交付。
+
+| 阶段 | 内容 | 状态 |
+|------|------|------|
+| 集成 | taskType 分发、`LUNG_CT_ARTIFACT` 链路 | ✅ 已合并 main |
+| 数据 | LIDC-IDRI 等公开肺部 CT + 自标金属伪影掩码 | ✅ 已完成（训练侧 `6.3/BrainCT-Lung`） |
+| 训练 | Attention UNet 2D，Dice ≈ 0.87 | ✅ `lung_artifact_best.pth` |
+| 上线 | #62002 可出掩码与三视图 | ✅ 联调通过 |
+
+**答辩表述**：临床侧无现成肺部伪影标注库时，采用 LIDC-IDRI 公开肺部 CT，按与头部相同的 HU 规范自标注；集成 taskType 已通，无权重时 STUB 明确失败、不会误用头部权重。
+
+**与肿瘤分割**：肿瘤需病灶掩码，标注难度更高；当前 `TUMOR_SEG` 仅 STUB，建议答辩中单独说明为 P4 扩展项。
+
+---
+
+## 十五、修订记录
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| v1.0 | 2026-06 | 6.8 迁入 NST；头部 CT 正式链路 |
+| v1.1 | 2026-06-15 | 肺部扩展 §十、权重 §十一 |
+| v1.2 | 2026-06-04 | 肺部合并 main；合并 `LUNG_*`、`AI_TASK_TYPE_MINIMAL` 至本文；删除过程文档，留痕见 §十四 |
