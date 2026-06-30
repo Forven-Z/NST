@@ -325,7 +325,7 @@ export const MOCK_ALL_DEPARTMENTS = [...MOCK_OUTPATIENT_DEPTS, ...MOCK_TECH_DEPA
 /** 医技项目（与 seed 一致） */
 export const MOCK_MEDICAL_TECHNOLOGIES = [
   { id: 1, itemCode: 'CHK-CT-HEAD', itemName: '头部 CT', techType: 'CHECK', price: 280, deptId: 2 },
-  { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '胸部 CT', techType: 'CHECK', price: 320, deptId: 2 },
+  { id: 7, itemCode: 'CHK-CT-LUNG', itemName: '肺部 CT', techType: 'CHECK', price: 320, deptId: 2 },
   { id: 8, itemCode: 'CHK-TUMOR-SEG', itemName: '肿瘤 CT 分割', techType: 'CHECK', price: 450, deptId: 2 },
   { id: 2, itemCode: 'INS-BLOOD', itemName: '血常规', techType: 'INSPECTION', price: 35, deptId: 3 },
   { id: 3, itemCode: 'INS-GLU', itemName: '空腹血糖', techType: 'INSPECTION', price: 12, deptId: 3 },

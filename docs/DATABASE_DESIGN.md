@@ -575,7 +575,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | doctor_id | BIGINT | N | — | — | FK → employee(id)；开立医生；门诊医生确认提交后写入，用于审计。 |
 | item_price | NUMERIC(10,2) | N | — | — | 开立时单价快照；开立时项目单价快照（元）；防止字典调价影响已开单据。 |
 | purpose | VARCHAR(256) | Y | NULL | — | 检查目的；检查/检验/处置目的；指导医技科室执行。 |
-| body_part | VARCHAR(64) | Y | NULL | — | 检查部位；如头部、胸部（检查类常用）。 |
+| body_part | VARCHAR(64) | Y | NULL | — | 检查部位；如头部、肺部（检查类常用）。 |
 | remark | VARCHAR(256) | Y | NULL | — | 医嘱备注；补充说明。 |
 | status | SMALLINT | N | 10 | IX | 医嘱执行状态；10 已开立→20 已缴费→30 执行完成→40 已出结果，见 §1.5。 |
 | order_time | TIMESTAMPTZ | N | NOW() | — | 医嘱开立时间；医生确认提交后 status=已开立。 |

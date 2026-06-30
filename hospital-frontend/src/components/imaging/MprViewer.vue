@@ -9,7 +9,7 @@
     </div>
 
     <p v-if="secondaryLoading && showViews" class="load-sub banner">
-      后台加载冠状 / 矢状（仅 CT）；点击「叠加 AI 掩码」后三视图均显示蓝色伪影
+      {{ overlayBannerText }}
     </p>
 
     <div class="mpr-content" :class="{ visible: showViews }">
@@ -89,7 +89,7 @@
       <div class="mpr-row bottom">
         <div class="view-cell wide">
           <div class="view-head">
-            <span class="view-title">掩码三维表面</span>
+            <span class="view-title">{{ mask3dPanelTitle }}</span>
             <span class="view-sub">方位立方体 · 拖动旋转</span>
             <button
               v-if="maskUrl && !render3dReady"
@@ -98,7 +98,7 @@
               :disabled="render3dLoading"
               @click="loadRender3d"
             >
-              {{ render3dLoading ? '构建中…' : '加载三维表面' }}
+              {{ render3dLoading ? '构建中…' : mask3dLoadLabel }}
             </button>
             <button
               v-if="maskUrl && render3dReady"
@@ -115,8 +115,8 @@
               class="view-canvas short"
               :class="{ 'canvas-hidden': maskUrl && !render3dReady && !render3dLoading }"
             ></canvas>
-            <p v-if="!maskUrl" class="panel-tip">生成掩码后显示三维预览</p>
-            <p v-else-if="!render3dReady && !render3dLoading" class="canvas-placeholder">
+            <p v-if="!maskUrl" class="panel-tip overlay-placeholder">{{ emptyMask3dPanelText }}</p>
+            <p v-else-if="!render3dReady && !render3dLoading" class="canvas-placeholder overlay-placeholder">
               默认不自动构建三维，点击上方按钮按需加载
             </p>
           </div>
@@ -141,9 +141,9 @@
               class="view-canvas short"
               :class="{ 'canvas-hidden': maskUrl && !maskSliceReady && !maskSliceLoading }"
             ></canvas>
-            <p v-if="!maskUrl" class="panel-tip">生成掩码后显示伪影分割结果</p>
+            <p v-if="!maskUrl" class="panel-tip">{{ emptyMaskPanelText }}</p>
             <p v-else-if="!maskSliceReady && !maskSliceLoading" class="canvas-placeholder">
-              可在工具栏点击「叠加 AI 掩码」后，再按需加载独立预览
+              可在工具栏点击「{{ overlayButtonLabel }}」后，再按需加载独立预览
             </p>
           </div>
         </div>
@@ -167,7 +167,7 @@
             :disabled="maskOverlayLoading"
             @click="loadMaskOverlay"
           >
-            {{ maskOverlayLoading ? '掩码叠加中…' : '叠加 AI 掩码' }}
+            {{ maskOverlayLoading ? overlayLoadingLabel : overlayButtonLabel }}
           </button>
           <span v-if="maskOverlayReady && maskHint" class="mask-hint">{{ maskHint }}</span>
         </div>
@@ -248,7 +248,45 @@ const props = defineProps({
   ctFilename: { type: String, default: "CT.nii.gz" },
   maskFilename: { type: String, default: "mask.nii.gz" },
   maskSlices: { type: Array, default: () => [] },
+  /** artifact = 头/肺伪影；tumor = 肿瘤病灶分割 */
+  maskMode: { type: String, default: "artifact" },
 });
+
+const isTumorMask = computed(() => props.maskMode === "tumor");
+
+const overlayButtonLabel = computed(() =>
+  isTumorMask.value ? "叠加 AI 分割掩码" : "叠加 AI 掩码",
+);
+
+const overlayLoadingLabel = computed(() =>
+  isTumorMask.value ? "分割掩码叠加中…" : "掩码叠加中…",
+);
+
+const overlayBannerText = computed(() =>
+  isTumorMask.value
+    ? "后台加载冠状 / 矢状（仅 CT）；点击「叠加 AI 分割掩码」后三视图显示蓝色肿瘤/病灶区域"
+    : "后台加载冠状 / 矢状（仅 CT）；点击「叠加 AI 掩码」后三视图均显示蓝色伪影",
+);
+
+const emptyMaskPanelText = computed(() =>
+  isTumorMask.value
+    ? "生成分割掩码后显示肿瘤/病灶区域预览"
+    : "生成掩码后显示伪影分割结果",
+);
+
+const mask3dPanelTitle = computed(() =>
+  isTumorMask.value ? "3D 病灶模型" : "3D 伪影模型",
+);
+
+const mask3dLoadLabel = computed(() =>
+  isTumorMask.value ? "加载 3D 分割模型" : "加载 3D 伪影模型",
+);
+
+const emptyMask3dPanelText = computed(() =>
+  isTumorMask.value
+    ? "AI 分割完成后可加载半透明 3D 病灶模型"
+    : "AI 检测完成后可加载半透明 3D 伪影模型",
+);
 
 const axialRef = ref(null);
 const coronalRef = ref(null);
@@ -289,6 +327,7 @@ let pendingMaskUrl = "";
 let pendingCtUrl = "";
 let nvExpand = null;
 let expandLoadedKey = "";
+let opacityRaf = 0;
 
 const expandedPlane = ref(null);
 const expandCanvasRef = ref(null);
@@ -332,17 +371,25 @@ const expandSliderValue = computed({
 const DEFAULT_AZIMUTH = 0;
 const DEFAULT_ELEVATION = -15;
 
-const maskSubtitle = computed(() =>
-  props.maskUrl ? "轴位掩码切片（蓝色）" : "— / —",
-);
+const maskSubtitle = computed(() => {
+  if (!props.maskUrl) return "— / —";
+  return isTumorMask.value
+    ? "轴位分割掩码（蓝色为病灶）"
+    : "轴位掩码切片（蓝色为伪影）";
+});
 
 const maskHint = computed(() => {
   const slices = props.maskSlices || [];
   if (!props.maskUrl) return "";
-  if (!slices.length) return "AI 未检出掩码体素";
+  if (!slices.length) {
+    return isTumorMask.value
+      ? "AI 未检出肿瘤/病灶区域"
+      : "AI 未检出掩码体素";
+  }
   const labels = slices.slice(0, 6).map((z) => z + 1);
   const suffix = slices.length > 6 ? ` 等共 ${slices.length} 层` : "";
-  return `掩码在第 ${labels.join("、")} 层${suffix}`;
+  const noun = isTumorMask.value ? "病灶分割" : "掩码";
+  return `${noun}在第 ${labels.join("、")} 层${suffix}`;
 });
 
 const unifiedMax = computed(() => {
@@ -351,7 +398,7 @@ const unifiedMax = computed(() => {
   return Math.min(x, y, z) - 1;
 });
 
-const mprViewers = () => [nvAxial, nvCoronal, nvSagittal];
+const mprViewers = () => [nvAxial, nvCoronal, nvSagittal].filter((nv) => nv?.gl);
 
 function makeNv() {
   return new Niivue({
@@ -479,6 +526,16 @@ function maskVolumeConfig(maskUrl, opacity = 1) {
   };
 }
 
+function releaseGlContext(nv) {
+  if (!nv?.gl) return;
+  try {
+    nv.gl.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch (_) {
+    /* ignore */
+  }
+  nv.gl = null;
+}
+
 function configureBinaryMaskVolume(vol) {
   if (!vol) return;
   const gMin = Number.isFinite(vol.global_min) ? vol.global_min : 0;
@@ -502,6 +559,33 @@ function applyMaskOnlySettings(nv) {
   configureBinaryMaskVolume(nv?.volumes?.[0]);
   if (typeof nv?.updateGLVolume === "function") {
     nv.updateGLVolume();
+  }
+}
+
+async function refreshMprDraw() {
+  for (const nv of mprViewers()) {
+    if (nv?.volumes?.length) {
+      if (typeof nv.resizeListener === "function") nv.resizeListener();
+      else nv.drawScene();
+    }
+  }
+}
+
+function applyOverlayOpacityOnly() {
+  for (const nv of mprViewers()) {
+    if (!nv?.volumes?.length || nv.volumes.length < 2) continue;
+    nv.setOpacity(0, 1);
+    nv.setOpacity(1, maskOpacity.value);
+    nv.drawScene();
+  }
+  if (
+    nvExpand?.volumes?.length >= 2 &&
+    expandedPlane.value &&
+    displayMode.value === "overlay"
+  ) {
+    nvExpand.setOpacity(0, 1);
+    nvExpand.setOpacity(1, maskOpacity.value);
+    nvExpand.drawScene();
   }
 }
 
@@ -530,13 +614,16 @@ function applyDisplayMode() {
 
 function onOpacityInput(e) {
   maskOpacity.value = Number(e.target.value) / 100;
-  if (displayMode.value === "overlay") {
-    applyDisplayMode();
-  }
+  if (displayMode.value !== "overlay") return;
+  if (opacityRaf) cancelAnimationFrame(opacityRaf);
+  opacityRaf = requestAnimationFrame(() => {
+    opacityRaf = 0;
+    applyOverlayOpacityOnly();
+  });
 }
 
 function reset3dView() {
-  if (!nvRender) return;
+  if (!nvRender?.gl) return;
   nvRender.setRenderAzimuthElevation(DEFAULT_AZIMUTH, DEFAULT_ELEVATION);
   nvRender.drawScene();
 }
@@ -618,17 +705,45 @@ async function attachAll() {
   await nvAxial.attachToCanvas(axialRef.value);
   await nvCoronal.attachToCanvas(coronalRef.value);
   await nvSagittal.attachToCanvas(sagittalRef.value);
-  await nvRender.attachToCanvas(renderRef.value);
-  await nvMask.attachToCanvas(maskRef.value);
 
   nvAxial.setSliceType(nvAxial.sliceTypeAxial);
   nvCoronal.setSliceType(nvCoronal.sliceTypeCoronal);
   nvSagittal.setSliceType(nvSagittal.sliceTypeSagittal);
-  nvRender.setSliceType(nvRender.sliceTypeRender);
-  nvMask.setSliceType(nvMask.sliceTypeAxial);
+
+  try {
+    await nvRender.attachToCanvas(renderRef.value);
+    nvRender.setSliceType(nvRender.sliceTypeRender);
+    reset3dView();
+  } catch (err) {
+    console.warn("3D 画布 WebGL 未就绪", err);
+  }
+
+  try {
+    await nvMask.attachToCanvas(maskRef.value);
+    nvMask.setSliceType(nvMask.sliceTypeAxial);
+  } catch (err) {
+    console.warn("掩码预览 WebGL 未就绪", err);
+  }
 
   [nvAxial, nvCoronal, nvSagittal].forEach(hookLocationSync);
-  reset3dView();
+}
+
+async function ensureMprAttached() {
+  if (!nvAxial?.gl && axialRef.value) {
+    await nvAxial.attachToCanvas(axialRef.value);
+    nvAxial.setSliceType(nvAxial.sliceTypeAxial);
+    hookLocationSync(nvAxial);
+  }
+  if (!nvCoronal?.gl && coronalRef.value) {
+    await nvCoronal.attachToCanvas(coronalRef.value);
+    nvCoronal.setSliceType(nvCoronal.sliceTypeCoronal);
+    hookLocationSync(nvCoronal);
+  }
+  if (!nvSagittal?.gl && sagittalRef.value) {
+    await nvSagittal.attachToCanvas(sagittalRef.value);
+    nvSagittal.setSliceType(nvSagittal.sliceTypeSagittal);
+    hookLocationSync(nvSagittal);
+  }
 }
 
 function initSliceState() {
@@ -699,7 +814,9 @@ async function loadMaskOverlay() {
     return;
   }
   maskOverlayLoading.value = true;
-  loadStage.value = "叠加 AI 掩码到三视图（请稍候）…";
+  loadStage.value = isTumorMask.value
+    ? "叠加 AI 分割掩码到三视图（请稍候）…"
+    : "叠加 AI 掩码到三视图（请稍候）…";
   expandLoadedKey = "";
   try {
     await ensureVolumeUrl(pendingMaskUrl, "掩码");
@@ -805,6 +922,7 @@ function closeExpandedView() {
       syncing = false;
     }
   }
+  releaseGlContext(nvExpand);
   expandedPlane.value = null;
   nvExpand = null;
   expandLoadedKey = "";
@@ -813,12 +931,21 @@ function closeExpandedView() {
 async function loadMaskSlicePreview() {
   if (!pendingMaskUrl || maskSliceLoading.value || maskSliceReady.value) return;
   maskSliceLoading.value = true;
+  error.value = "";
   try {
+    if (!nvMask?.gl && maskRef.value) {
+      await nvMask.attachToCanvas(maskRef.value);
+      nvMask.setSliceType(nvMask.sliceTypeAxial);
+    }
+    if (!nvMask?.gl) {
+      throw new Error("WebGL 上下文不可用，请刷新页面后重试");
+    }
     await deferPause(100);
     await nvMask.loadVolumes([maskVolumeConfig(pendingMaskUrl, 1)]);
     applyMaskOnlySettings(nvMask);
     nvMask.drawScene();
     maskSliceReady.value = true;
+    applyCrosshair();
   } catch (err) {
     console.error(err);
     error.value = `掩码预览加载失败: ${err.message || err}`;
@@ -831,7 +958,15 @@ async function loadRender3d() {
   if (!pendingMaskUrl || render3dLoading.value || render3dReady.value) return;
   render3dLoading.value = true;
   loadStage.value = "构建三维表面…";
+  error.value = "";
   try {
+    if (!nvRender?.gl && renderRef.value) {
+      await nvRender.attachToCanvas(renderRef.value);
+      nvRender.setSliceType(nvRender.sliceTypeRender);
+    }
+    if (!nvRender?.gl) {
+      throw new Error("WebGL 上下文不可用，请刷新页面并勿打开放大视图");
+    }
     await deferPause(50);
     await nvRender.loadVolumes([maskVolumeConfig(pendingMaskUrl, 0.85)]);
     applyMaskOnlySettings(nvRender);
@@ -854,7 +989,6 @@ async function loadVolumes(ctUrl, maskUrl) {
   pendingMaskUrl = maskUrl || "";
   expandLoadedKey = "";
   expandedPlane.value = null;
-  render3dReady.value = false;
   render3dLoading.value = false;
   maskSliceReady.value = false;
   maskSliceLoading.value = false;
@@ -872,6 +1006,8 @@ async function loadVolumes(ctUrl, maskUrl) {
     await ensureVolumeUrl(ctUrl, "CT 预览");
     if (isAborted(seq)) return;
 
+    await ensureMprAttached();
+
     loadStage.value = "加载 CT 轴位（仅灰度，较快）…";
     loadProgress.value = 25;
     await nvAxial.loadVolumes(ctVolumes(ctUrl));
@@ -887,7 +1023,9 @@ async function loadVolumes(ctUrl, maskUrl) {
     loading.value = false;
     loadProgress.value = 55;
     loadStage.value = maskUrl
-      ? "CT 已显示；掩码需点击「叠加 AI 掩码」（避免页面卡死）"
+      ? (isTumorMask.value
+        ? "CT 已显示；分割掩码需点击「叠加 AI 分割掩码」（避免页面卡死）"
+        : "CT 已显示；掩码需点击「叠加 AI 掩码」（避免页面卡死）")
       : "轴位已就绪，后台加载其余视图…";
 
     loadSecondaryViews(seq, ctUrl);
@@ -905,7 +1043,13 @@ onMounted(async () => {
   nvSagittal = makeNv();
   nvRender = makeNv3d();
   nvMask = makeNv();
-  await attachAll();
+  try {
+    await attachAll();
+  } catch (err) {
+    console.error(err);
+    error.value = `影像组件初始化失败: ${err.message || err}`;
+    return;
+  }
   if (props.ctUrl) {
     await loadVolumes(props.ctUrl, props.maskUrl || "");
   }
@@ -923,6 +1067,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  if (opacityRaf) cancelAnimationFrame(opacityRaf);
   nvAxial = nvCoronal = nvSagittal = nvRender = nvMask = nvExpand = null;
 });
 </script>
@@ -1148,6 +1293,12 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 12px;
   color: #8aa0b4;
+}
+
+.overlay-placeholder {
+  z-index: 2;
+  background: rgba(10, 14, 18, 0.88);
+  pointer-events: none;
 }
 
 .slider-row {

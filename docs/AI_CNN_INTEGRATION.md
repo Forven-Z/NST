@@ -196,7 +196,7 @@ hospital-ai 内网（pacs 调用）：
 - `itemName` / `purpose` / `bodyPart` 含「胸、肺、CHEST、LUNG」→ `CT_LUNG` → `LUNG_CT_ARTIFACT` → `lung_artifact_best.pth`
 - 含「头、颅、脑、HEAD」或默认 CT → `CT_HEAD` → `HEAD_CT_ARTIFACT` → `best.pth`
 
-演示数据：`docs/sql/seed-demo-check.sql` 中 **#62001 头部 CT**、**#62002 胸部 CT**（同一患者两条申请，用于联调）。
+演示数据：`docs/sql/seed-demo-check.sql` 中 **#62001 头部 CT**、**#62002 肺部 CT**（同一患者两条申请，用于联调）。
 
 ---
 
@@ -208,11 +208,11 @@ hospital-ai 内网（pacs 调用）：
 | 权重 | `best.pth` | `lung_artifact_best.pth` |
 | 训练工程 | `6.3/BrainCT` | `6.3/BrainCT-Lung`（Dice ≈ 0.87） |
 | 前端 | 同一 `ImagingAiView.vue` + `MprViewer.vue` | 同上；标题按 `itemName` 显示「肺部 CT 伪影检测」 |
-| 无权重时 | hospital-ai **无法启动**（缺 `best.pth`） | 仅胸部任务 **STUB 失败**，头部不受影响 |
+| 无权重时 | hospital-ai **无法启动**（缺 `best.pth`） | 仅肺部任务 **STUB 失败**，头部不受影响 |
 
 **肺部验收**（在 §六 基础上增加）：
 
-1. 执行 `seed-demo-check.sql` 后，队列可见 **#62002 胸部 CT**
+1. 执行 `seed-demo-check.sql` 后，队列可见 **#62002 肺部 CT**
 2. 从 **62002 所在行** 进入影像 AI 工作台（勿用 62001）
 3. 可上传 **NIfTI**（`ct_mask_gui/out/volumes/*.nii`）或 DICOM 文件夹
 4. `GET /v1/health` → `lungModelLoaded: true`
@@ -267,7 +267,7 @@ GET http://127.0.0.1:8000/v1/health
 }
 ```
 
-缺 `best.pth` → 服务启动失败。缺 `lung_artifact_best.pth` → 仅 62002 胸部 CT 报 STUB，62001 仍可用。
+缺 `best.pth` → 服务启动失败。缺 `lung_artifact_best.pth` → 仅 62002 肺部 CT 报 STUB，62001 仍可用。
 
 ### 11.4 权重更新流程（组长 wsh）
 

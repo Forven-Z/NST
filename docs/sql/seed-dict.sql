@@ -82,7 +82,7 @@ ON CONFLICT (disease_code) DO NOTHING;
 -- 医技项目（P2/P3 联调预置）
 INSERT INTO medical_technology (item_code, item_name, tech_type, price, dept_id) VALUES
     ('CHK-CT-HEAD', '头部 CT', 'CHECK', 280.00, 2),
-    ('CHK-CT-LUNG', '胸部 CT', 'CHECK', 320.00, 2),
+    ('CHK-CT-LUNG', '肺部 CT', 'CHECK', 320.00, 2),
     ('CHK-TUMOR-SEG', '肿瘤 CT 分割', 'CHECK', 450.00, 2),
     ('INS-BLOOD', '血常规', 'INSPECTION', 35.00, 3),
     ('DIS-WASH', '洗胃', 'DISPOSAL', 120.00, 1)

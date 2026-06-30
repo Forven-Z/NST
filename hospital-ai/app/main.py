@@ -6,11 +6,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
-from app.inference.task_types import HEAD_CT_ARTIFACT, LUNG_CT_ARTIFACT
+from app.inference.task_types import HEAD_CT_ARTIFACT, LUNG_CT_ARTIFACT, TUMOR_SEG
 from app.jobs import (
     STATUS_FAILED,
     STATUS_SUCCEEDED,
     _lung_weight_ready,
+    _tumor_weight_ready,
     get_infer,
     job_store,
     submit_job,
@@ -37,11 +38,22 @@ class CreateJobRequest(BaseModel):
 def warmup_model():
     try:
         get_infer(HEAD_CT_ARTIFACT)
+        loaded = ["头部"]
         if _lung_weight_ready():
             get_infer(LUNG_CT_ARTIFACT)
-            print("✅ hospital-ai 头部 + 肺部模型预热完成")
-        else:
-            print("✅ hospital-ai 头部模型预热完成（肺部权重未部署，LUNG 任务将 STUB）")
+            loaded.append("肺部")
+        if _tumor_weight_ready():
+            get_infer(TUMOR_SEG)
+            loaded.append("肿瘤")
+        missing = []
+        if not _lung_weight_ready():
+            missing.append("肺部")
+        if not _tumor_weight_ready():
+            missing.append("肿瘤")
+        msg = f"✅ hospital-ai {' + '.join(loaded)}模型预热完成"
+        if missing:
+            msg += f"（{'/'.join(missing)}权重未部署，对应任务将 STUB）"
+        print(msg)
     except Exception as exc:
         print(f"❌ hospital-ai 模型加载失败: {exc}")
         raise
@@ -51,16 +63,21 @@ def warmup_model():
 def health() -> dict[str, Any]:
     infer = get_infer(HEAD_CT_ARTIFACT)
     lung_ready = _lung_weight_ready()
+    tumor_ready = _tumor_weight_ready()
     payload: dict[str, Any] = {
         "status": "UP",
         "service": "hospital-ai",
         "modelLoaded": infer is not None,
         "lungModelLoaded": lung_ready,
+        "tumorModelLoaded": tumor_ready,
         "device": str(infer.device),
     }
     if lung_ready:
         lung_infer = get_infer(LUNG_CT_ARTIFACT)
         payload["lungDevice"] = str(lung_infer.device)
+    if tumor_ready:
+        tumor_infer = get_infer(TUMOR_SEG)
+        payload["tumorDevice"] = str(tumor_infer.device)
     return payload
 
 
