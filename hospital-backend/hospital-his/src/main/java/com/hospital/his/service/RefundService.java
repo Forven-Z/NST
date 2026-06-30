@@ -3,24 +3,17 @@ package com.hospital.his.service;
 import com.hospital.common.constant.BillBizType;
 import com.hospital.common.constant.BillStatus;
 import com.hospital.common.constant.ErrorCode;
-import com.hospital.common.constant.InspectionRequestStatus;
-import com.hospital.common.constant.PrescriptionStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
+import com.hospital.his.order.handler.MedicalOrderHandlerRegistry;
 import com.hospital.his.repository.BillRepository;
-import com.hospital.his.repository.CheckRequestRepository;
-import com.hospital.his.repository.DisposalRequestRepository;
-import com.hospital.his.repository.InspectionRequestRepository;
 import com.hospital.his.repository.PatientRepository;
-import com.hospital.his.repository.PrescriptionRepository;
-import com.hospital.his.repository.RefundRepository;
 import com.hospital.his.repository.PaymentRepository;
+import com.hospital.his.repository.RefundRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.SchedulingRepository;
 import com.hospital.his.security.AuthContext;
 import com.hospital.his.security.AuthContextHolder;
-import com.hospital.his.order.MedTechOrderKind;
-import com.hospital.his.order.state.OrderStatusCoordinator;
 import com.hospital.his.visit.VisitLifecycleCoordinator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,16 +32,12 @@ public class RefundService {
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
     private final RegisterRepository registerRepository;
-    private final InspectionRequestRepository inspectionRequestRepository;
-    private final CheckRequestRepository checkRequestRepository;
-    private final DisposalRequestRepository disposalRequestRepository;
-    private final PrescriptionRepository prescriptionRepository;
     private final SchedulingRepository schedulingRepository;
     private final PatientRepository patientRepository;
     private final PatientFamilyService patientFamilyService;
     private final RegisterLifecycleService registerLifecycleService;
     private final VisitLifecycleCoordinator visitLifecycleCoordinator;
-    private final OrderStatusCoordinator orderStatusCoordinator;
+    private final MedicalOrderHandlerRegistry medicalOrderHandlerRegistry;
 
     @Transactional
     public Map<String, Object> refundByPatient(Long billId, String reason) {
@@ -139,6 +128,10 @@ public class RefundService {
     }
 
     private void assertRefundable(String bizType, Long bizId) {
+        if (medicalOrderHandlerRegistry.handles(bizType)) {
+            medicalOrderHandlerRegistry.handler(bizType).assertBillRefundable(bizId);
+            return;
+        }
         switch (bizType) {
             case BillBizType.REGISTER -> {
                 Map<String, Object> register = registerRepository.findByIdForUpdate(bizId)
@@ -153,40 +146,15 @@ public class RefundService {
                     throw new BusinessException(ErrorCode.BAD_REQUEST, "就诊中或已结束，不可退病历本费");
                 }
             }
-            case BillBizType.INSPECTION -> {
-                Map<String, Object> req = inspectionRequestRepository.findById(bizId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检验申请不存在"));
-                if (((Number) req.get("status")).intValue() != InspectionRequestStatus.PAID) {
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "检验已执行或已退费，不可退款");
-                }
-            }
-            case BillBizType.CHECK -> {
-                Map<String, Object> req = checkRequestRepository.findById(bizId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
-                if (((Number) req.get("status")).intValue() != InspectionRequestStatus.PAID) {
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "检查已执行或已退费，不可退款");
-                }
-            }
-            case BillBizType.PRESCRIPTION -> {
-                Map<String, Object> rx = prescriptionRepository.findByIdForUpdate(bizId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处方不存在"));
-                int status = ((Number) rx.get("status")).intValue();
-                if (status != PrescriptionStatus.PAID && status != PrescriptionStatus.RETURNED) {
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "处方状态不允许退费");
-                }
-            }
-            case BillBizType.DISPOSAL -> {
-                Map<String, Object> req = disposalRequestRepository.findById(bizId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "处置申请不存在"));
-                if (((Number) req.get("status")).intValue() != InspectionRequestStatus.PAID) {
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "处置已执行或已退费，不可退款");
-                }
-            }
             default -> throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的业务类型: " + bizType);
         }
     }
 
     private void updateBizAfterRefund(String bizType, Long bizId, Map<String, Object> bill) {
+        if (medicalOrderHandlerRegistry.handles(bizType)) {
+            medicalOrderHandlerRegistry.handler(bizType).onRefund(bizId);
+            return;
+        }
         switch (bizType) {
             case BillBizType.REGISTER -> {
                 visitLifecycleCoordinator.cancelRegistered(bizId);
@@ -206,10 +174,6 @@ public class RefundService {
                 long patientId = ((Number) bill.get("patientId")).longValue();
                 patientRepository.updateNeedMedicalBook(patientId, false);
             }
-            case BillBizType.INSPECTION -> orderStatusCoordinator.refundMedTechOrder(MedTechOrderKind.INSPECTION, bizId);
-            case BillBizType.CHECK -> orderStatusCoordinator.refundMedTechOrder(MedTechOrderKind.CHECK, bizId);
-            case BillBizType.PRESCRIPTION -> orderStatusCoordinator.refundPrescription(bizId);
-            case BillBizType.DISPOSAL -> orderStatusCoordinator.refundMedTechOrder(MedTechOrderKind.DISPOSAL, bizId);
             default -> {
             }
         }

@@ -500,7 +500,7 @@ hospital-his/
 |------|------|------|
 | ① VisitTransitions | 🟨 | common + Coordinator 已落地；验收 r-min/r-reversal 待跑 |
 | ② SM1 + SM2 | 🟨 | Transitions + Coordinator 已落地；验收 r-lis/pacs/disposal/pharmacy/reversal 待跑 |
-| ③ MedicalOrderHandler | ⬜ | r-min 开单 · r-pharmacy |
+| ③ MedicalOrderHandler | 🟨 | Handler + Registry 已落地；验收 r-min 开单 · r-pharmacy 待跑 |
 | ④ MedTechExecute Template | ⬜ | 三医技 acceptance |
 | ⑧ 拆微服务 | ⬜ | ADR-019 后分批 |
 

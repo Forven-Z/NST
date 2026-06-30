@@ -10,10 +10,9 @@ import com.hospital.his.repository.CheckRequestRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.InspectionRequestRepository;
 import com.hospital.his.repository.PatientRepository;
-import com.hospital.his.order.MedTechOrderKind;
-import com.hospital.his.order.state.OrderStatusCoordinator;
-import com.hospital.his.repository.PrescriptionRepository;
+import com.hospital.his.order.handler.MedicalOrderHandlerRegistry;
 import com.hospital.his.repository.PaymentRepository;
+import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.visit.VisitLifecycleCoordinator;
 import com.hospital.his.security.AuthContextHolder;
@@ -44,7 +43,7 @@ public class PaymentService {
     private final DisposalRequestRepository disposalRequestRepository;
     private final PatientFamilyService patientFamilyService;
     private final VisitLifecycleCoordinator visitLifecycleCoordinator;
-    private final OrderStatusCoordinator orderStatusCoordinator;
+    private final MedicalOrderHandlerRegistry medicalOrderHandlerRegistry;
 
     @Transactional
     public Map<String, Object> mockPay(MockPaymentRequest request) {
@@ -103,14 +102,8 @@ public class PaymentService {
         } else if (BillBizType.MEDICAL_BOOK.equals(bizType)) {
             long patientId = ((Number) bill.get("patientId")).longValue();
             patientRepository.updateNeedMedicalBook(patientId, true);
-        } else if (BillBizType.INSPECTION.equals(bizType)) {
-            orderStatusCoordinator.payMedTechOrder(MedTechOrderKind.INSPECTION, bizId);
-        } else if (BillBizType.CHECK.equals(bizType)) {
-            orderStatusCoordinator.payMedTechOrder(MedTechOrderKind.CHECK, bizId);
-        } else if (BillBizType.PRESCRIPTION.equals(bizType)) {
-            orderStatusCoordinator.payPrescription(bizId);
-        } else if (BillBizType.DISPOSAL.equals(bizType)) {
-            orderStatusCoordinator.payMedTechOrder(MedTechOrderKind.DISPOSAL, bizId);
+        } else if (medicalOrderHandlerRegistry.handles(bizType)) {
+            medicalOrderHandlerRegistry.handler(bizType).onBillPaid(bizId);
         }
     }
 

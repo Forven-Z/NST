@@ -108,7 +108,7 @@
 |------|------|------|------|
 | 1 | **①** VisitTransitions | 🟨 | [REFACTORING §4.1](./REFACTORING_DESIGN_PATTERNS.md#41-图-1--visittransitions--registervisit_state) — 代码已落地，待验收 |
 | 2 | **②** SM1 + SM2 | 🟨 | [REFACTORING §4.2～4.3](./REFACTORING_DESIGN_PATTERNS.md#42-图-2--medtechordertransitions--检验--检查--处置sm1) — 代码已落地，待验收 |
-| 3 | **③** MedicalOrderHandler + Registry | ⬜ | [REFACTORING §五](./REFACTORING_DESIGN_PATTERNS.md#五handler-设计步骤-③) |
+| 3 | **③** MedicalOrderHandler + Registry | 🟨 | [REFACTORING §五](./REFACTORING_DESIGN_PATTERNS.md#五handler-设计步骤-③) — 代码已落地，待验收 |
 | 4 | **④** AbstractMedTechExecuteTemplate | ⬜ | [REFACTORING §六](./REFACTORING_DESIGN_PATTERNS.md#六template-method--医技执行步骤-④) |
 | 5 | **⑧** 拆微服务 | ⬜ | §八 + ADR-019 |
 
