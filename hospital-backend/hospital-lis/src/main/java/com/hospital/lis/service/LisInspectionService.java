@@ -236,6 +236,10 @@ public class LisInspectionService extends AbstractMedTechExecuteTemplate {
         return context.getEmployeeId();
     }
 
+    private int activeLoad(Long executorId) {
+        return inspectionRequestRepository.countActiveByExecutor(executorId);
+    }
+
     private void sortDoctorsByLoad(List<Map<String, Object>> doctors) {
         doctors.sort((left, right) -> {
             int byLoad = Integer.compare(

@@ -252,6 +252,19 @@ public class CheckRequestRepository implements MedTechOrderStatusWriter {
                 .update();
     }
 
+    public int countActiveByExecutor(Long executorId) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM check_request
+                        WHERE delmark = 0
+                          AND status IN (20, 30)
+                          AND executor_id = :executorId
+                        """)
+                .param("executorId", executorId)
+                .query(Integer.class)
+                .single();
+        return count != null ? count : 0;
+    }
+
     public void saveResult(Long id, Long resultInputId, Long reviewerId, String resultText, boolean reviewOnly) {
         saveResultContent(id, resultInputId, reviewerId, resultText, reviewOnly);
     }
