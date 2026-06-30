@@ -15,6 +15,11 @@ import { mockResult } from '../utils/mock'
 import { MOCK_ALL_DEPARTMENTS, MOCK_SCHEDULES } from './dict'
 import { getSubstitutePoolByDept } from './staff-registry'
 
+function isExpertTitle(title) {
+  const text = title || ''
+  return text.includes('主任医师') || text.includes('副主任医师') || text.includes('教授')
+}
+
 /** @type {Array<Record<string, unknown>>} */
 const leaveRequests = []
 let leaveSeq = 9001
@@ -218,8 +223,10 @@ export function enrichScheduleAdminRow(row) {
 
 /** 为已批准请假的班次生成替班医生建议 */
 export function mockSubstituteProposal(scheduleRow) {
+  const sourceIsExpert = isExpertTitle(scheduleRow.employeeTitle) || scheduleRow.registLevelId === 2
   const pool = getSubstitutePoolByDept(scheduleRow.deptId).filter(
-    (d) => d.employeeId !== scheduleRow.employeeId,
+    (d) => d.employeeId !== scheduleRow.employeeId
+      && isExpertTitle(d.title) === sourceIsExpert,
   )
   const substitute = pool[scheduleRow.schedulingId % pool.length] || pool[0]
   if (!substitute) return null
