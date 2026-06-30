@@ -22,7 +22,10 @@ public class SchedulingAiStubController {
     @PostMapping("/ai-suggest")
     public Result<Map<String, Object>> aiSuggest(@RequestBody(required = false) SchedulingAiSuggestRequest request) {
         Long deptId = request == null ? null : request.getDeptId();
-        return Result.success(schedulingAiSuggestService.suggest(deptId));
+        return Result.success(schedulingAiSuggestService.suggest(
+                deptId,
+                request == null ? null : request.getWeekStart(),
+                request == null ? null : request.getMode()));
     }
 
     @PostMapping("/{id}/ai-replace")

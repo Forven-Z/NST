@@ -1,13 +1,18 @@
 import { mockResult } from '../utils/mock'
 import { mockAiSchedulingSuggestions } from './ai-reports'
 import { MOCK_REGIST_LEVELS, MOCK_SCHEDULES } from './dict'
-import { getDepartmentById, getEmployeeById } from './staff-registry'
+import { getDepartmentById, getEmployeeById, listEmployees } from './staff-registry'
 import {
   getApprovedLeaveSchedulingIds,
   getPendingLeaveCount,
   markLeaveSubstituted,
   mockSubstituteProposal,
 } from './scheduling-leave'
+
+function isExpertDoctor(doctor) {
+  const title = doctor?.title || ''
+  return title.includes('主任医师') || title.includes('副主任医师') || title.includes('教授')
+}
 
 function buildLeaveAwareSuggestions(list) {
   const approvedIds = new Set(getApprovedLeaveSchedulingIds())
@@ -38,20 +43,110 @@ function buildLeaveAwareSuggestions(list) {
 }
 
 export function mockAiSchedulingSuggest(params) {
+  if ((params?.mode || 'WEEK').toUpperCase() === 'SUBSTITUTE') {
+    return mockAiSubstituteSuggest(params)
+  }
+  return mockAiWeekSuggest(params)
+}
+
+function mockAiSubstituteSuggest(params) {
   let list = [...MOCK_SCHEDULES].filter((s) => (s.publishStatus ?? 1) !== 2)
   if (params?.deptId) list = list.filter((s) => s.deptId === Number(params.deptId))
   const pendingLeave = getPendingLeaveCount()
   return mockResult({
     stub: true,
+    mode: 'SUBSTITUTE',
     generatedAt: new Date().toISOString(),
+    changes: [],
     suggestions: buildLeaveAwareSuggestions(list),
     pendingLeaveCount: pendingLeave,
     message: pendingLeave
-      ? `【Mock】检测到 ${pendingLeave} 条待审批请假；已优先生成替班建议`
-      : '【Mock】AI 排班建议已生成，可点击「应用 AI 替换」或手工编辑',
+      ? `【Mock】检测到 ${pendingLeave} 条待审批请假，已优先生成替班建议`
+      : '【Mock】暂无需要替班的已批准请假',
   })
 }
 
+function mockAiWeekSuggest(params) {
+  const deptId = Number(params?.deptId)
+  const weekStart = alignMondayIso(params?.weekStart || new Date().toISOString().slice(0, 10))
+  const weekEnd = addDaysIso(weekStart, 6)
+  const doctors = listEmployees({ deptId, roleType: 'OUTPATIENT_DOCTOR', delmark: 0 })
+  const regularDoctors = doctors.filter((d) => !isExpertDoctor(d))
+  const expertDoctors = doctors.filter(isExpertDoctor)
+  const existing = weekSlots(deptId, weekStart)
+  const occupied = new Set(existing.map((s) => `${s.employeeId}|${s.workDate}|${s.noonType}`))
+  const changes = []
+  const warnings = []
+
+  regularDoctors.forEach((doctor, index) => {
+    const restDay = index % 7
+    for (let day = 0; day < 7; day += 1) {
+      if (day === restDay) continue
+      for (const noonType of [1, 2]) {
+        addAiChange(changes, occupied, doctor, addDaysIso(weekStart, day), noonType, 1, defaultQuota(1))
+      }
+    }
+  })
+
+  expertDoctors.forEach((doctor, index) => {
+    const start = index * 3
+    for (let session = 0; session < 3; session += 1) {
+      const slotIndex = (start + session * 5) % 14
+      addAiChange(
+        changes,
+        occupied,
+        doctor,
+        addDaysIso(weekStart, Math.floor(slotIndex / 2)),
+        slotIndex % 2 === 0 ? 1 : 2,
+        2,
+        defaultQuota(2),
+      )
+    }
+  })
+
+  for (let day = 0; day < 7; day += 1) {
+    const workDate = addDaysIso(weekStart, day)
+    for (const noonType of [1, 2]) {
+      const covered = existing.some((s) => s.workDate === workDate && s.noonType === noonType)
+        || changes.some((c) => c.workDate === workDate && c.noonType === noonType)
+      if (covered) continue
+      const filler = [...regularDoctors, ...expertDoctors]
+        .find((d) => !occupied.has(`${d.employeeId}|${workDate}|${noonType}`))
+      if (filler) {
+        const levelId = isExpertDoctor(filler) ? 2 : 1
+        addAiChange(changes, occupied, filler, workDate, noonType, levelId, defaultQuota(levelId))
+        warnings.push(`${workDate} ${noonType === 1 ? '上午' : '下午'} 原本无医生覆盖，已自动补充 ${filler.realName}`)
+      } else {
+        warnings.push(`${workDate} ${noonType === 1 ? '上午' : '下午'} 无可用医生补位，请手工安排`)
+      }
+    }
+  }
+
+  return mockResult({
+    stub: true,
+    mode: 'WEEK',
+    weekStart,
+    weekEnd,
+    changes,
+    suggestions: [],
+    riskItems: [],
+    warnings,
+    message: `【Mock】AI 已生成 ${changes.length} 条周排班草稿，请检查后保存`,
+  })
+}
+
+function addAiChange(changes, occupied, doctor, workDate, noonType, registLevelId, totalQuota) {
+  const key = `${doctor.employeeId}|${workDate}|${noonType}`
+  if (occupied.has(key)) return
+  changes.push({
+    employeeId: doctor.employeeId,
+    workDate,
+    noonType,
+    registLevelId,
+    totalQuota,
+  })
+  occupied.add(key)
+}
 export function mockUpdateAdminSchedule(schedulingId, data) {
   const row = MOCK_SCHEDULES.find((s) => s.schedulingId === Number(schedulingId))
   if (!row) throw new Error('排班记录不存在')
@@ -83,7 +178,7 @@ export function mockUpdateAdminSchedule(schedulingId, data) {
     markLeaveSubstituted(schedulingId, patch.employeeId, patch.employeeName)
   }
   const msg = data.leaveSubstitute
-    ? `已应用替班：${row.employeeName} 顶替 ${data.substituteFor || '原职员'}`
+    ? `已应用替班：${row.employeeName} 顶替 ${data.substituteFor || '原医生'}`
     : data.aiOptimized
       ? '已应用 AI 推荐排班'
       : data.employeeId
