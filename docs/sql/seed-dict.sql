@@ -58,7 +58,7 @@ ON CONFLICT (username) DO NOTHING;
 
 SELECT setval('sys_user_id_seq', (SELECT COALESCE(MAX(id), 1) FROM sys_user));
 
--- 门诊排班：见文件末尾扩展段（各科室每半天 1 名普通医生轮流；专家每周 2 个半天）
+-- 门诊排班：见文件末尾扩展段（每日上/下午含周日；同半天可多名普通医生；专家每周 2 个上午）
 -- 疾病字典（演示 + RAG 常见诊断）
 INSERT INTO disease (disease_code, disease_name, disease_category) VALUES
     ('J06.9', '急性上呼吸道感染', '呼吸系统'),

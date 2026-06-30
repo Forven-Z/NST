@@ -29,7 +29,7 @@ npm run dev
 
 默认 **`VITE_USE_MOCK=true`**（见 `.env.development`），无需后端即可演示全角色界面。
 
-- 契约详见 [`docs/API.md`](../docs/API.md)、[`docs/FRONTEND_API_MAP.md`](../docs/FRONTEND_API_MAP.md)
+- 契约详见 [`docs/API.md`](../docs/API.md)
 - 联调真库：改 `VITE_USE_MOCK=false` 并启动 Gateway + 微服务
 
 处置科 `/disposal/queue`：Mock 账号 `disposal01` / `123456`；`admin` 可访问各角色菜单。

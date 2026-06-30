@@ -2,8 +2,8 @@
 
 > **文档性质**：架构共识稿；**不改变**对外 HTTP 契约（`API.md` 路径与字段保持不变）。  
 > **关联**：[`BUSINESS_FLOW.md §八`](./BUSINESS_FLOW.md#八关键状态图老师提供) · [`DATABASE_DESIGN.md §1.5`](./DATABASE_DESIGN.md#15-全局状态枚举实现用-smallint-或-postgresql-enum) · [`DESIGN_DECISIONS.md ADR-018`](./DESIGN_DECISIONS.md) · [`MICROSERVICES.md`](./MICROSERVICES.md)  
-> **版本**：v2.4 | 2026-06-30  
-> **状态**：🟨 **共识已定稿（实施顺序）** — **代码未开始**，未经 King 明确「开始写代码」不得开工
+> **版本**：v2.5 | 2026-06-04  
+> **状态**：🟨 **①～④ 代码已落地** — 待跑验收脚本后标 ✅；**单测扩充**与**步骤 ⑧ 微服务拆分**延后（见 §十一）
 
 ---
 
@@ -240,25 +240,25 @@ stateDiagram-v2
 4. **`DISPENSE`（发药）**：**不再二次扣减**（开立时已预扣）；药师发药仅做 status 20→30 与实物出库确认。  
 5. **`PAY`（缴费）**：**不变更库存**（预扣已在开立时完成）。  
 6. **驳回后改方（status=15，`updatePrescription`）**：仅改明细草稿，**不动库存**；医生 **重提（`RESUBMIT`→10）** 时按新明细重新校验并预扣。  
-7. **并发**：扣减/回增须 `findByIdForUpdate` 锁行，与 `PrescriptionHandler` / `PharmacyService` 同一 `@Transactional`。
+7. **并发**：扣减/回增须 `findByIdForUpdate` 锁行，与 `PrescriptionMedicalOrderHandler` / `PharmacyService` 同一 `@Transactional`。
+
+> **实现状态（2026-06-04）**：步骤 ②③ 已按上表落地（`PrescriptionInventorySupport` + `OrderStatusCoordinator` + `PrescriptionMedicalOrderHandler`）。**验收** `r-pharmacy` / `r-reversal` 须覆盖「库存不足拒开」「驳回/退费/退药回库」；通过后步骤 ②③ 标 ✅。
 
 | SM2 事件 | status 迁移 | `stock_qty` | 负责模块 |
 |----------|-------------|-------------|----------|
-| `ORDER` | →10 | **预扣**（不足则整单失败） | his · `PrescriptionHandler.createOrder()` |
-| `RESUBMIT` | 15→10 | **预扣**（按新明细校验） | his · `PrescriptionHandler` |
+| `ORDER` | →10 | **预扣**（不足则整单失败） | his · `PrescriptionMedicalOrderHandler.createOrder()` |
+| `RESUBMIT` | 15→10 | **预扣**（按新明细校验） | his · `PrescriptionMedicalOrderHandler.resubmitPrescription()` |
 | `PAY` | 10→20 | 不变 | his · Handler `onBillPaid()` |
 | `PHARMACY_REJECT` | 20→15 | **回增** | his · `PharmacyService` |
 | `DISPENSE` | 20→30 | 不变 | his · `PharmacyService` |
 | `RETURN_DRUG` | 30→40 | **回增** | his · `PharmacyService` |
 | `REFUND` | *→50 | **回增**（若尚未在退药回增） | his · Handler `onRefund()` / Refund |
 
-> **与现网差异（待重构落地）**：当前 `PharmacyService.dispense` 在 **发药时** 才扣减库存，`PrescriptionService.createPrescription` **未**校验库存。步骤 ②③ 实施时按上表迁移，验收 `r-pharmacy` / `r-reversal` 须覆盖「库存不足拒开」「驳回/退费/退药回库」。
-
-**写库职责（步骤 ②）**：
+**写库职责（步骤 ②③）**：
 
 | 事件 | 负责模块 |
 |------|----------|
-| `ORDER` / `RESUBMIT` | his · `PrescriptionHandler`（含库存守卫 + 预扣） |
+| `ORDER` / `RESUBMIT` | his · `PrescriptionMedicalOrderHandler`（含库存守卫 + 预扣） |
 | `PAY` / `REFUND` | his · Handler 回调（`REFUND` 含回库） |
 | `PHARMACY_REJECT` / `DISPENSE` / `RETURN_DRUG` | his · `PharmacyService`（将来 → hospital-pharmacy） |
 
@@ -423,6 +423,8 @@ flowchart TB
 | 迁移 | `PaymentService`（REGISTER）· `RegisterLifecycleService` · `DoctorQueueService` · 退号/refund |
 | 不动 | 医嘱 status · Handler · 医技 execute |
 
+> **实现状态（2026-06-04）**：✅ 已落地，待 `r-min` / `r-reversal` 验收。
+
 ### 步骤 ② · SM1 + SM2（common + 全链路，约 2～3 天）
 
 | 新增（common） | `MedTechOrderEvent` · `MedTechOrderTransitions` · `PrescriptionEvent` · `PrescriptionTransitions` |
@@ -430,16 +432,22 @@ flowchart TB
 | 迁移 | `PaymentService` / `RefundService`（医技+处方 bill）· `PharmacyService` · lis/pacs/disposal execute/result |
 | 单测 | 非法迁移在 common 一层覆盖 |
 
+> **实现状态（2026-06-04）**：✅ 已落地（含处方库存联动），待医技/药房/退费验收脚本。
+
 ### 步骤 ③ · MedicalOrderHandler（his，约 3～5 天）
 
 | 新增 | `order.handler.*` · `AbstractMedicalOrderHandler` · `MedicalOrderHandlerRegistry` |
 | 替换 | 三个 `*OrderService` · `PrescriptionService` 开单路径 · Payment/Refund 改调 Registry |
 | 包结构 | `controller.patient/registrar/pharmacy` 包名不变，为将来拆 jar 做准备 |
 
+> **实现状态（2026-06-04）**：✅ 已落地；`*OrderService` / `PrescriptionService` 为薄门面，Payment/Refund 已改 Registry。
+
 ### 步骤 ④ · AbstractMedTechExecuteTemplate（lis/pacs/disposal，约 2～3 天）
 
-| 新增 | common 或共享模块：`AbstractMedTechExecuteTemplate` |
-| 迁移 | `LisInspectionService` · `PacsCheckService` · `DisposalExecuteService` 继承并瘦身 execute |
+| 新增 | common：`AbstractMedTechExecuteTemplate` · `AbstractMedTechOrderCoordinator` · `MedTechExecuteCoordinator` · `MedTechOrderStatusWriter` |
+| 迁移 | `LisInspectionService` · `PacsCheckService` · `DisposalExecuteService` 继承模板；三模块 Coordinator 继承 `AbstractMedTechOrderCoordinator` |
+
+> **实现状态（2026-06-04）**：上表已落地；`saveResult` 各模块差异仍保留在子类 Service 内（符合 §6.1 范围）。
 
 ---
 
@@ -448,20 +456,29 @@ flowchart TB
 ```text
 hospital-common/
   com.hospital.common.visit/
-    VisitTransitions.java                      # 步骤 ①
+    VisitTransitions.java                      # 步骤 ① ✅
   com.hospital.common.order/
-    MedTechOrderTransitions.java               # 步骤 ② 图2
-    PrescriptionTransitions.java               # 步骤 ② 图3
+    MedTechOrderTransitions.java               # 步骤 ② ✅
+    PrescriptionTransitions.java               # 步骤 ② ✅
+    MedTechOrderSaveResultSupport.java         # 步骤 ② ✅
   com.hospital.common.execute/
-    AbstractMedTechExecuteTemplate.java        # 步骤 ④
+    AbstractMedTechExecuteTemplate.java        # 步骤 ④ ✅
+    AbstractMedTechOrderCoordinator.java       # 步骤 ④ ✅
+    MedTechExecuteCoordinator.java             # 步骤 ④ ✅
+    MedTechOrderStatusWriter.java              # 步骤 ④ ✅
 
 hospital-his/
   com.hospital.his.visit/
-    VisitLifecycleCoordinator.java             # 步骤 ①
+    VisitLifecycleCoordinator.java             # 步骤 ① ✅
   com.hospital.his.order.state/
-    OrderStatusCoordinator.java                # 步骤 ②
-  com.hospital.his.order.handler/              # 步骤 ③
+    OrderStatusCoordinator.java                # 步骤 ② ✅
+    PrescriptionInventorySupport.java          # 步骤 ② ✅
+  com.hospital.his.order.handler/              # 步骤 ③ ✅
     MedicalOrderHandler / AbstractMedicalOrderHandler / Registry / 四实现类
+
+hospital-lis|pacs|disposal/
+  *MedTechOrderCoordinator extends AbstractMedTechOrderCoordinator
+  *Service extends AbstractMedTechExecuteTemplate
 ```
 
 ---
@@ -496,13 +513,18 @@ hospital-his/
 
 ## 十一、进度（活文档）
 
-| 步骤 | 状态 | 验收 |
-|------|------|------|
-| ① VisitTransitions | 🟨 | common + Coordinator 已落地；验收 r-min/r-reversal 待跑 |
-| ② SM1 + SM2 | 🟨 | Transitions + Coordinator 已落地；验收 r-lis/pacs/disposal/pharmacy/reversal 待跑 |
-| ③ MedicalOrderHandler | 🟨 | Handler + Registry 已落地；验收 r-min 开单 · r-pharmacy 待跑 |
-| ④ MedTechExecute Template | 🟨 | 模板 + 三子类已落地；验收 r-lis/pacs/disposal-acceptance 待跑 |
-| ⑧ 拆微服务 | ⬜ | ADR-019 后分批 |
+| 步骤 | 代码 | 验收 | 备注 |
+|------|------|------|------|
+| ① VisitTransitions | ✅ | 🟨 待跑 | `r-min` · `r-reversal` |
+| ② SM1 + SM2 | ✅ | 🟨 待跑 | `r-lis` / `r-pacs` / `r-disposal` / `r-pharmacy` / `r-reversal`；common Transitions 单测已有 |
+| ③ MedicalOrderHandler | ✅ | 🟨 待跑 | `r-min` 开单 · `r-pharmacy`；Payment/Refund 已改 Registry |
+| ④ MedTechExecute Template | ✅ | 🟨 待跑 | `r-lis` / `r-pacs` / `r-disposal` acceptance |
+| ⑧ 拆微服务 | ⬜ | — | ADR-019；**待 ①～④ 验收 ✅ 后再做** |
+
+**刻意延后（不阻塞 ADR-018 代码落地）**：
+
+- **单测扩充**：Coordinator / Handler / Execute 模板层集成测试（common Transitions 单测已覆盖非法迁移）。  
+- **步骤 ⑧**：patient / pharmacy / clinical 三拆 + Feign。
 
 ---
 
@@ -510,6 +532,7 @@ hospital-his/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.5 | 2026-06-04 | **①～④ 代码已落地**；同步包结构 §八、§4.3.1 库存实现状态；单测/步骤⑧ 明确延后 |
 | v2.4 | 2026-06-30 | 处方 SM2 增加 **库存联动**（开立预扣、退费/退药/驳回回增、不足拒开）；§4.3.1 |
 | v2.3 | 2026-06-30 | **2 层叙述 + 3 表实现**；Strategy 双接口合并为 **Handler + Registry**；**单模板三子类**（execute 范围）；修订日期改 **年月日** |
 | v2.2 | 2026-06-04 | visit 最先；三张状态图 + Strategy 类图/时序 + 执行 Template 流程；四步实施顺序定稿 |

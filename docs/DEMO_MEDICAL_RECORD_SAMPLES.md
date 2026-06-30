@@ -310,7 +310,7 @@ psql -U postgres -d hospital -f docs/sql/seed-demo-check.sql
 |------|------|
 | [RUNBOOK.md](./RUNBOOK.md) | 一键启动、R-min～R-full 验收 |
 | [BUSINESS_FLOW.md](./BUSINESS_FLOW.md) | 七泳道与状态图 |
-| [RAG_RUN_GUIDE.md §9](./RAG_RUN_GUIDE.md) | Postman 测 `diagnosis/suggest` |
+| [RAG_GUIDE.md §6.3](./RAG_GUIDE.md#63-postmandiagnosissuggest) | Postman 测 `diagnosis/suggest` |
 | [sql/README.md §三](./sql/README.md) | 全部演示账号 |
 | [seed-demo-patients.sql](./sql/seed-demo-patients.sql) | 患者 `MR202606040100` |
 | [seed-demo-check.sql](./sql/seed-demo-check.sql) | 检查 #62001 快速队列 |
