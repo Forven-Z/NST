@@ -20,7 +20,7 @@
 | ADR-007 | 影像/AI 结果推送 | **已定稿** | 首期 **HTTP 轮询** |
 | ADR-008 | Redis | **已定稿** | **P1 不依赖**；后期可选 |
 | ADR-009 | 微信支付 | **已定稿** | 开发期 **模拟支付**；生产再接微信回调 |
-| ADR-010 | AI 会话存储 | **待定（P4）** | P4 前 bridge **STUB**；存储方案届时二选一 |
+| ADR-010 | AI 会话存储 | **待定（P4）** | 问诊/诊断/草稿已接 LLM；医生右侧栏为草稿摘要（无 assistant API）；会话持久化方案届时二选一 |
 | ADR-011 | CNN 算法交付 | **已定稿** | FastAPI 契约先通；模型权重与效果 **单独里程碑** |
 | ADR-012 | P1 字典数据 | **已定稿** | **P1 即启 management** 或提供 `seed-dict.sql` |
 | ADR-013 | 建表脚本 | **已定稿** | **P0.5 优先** 产出 `docs/sql/schema.sql` |
@@ -144,7 +144,9 @@
 
 ### ADR-010 AI 会话存储（P4）
 
-- P1～P3：`hospital-ai-bridge` 返回 **STUB**（50301 或固定文案）。
+- **已接入 LLM**：`POST /ai/triage/chat`、`POST /ai/diagnosis/suggest`、`POST /ai/doctor/**/ai-draft`（含 RAG 路径）；LIS/PACS 报告经 ai-bridge 生成。
+- **医生右侧栏**：PC 展示 AI 诊疗草稿摘要，**不提供** `/ai/assistant/**` HTTP 接口。
+- **排班 AI**：`POST /admin/scheduling/ai-suggest`、`/{id}/ai-replace` 由 management **规则引擎**实现（非 50301）。
 - P4 再定：业务表 `ai_chat_session` **或** Spring AI 内置存储（二选一）。
 
 ### ADR-011 CNN 算法交付
@@ -279,9 +281,9 @@ v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1
 | **步骤 ③** | `MedicalOrderHandler` + `MedicalOrderHandlerRegistry` | Handler（开单 + 缴费/退费一体） |
 | **步骤 ④** | `AbstractMedTechExecuteTemplate` + `AbstractMedTechOrderCoordinator` | 单模板 · LIS/PACS/Disposal 三子类 |
 | **处方库存** | 开立预扣 `stock_qty`；退费/驳回/退药回增；不足拒开 | 与 SM2 同事务；见 REFACTORING §4.3.1 |
-| **步骤 ⑧** | 拆 patient / pharmacy / clinical | **ADR-019 已编码落地**（2026-07）；验收脚本待重跑 |
+| **步骤 ⑧** | 拆 patient / pharmacy / clinical | **ADR-019 已编码落地** ✅ |
 | **契约** | **不改** Gateway / `API.md` 字段 | |
-| **代码状态** | ①～④ **已落地**（2026-06-04） | 验收脚本待重跑 |
+| **代码状态** | ①～④ **已落地** ✅ | 验收见 RUNBOOK §十二 |
 | **延后** | 单测扩充（Coordinator/Handler/Execute） | 不阻塞当前代码合并 |
 | **实施** | ①→②→③→④ 每步独立验收 | 见 [REFACTORING §〇](./REFACTORING_DESIGN_PATTERNS.md#〇实施顺序king-定稿) |
 
@@ -412,9 +414,9 @@ POST /patient/payments  （Gateway → patient）
 | 3 | **瘦身 hospital-his** | 剩 doctor + Handler + 内部 API |
 | 4 | Gateway + `start-project.ps1` | 更新路由与启动脚本 |
 
-**每步完成后重跑**：`r-pharmacy` · `r-min` · `r-reversal` ·（P4）`r-full`。
+**每步完成后重跑**：[RUNBOOK.md §十二](./RUNBOOK.md#十二联调与验收清单) 对应场景 ·（P4）R-full 演示。
 
-**编码前置**：ADR-018 ①～④ **验收脚本 ✅**。
+**编码前置**：ADR-018 ①～④ **已验收**（RUNBOOK §十二）。
 
 ### 7.6 答辩演示
 

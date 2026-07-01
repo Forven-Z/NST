@@ -191,7 +191,6 @@ CT 所见
 
 ```powershell
 psql -U postgres -d hospital -f docs/sql/seed-demo-check.sql
-# 或：.\scripts\seed-demo-check.ps1
 ```
 
 | 项 | 值 |

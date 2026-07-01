@@ -2,7 +2,7 @@
 # 版本：v1.1 | 2026-06-15
 # 用法（当前 PowerShell 窗口有效）：
 #   . .\scripts\env-cloud.ps1
-# 或在 start-r-min.ps1 中： .\scripts\start-r-min.ps1 -EnvProfile cloud
+# 或在 start-project.ps1 中： .\scripts\start-project.ps1 -EnvProfile cloud
 #
 # ECS 公网 IP（运维修改此处即可）
 $script:HospitalCloudHost = '123.57.206.134'

@@ -2,7 +2,7 @@
 
 > **用途**：成员共享、按阶段分工、对齐 Definition of Done。  
 > **文档索引**：[README.md](./README.md)  
-> **版本**：v2.1 | 2026-06  
+> **版本**：v2.2 | 2026-06-04 · **定稿交付**  
 > **联调验收**：见 [RUNBOOK.md](./RUNBOOK.md) §十二  
 > **协作约定**：见 [TEAM_COLLABORATION.md](./TEAM_COLLABORATION.md)
 ---
@@ -15,9 +15,11 @@
 | **P1** | **R-min** | 登录、挂号、接诊、病历 | 本文 §二 |
 | **P2** | **R-lis** | + 检验闭环、收费完善 | 本文 §三 |
 | **P3** | **R-pacs** | + 检查、处方、发药 | 本文 §四 |
-| **P4** | **R-full** | + AI / CNN | `DESIGN_DECISIONS` ADR-010/011 |
+| **P4** | **R-full** | + AI / CNN | `DESIGN_DECISIONS` ADR-010/011 · **✅ 已交付** |
 
-**R-min 进程**：gateway + auth + **his** + **management**（或仅 seed 字典，见 ADR-012）。
+> **2026-06-04 定稿**：P0.5～P4 任务已全部落地；进度见 [PROGRESS.md](./PROGRESS.md)。自动化验收脚本已移除，改 RUNBOOK §十二 手工 checklist。
+
+**R-min 进程（历史）**：现统一用 `start-project.ps1` 启动 **11 Java + Gateway**；不再单独维护 `start-r-min`。
 
 ---
 
@@ -109,7 +111,7 @@ common (Result, JWT DTO)
 | 3.3 | his | 药房发药 | `prescription.status=30` |
 | 3.4 | MinIO | 影像 bucket | P3 检查上传 |
 
-**DoD**：完整门诊链：挂号→看诊→开单→缴费→医技/发药（CNN 可 STUB）。
+**DoD**：完整门诊链：挂号→看诊→开单→缴费→医技/发药（CNN 三态：头部/肺部/肿瘤，见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md)）。
 
 ---
 
@@ -117,8 +119,8 @@ common (Result, JWT DTO)
 
 | # | 任务 | 文档 |
 |---|------|------|
-| 4.1 | ai-bridge STUB → 真 SSE | `API` §七 |
-| 4.2 | hospital-ai FastAPI + pacs 异步 | `API` §八 |
+| 4.1 | ai-bridge LLM 排班接入管理端 UI（可选） | `API` §七 · §9.2 |
+| 4.2 | hospital-ai FastAPI 三 taskType + pacs 异步 | `API` §八 · [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) |
 | 4.3 | 影像轮询 → 可选 SSE | ADR-007 |
 
 ---

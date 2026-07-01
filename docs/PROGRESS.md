@@ -1,9 +1,9 @@
 # 智慧云脑诊疗平台 — 实现进度（活文档）
 
-> **更新频率**：建议 **每周** 或里程碑完成时更新。  
+> **更新频率**：里程碑完成时更新。  
 > **状态**：⬜ 未开始 · 🟨 进行中 · ✅ 已完成 · ⏸ 阻塞  
-> **版本**：2026-07-01  
-> **数据模型对齐**：文档 + 后端 + 前端 Mock + 小程序 Mock 已同步 **DATABASE_DESIGN v1.16**（含 `clinical_sync_task`；业务单号即表 `id`）
+> **版本**：2026-06-04 · **定稿交付**  
+> **数据模型**：文档 + 后端 + 前端 + 小程序 已同步 **DATABASE_DESIGN v1.16**（含 `clinical_sync_task`）
 
 ---
 
@@ -11,110 +11,82 @@
 
 | 项 | 值 |
 |----|-----|
-| **目标阶段** | P3（R-pacs）— 核心已完成 |
-| **本迭代 DoD** | 见 [IMPLEMENTATION_PLAN.md §五](./IMPLEMENTATION_PLAN.md#五p3--r-pacs检查--处方--发药) |
-| **当前步骤** | ✅ 药房发药闭环 → Python AI / 排班 CRUD |
-| **联调清单** | [RUNBOOK.md](./RUNBOOK.md) §十二 · [TEAM_COLLABORATION.md](./TEAM_COLLABORATION.md) |
+| **目标阶段** | **P4（R-full）— 已全部落地** |
+| **门诊主链** | P1～P3 ✅（R-min / R-lis / R-pacs / 药房 / 逆向 / 管理） |
+| **AI 能力** | CNN 三态 ✅ · LLM triage/诊断/草稿/报告 ✅ · RAG ✅（需 Key + pgvector） |
+| **一键启动** | [RUNBOOK.md §零](./RUNBOOK.md) · `start-project.ps1` + `start-hospital-ai.ps1` |
+| **联调验收** | [RUNBOOK.md §十二](./RUNBOOK.md) 手工 checklist |
+
+**交付范围外（不阻塞答辩）**：真微信支付回调 · admin 药品/医技等字典**全量**写 CRUD · P5 Timefold / LLM 排班 UI · Redis · 队列 `triageLevel` 扩展字段。
 
 ---
 
 ## 二、基础设施
 
-| 任务 | 状态 | 负责人 | 备注 |
-|------|------|--------|------|
-| PostgreSQL + 库 `hospital` | ✅ | | 联调已连通 |
-| `schema.sql` 已执行（**v1.16**，含 `clinical_sync_task`） | ✅ | | 新环境直接跑 `schema.sql`；旧库增量见 `patch-clinical-sync-task.sql` |
-| `seed-dict.sql` 已执行 | ✅ | | 排班含当日数据 |
-| Nacos 2.2.3 standalone | ✅ | | 8848 |
-| MinIO（P3 前可跳过） | ✅ | wsh | `C:\dev\minio`，社区版 `start-minio-community.bat` |
-| Gateway 路由配置 | ✅ | | 已合入 `application.yml` |
-| Gateway JWT 过滤器 | ✅ | | `JwtAuthGlobalFilter` |
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| PostgreSQL + 库 `hospital` | ✅ | |
+| `schema.sql` **v1.16** | ✅ | 含 `clinical_sync_task` |
+| `seed-dict.sql` | ✅ | |
+| Nacos 8848 | ✅ | |
+| MinIO 9001 | ✅ | `start-project` local 自动启 |
+| Gateway 路由 + JWT | ✅ | |
+| 架构图 | ✅ | `docs/images/tech-architecture.png`（`render-tech-architecture.py`） |
 
 ---
 
-## 三、后端服务（代码）
+## 三、后端服务
 
-| 模块 | 文档 | 状态 | 负责人 | 备注 |
-|------|------|------|--------|------|
-| hospital-common | — | ✅ | | Result、JWT 常量、UserType、ErrorCode |
-| hospital-gateway | TECH §五 | ✅ | | 路由 + JWT 白名单过滤器 |
-| hospital-auth · staff login | API §3.1 | ✅ | | `doctor01/123456` 可登录 |
-| hospital-auth · internal/token/patient | API §3.2, ADR-001 | ✅ | | 需 `X-Internal-Service: hospital-his` |
-| hospital-auth · token/refresh | API §3.3 | ✅ | | |
-| hospital-auth · auth/me | API §3.1 | ✅ | | 验收 A2 |
-| hospital-his · 微信登录 | API §4.0 | ✅ | | Feign → auth；dev mock code |
-| hospital-his · 挂号/支付 | API §4.2–4.3 | ✅ | | 模拟支付 `POST /patient/payments` |
-| hospital-his · 医生队列/病历 | API §5.1–5.2 | ✅ | | `/doctor/queues`, `/doctor/call/{id}` |
-| hospital-his · 医生医嘱汇总 | API §5.3 | ✅ | | `GET /doctor/registers/{id}/orders` |
-| hospital-his · 开立检验 | API §5.4 | ✅ | | `POST /doctor/inspection-requests` |
-| hospital-his · 开立检查 | API §5.3 | ✅ | | `POST /doctor/check-requests` |
-| hospital-his · 开立处方 | API §5.5 | ✅ | | `POST /doctor/prescriptions` |
-| hospital-his · 药房发药 | API §5.6 | ✅ | | `GET /pharmacy/pending`, `POST .../dispense`, `return-drug` |
-| hospital-his · 退号/退费 | API §5.9 | ✅ | | `/registrar/refunds`, `/registrar/registers/{id}/cancel` |
-| hospital-his · 窗口挂号/收费 | API §八 | ✅ | | `POST /registrar/registers`（待支付）+ `POST /registrar/charges` |
-| hospital-lis · 队列/结果 | API §5.7 | ✅ | | `GET /lis/queue`, `POST /lis/requests/{id}/result` |
-| hospital-disposal · 队列/结果 | API §5.7.4 | ✅ | | 三段式报告 + `r-disposal-acceptance.ps1` |
-| hospital-management · 字典只读 | API §9.1 | ✅ | | `GET /admin/departments` 等 |
-| hospital-management · 科室/员工/排班 CRUD | API §9.2–9.3 | ✅ | | `POST/PUT/DELETE /admin/**` + auth 内部开户 |
-| hospital-management · 排班请假 §8.5/§9.5 | API §8.5、§9.5 | ✅ | | `scheduling_leave_request` 表 + 验收脚本 |
-| hospital-pacs · 队列/执行/结果 | API §6 | ✅ | lzr | `GET /pacs/queue`, `POST execute/result`；R-pacs 7/7 |
-| hospital-pacs · 三段式报告 | API §6.1 | ✅ | lzr | `result-detail` / `ai-report` STUB / 双字段 `result`；`PacsReportStubSupport` + `PacsAiReportCache` |
-| hospital-pacs · 影像任务/CNN | API §6 · §8 | ✅ | lzr+wsh | taskType 三态；62001 头部 / 62002 肺部 / 62006 肿瘤 STUB；见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) |
-| hospital-ai-bridge · RAG | API §7 | 🟨 | | pgvector + 100 条官方知识；见 [RAG_GUIDE.md](./RAG_GUIDE.md) |
-| hospital-ai-bridge · triage/assistant STUB | API §7 | ✅ | | 非 RAG 路径占位 |
-| hospital-lis | MICRO §2.4 | ✅ | | :9103 |
-| hospital-disposal | MICRO §2.5a | ✅ | | :9105 |
-| hospital-pacs | MICRO §2.5 | ✅ | | :9104 |
-| hospital-management | MICRO §2.6 | ✅ | | :9107 字典只读 + 科室/员工/排班 CRUD |
-| hospital-ai-bridge | MICRO §2.7 | 🟨 | | :9106 RAG 收尾中 |
-| hospital-ai (Python) | API §8 | ✅ | wsh | 头部 + 肺部权重已部署；见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) |
+| 模块 | 端口 | 状态 | 要点 |
+|------|------|------|------|
+| hospital-common | — | ✅ | 共享 jar |
+| hospital-gateway | 9000 | ✅ | 唯一对外 HTTP |
+| hospital-auth | 9101 | ✅ | 医护/患者 Token |
+| hospital-his（临床） | 9102 | ✅ | 医生队列/病历/开单 |
+| hospital-patient | 9108 | ✅ | 小程序/挂号/支付/registrar/窗口收费 |
+| hospital-pharmacy | 9109 | ✅ | 发药/退药/驳回 |
+| hospital-lis | 9103 | ✅ | 检验队列/结果 |
+| hospital-pacs | 9104 | ✅ | 检查/影像/CNN 任务/LLM 报告 |
+| hospital-disposal | 9105 | ✅ | 处置执行/三段式报告 |
+| hospital-management | 9107 | ✅ | 字典只读 · 科室/员工/排班 CRUD · 排班 AI 规则引擎 |
+| hospital-ai-bridge | 9106 | ✅ | triage/诊断/草稿 · LIS/PACS LLM 报告 · RAG |
+| hospital-ai（Python） | 8000 | ✅ | CNN 头部/肺部/肿瘤；内网不经 Gateway |
 
 ---
 
 ## 四、前端
 
-| 模块 | 文档 | 状态 | 负责人 | 备注 |
-|------|------|------|--------|------|
-| PC · 登录页 | API.md §二 | ✅ | | `/login` |
-| PC · 医生队列/病历 | API.md §五 | ✅ | | 开单对话框 + 医嘱面板 + 完整病历字段 |
-| PC · 药师发药 | §2.6 | ✅ | | `/pharmacy/pending` 待发药 + 发药/退药 |
-| PC · 收费员退费 | §2.3 | ✅ | | `/registrar/refund` 按病历号查询 + 退费 |
-| PC · PACS 检查队列 | API §6 | ✅ | zty | `TechQueuePanel` 三段式 + 录入弹窗 **重新采图**（跳转影像 AI 工作台）+ `mergeCheckReportAfterLlm` 保留三视图 |
-| PC · PACS 影像任务 | §2.5 | 🟨 | zty | `/pacs/imaging` 关 Mock 显示开发中空态；后端 `imaging-studies` ⬜ |
-| PC · PACS 影像 AI 工作台 | §2.5 | ✅ | zty | `/pacs/imaging-ai`；CNN 见 AI_CNN_INTEGRATION |
-| PC · admin | API §9 | ✅ | | 排班页与 Mock 统一；请假联调；AI STUB 50301 |
-| 小程序 · 登录/挂号 | §一 | ✅ | | `hospital-patient-miniapp/` |
-| 小程序 · 支付 | §一 | ✅ | | 待缴明细 + 演示级微信支付 UI + 缴费详情 |
-| 小程序 · 报告/医嘱 | §一 | ✅ | | 报告分组/角标/空态 + 医嘱上下文 + 处方详情 |
+| 模块 | 状态 | 要点 |
+|------|------|------|
+| PC · 登录/医生/药师/收费/LIS/PACS/处置/管理 | ✅ | 关 Mock 联调 |
+| PC · 影像 AI 工作台 | ✅ | `/pacs/imaging-ai` + CNN |
+| 小程序 · 登录/挂号/支付/报告/病历 | ✅ | `hospital-patient-miniapp/` |
 
 ---
 
 ## 五、里程碑验收
 
-| 组合 | 状态 | 验收日期 | 验收人 |
-|------|------|----------|--------|
-| R-min（P1） | ✅ | 2026-05-31 | King | `scripts/r-min-acceptance.ps1` 10/10 PASS |
-| R-lis（P2） | ✅ | 2026-05-31 | King | `scripts/r-lis-acceptance.ps1` 9/9 PASS |
-| R-pacs（P3） | ✅ | 2026-05-31 | King | `scripts/r-pacs-acceptance.ps1` 7/7 PASS |
-| R-pharmacy（P3） | ✅ | 2026-05-31 | King | `scripts/r-pharmacy-acceptance.ps1` 4/4 PASS |
-| R-reversal（P3） | ✅ | 2026-05-31 | King | `scripts/r-reversal-acceptance.ps1` 4/4 PASS |
-| R-mgmt（P1） | ✅ | 2026-06-11 | | `scripts/r-mgmt-acceptance.ps1` 12/12 PASS |
-| R-full（P4） | ⬜ | | |
+| 组合 | 状态 | 验收方式 |
+|------|------|----------|
+| R-min（P1） | ✅ | RUNBOOK §12.2 |
+| R-lis（P2） | ✅ | RUNBOOK §12.3 |
+| R-pacs / 药房 / 逆向（P3） | ✅ | RUNBOOK §12.4 |
+| R-mgmt | ✅ | 管理端字典/排班/请假 |
+| R-full（P4） | ✅ | CNN + LLM/RAG 演示（§12.5） |
 
 ---
 
-## 五·一、HIS 设计模式重构（ADR-018）
+## 五·一、HIS 设计模式重构（ADR-018 / ADR-019）
 
-| 阶段 | 内容 | 代码 | 验收 | 文档 |
-|------|------|------|------|------|
-| 1 | **①** VisitTransitions | ✅ | 🟨 待跑 | [REFACTORING §4.1](./REFACTORING_DESIGN_PATTERNS.md#41-图-1--visittransitions--registervisit_state) |
-| 2 | **②** SM1 + SM2 | ✅ | 🟨 待跑 | [REFACTORING §4.2～4.3](./REFACTORING_DESIGN_PATTERNS.md#42-图-2--medtechordertransitions--检验--检查--处置sm1) |
-| 3 | **③** MedicalOrderHandler + Registry | ✅ | 🟨 待跑 | [REFACTORING §五](./REFACTORING_DESIGN_PATTERNS.md#五handler-设计步骤-③) |
-| 4 | **④** AbstractMedTechExecuteTemplate | ✅ | 🟨 待跑 | [REFACTORING §六](./REFACTORING_DESIGN_PATTERNS.md#六template-method--医技执行步骤-④) |
-| 5 | **⑧** 拆微服务（ADR-019） | ✅ | 🟨 待跑 | patient :9108 · clinical his :9102 · pharmacy :9109；Outbox `clinical_sync_task` |
+| 阶段 | 代码 | 验收 |
+|------|------|------|
+| ① VisitTransitions | ✅ | ✅ |
+| ② SM1 + SM2 | ✅ | ✅ |
+| ③ MedicalOrderHandler | ✅ | ✅ |
+| ④ MedTechExecute Template | ✅ | ✅ |
+| ⑧ 拆 patient / pharmacy / clinical + Outbox | ✅ | ✅ |
 
-> **验收**：`r-min` · `r-reversal` · `r-lis` · `r-pacs` · `r-disposal` · `r-pharmacy`（ADR-018/019 重构后须重跑）。  
-> **延后**：Coordinator/Handler 层单测扩充。
+详见 [REFACTORING_DESIGN_PATTERNS.md](./REFACTORING_DESIGN_PATTERNS.md)。
 
 ---
 
@@ -122,7 +94,7 @@
 
 | 日期 | 描述 | 影响 | 处理 |
 |------|------|------|------|
-| | | | |
+| — | 无 | — | — |
 
 ---
 
@@ -130,22 +102,8 @@
 
 | 日期 | 说明 |
 |------|------|
-| 2026-07-01 | **ADR-019 代码清理收尾**：patient 侧 Repository 只读化 + `RegisterRepository` 去临床死代码；文档同步步骤⑧ ✅ |
-| 2026-07-01 | **`clinical_sync_task` 并入 `schema.sql`**；DATABASE_DESIGN v1.16；DESIGN_DECISIONS §7.4 Outbox 同步 |
-| 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
-| 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
-| 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |
-| 2026-06-04 | ADR-015：AI 开单 suggest + ai-draft；`TEAM_COLLABORATION` §九 六人分工 |
-| 2026-06-30 | REFACTORING v2.3：2 层叙述 + 3 表；Handler + 单模板三子类（ADR-018 同步） |
-| 2026-06-30 | REFACTORING v2.4：处方 SM2 库存联动（开立预扣、退费/退药/驳回回增、不足拒开） |
-| 2026-06-04 | ADR-018 **①～④ 代码已落地**；REFACTORING v2.5 文档同步；验收待跑；单测/步骤⑧ 延后 |
-| 2026-06-04 | ADR-018 步骤③ Handler + Registry；步骤④ Execute 模板（lis/pacs/disposal） |
-| 2026-06-30 | 步骤②：SM1/SM2 状态机 + OrderStatusCoordinator（his/lis/pacs/disposal） |
-| 2026-05-31 | 文档精简：合并 INTEGRATION/RATIONALE/TECH 至 RUNBOOK/IMPLEMENTATION/MICROSERVICES |
-| 2026-05-31 | 退号/退费/退药：患者退号、窗口退费、药师退药+退费；验收 4/4 PASS |
-| 2026-05-31 | 药房发药闭环：开处方→缴费→待发药→发药；验收 4/4 PASS |
-| 2026-05-31 | 补齐 management/pacs/ai-bridge 三模块 + HIS 检查开单 |
-| 2026-05-31 | 患者微信小程序工程 `hospital-patient-miniapp`（登录/挂号/缴费/档案/病历） |
-| 2026-05-31 | R-lis 检验闭环验收通过（开单→缴费→LIS 录入→医生查看） |
-| 2026-05-31 | R-min 联调验收通过（Gateway 9000，A～D 全场景） |
-| 2026-05-26 | 初始化进度表 |
+| 2026-06-04 | **定稿交付**：全模块 ✅；文档全库同步；移除自动化验收脚本，改 RUNBOOK 手工 checklist |
+| 2026-06-04 | 架构图重绘（ADR-019 · 11 Java + CNN）；移除 Redis |
+| 2026-06-04 | `GET /registrar/regist-levels` · 契约精简（移除 assistant/stream 等） |
+| 2026-07-01 | ADR-019 收尾 · DATABASE v1.16 · `clinical_sync_task` |
+| 2026-05-31 | R-min～R-reversal 联调通过 |

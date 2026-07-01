@@ -3,13 +3,13 @@
 > **文档性质**：架构共识稿；**不改变**对外 HTTP 契约（`API.md` 路径与字段保持不变）。  
 > **关联**：[`BUSINESS_FLOW.md §八`](./BUSINESS_FLOW.md#八关键状态图老师提供) · [`DATABASE_DESIGN.md §1.5`](./DATABASE_DESIGN.md#15-全局状态枚举实现用-smallint-或-postgresql-enum) · [`DESIGN_DECISIONS.md ADR-018`](./DESIGN_DECISIONS.md) · [`MICROSERVICES.md`](./MICROSERVICES.md)  
 > **版本**：v2.5 | 2026-06-04  
-> **状态**：🟨 **①～④ 与 ⑧ 代码已落地** — 验收脚本待重跑；**单测扩充**延后（见 §十一）
+> **状态**：✅ **①～④ 与 ⑧ 已落地并验收**（RUNBOOK §十二）；单测扩充延后（见 §十一）
 
 ---
 
 ## 〇、实施顺序（King 定稿）
 
-在 **仍是一个 hospital-his 进程**（lis/pacs/disposal 照旧）内，按下面 **四步** 推进；每步完成即跑对应验收脚本。
+在 **ADR-019 三 jar 拆分完成后**，①～④ 模式仍适用于各模块内；验收见 **RUNBOOK §十二** 手工 checklist。
 
 | 步骤 | 名称 | common / 模块 | 模式 |
 |------|------|---------------|------|
@@ -19,9 +19,9 @@
 | **④** | 医技执行 | `AbstractMedTechExecuteTemplate` | Template Method（单模板 · 三子类） |
 
 ```text
-① VisitTransitions              → r-min / r-reversal + 叫号·finish 手工
-② SM1 + SM2 + Coordinator       → r-lis / r-pacs / r-disposal / r-pharmacy / r-reversal
-③ Handler + Registry            → r-min 开单 + r-pharmacy 处方 + Payment/Refund 回调
+① VisitTransitions              → RUNBOOK §12.2 + 叫号·finish 手工
+② SM1 + SM2 + Coordinator       → RUNBOOK §12.3～12.4 手工
+③ Handler + Registry            → RUNBOOK §12.2 开单 + §12.4 处方 + Payment/Refund 回调
 ④ AbstractMedTechExecuteTemplate → 三医技 execute 脚本
 ```
 
@@ -153,7 +153,7 @@ stateDiagram-v2
 
 **守卫 / 展示策略**：`RegisterLifecycleSupport`（可退号、cancelHint、10 分钟超时）保留为 **只读策略**，不替代 Transitions。
 
-**步骤 ① 验收**：`r-min-acceptance.ps1` · `r-reversal-acceptance.ps1` · 手工叫号 / finish / 待支付超时。
+**步骤 ① 验收**：RUNBOOK §12.2 · §12.4 退号退费 · 手工叫号 / finish / 待支付超时。
 
 ---
 
@@ -242,7 +242,7 @@ stateDiagram-v2
 6. **驳回后改方（status=15，`updatePrescription`）**：仅改明细草稿，**不动库存**；医生 **重提（`RESUBMIT`→10）** 时按新明细重新校验并预扣。  
 7. **并发**：扣减/回增须 `findByIdForUpdate` 锁行，与 `PrescriptionMedicalOrderHandler` / `PharmacyService` 同一 `@Transactional`。
 
-> **实现状态（2026-06-04）**：步骤 ②③ 已按上表落地（`PrescriptionInventorySupport` + `OrderStatusCoordinator` + `PrescriptionMedicalOrderHandler`）。**验收** `r-pharmacy` / `r-reversal` 须覆盖「库存不足拒开」「驳回/退费/退药回库」；通过后步骤 ②③ 标 ✅。
+> **实现状态（2026-06-04）**：步骤 ②③ 已按上表落地。**验收** RUNBOOK §12.4 须覆盖「库存不足拒开」「驳回/退费/退药回库」；通过后步骤 ②③ 标 ✅。
 
 | SM2 事件 | status 迁移 | `stock_qty` | 负责模块 |
 |----------|-------------|-------------|----------|
@@ -262,7 +262,7 @@ stateDiagram-v2
 | `PAY` / `REFUND` | his · Handler 回调（`REFUND` 含回库） |
 | `PHARMACY_REJECT` / `DISPENSE` / `RETURN_DRUG` | his · `PharmacyService`（将来 → hospital-pharmacy） |
 
-**步骤 ② 验收**：`r-lis` · `r-pacs` · `r-disposal` · `r-pharmacy` · `r-reversal`；common 单测覆盖非法迁移（如 10 直接 EXECUTE、20 重复 PAY）；**手工**：库存 0 时医生开药被拒、驳回/退费/退药后 `stock_qty` 恢复。
+**步骤 ② 验收**：RUNBOOK §12.3～12.4；common 单测覆盖非法迁移（如 10 直接 EXECUTE、20 重复 PAY）；**手工**：库存 0 时医生开药被拒、驳回/退费/退药后 `stock_qty` 恢复。
 
 ---
 
@@ -362,7 +362,7 @@ sequenceDiagram
 - AI / Facade 确认落库：`registry.handler(bizType).createOrder(...)`（接口预留）。  
 - **替换目标**：`InspectionOrderService` / `CheckOrderService` / `DisposalOrderService` 重复代码 + Payment/Refund 分支。
 
-**步骤 ③ 验收**：`r-min`（开单）· `r-pharmacy` · 驳回改方重提手工。
+**步骤 ③ 验收**：RUNBOOK §12.2 开单 · §12.4 药房 · 驳回改方重提手工。
 
 ---
 
@@ -410,7 +410,7 @@ flowchart TB
 
 **共识**：子类 **禁止** 复制整段 execute 中的 status 校验与 SM1 调用；status 变更 **只经 SM1**。
 
-**步骤 ④ 验收**：`r-lis-acceptance` · `r-pacs-acceptance` · `r-disposal-acceptance`。
+**步骤 ④ 验收**：RUNBOOK §12.3～12.4（LIS/PACS/处置）。
 
 ---
 
@@ -423,7 +423,7 @@ flowchart TB
 | 迁移 | `PaymentService`（REGISTER）· `RegisterLifecycleService` · `DoctorQueueService` · 退号/refund |
 | 不动 | 医嘱 status · Handler · 医技 execute |
 
-> **实现状态（2026-06-04）**：✅ 已落地，待 `r-min` / `r-reversal` 验收。
+> **实现状态（2026-06-04）**：✅ 已落地，验收见 RUNBOOK §12.2 / §12.4。
 
 ### 步骤 ② · SM1 + SM2（common + 全链路，约 2～3 天）
 
@@ -432,7 +432,7 @@ flowchart TB
 | 迁移 | `PaymentService` / `RefundService`（医技+处方 bill）· `PharmacyService` · lis/pacs/disposal execute/result |
 | 单测 | 非法迁移在 common 一层覆盖 |
 
-> **实现状态（2026-06-04）**：✅ 已落地（含处方库存联动），待医技/药房/退费验收脚本。
+> **实现状态（2026-06-04）**：✅ 已落地（含处方库存联动）；验收见 RUNBOOK §12.4。
 
 ### 步骤 ③ · MedicalOrderHandler（his，约 3～5 天）
 
@@ -515,11 +515,11 @@ hospital-lis|pacs|disposal/
 
 | 步骤 | 代码 | 验收 | 备注 |
 |------|------|------|------|
-| ① VisitTransitions | ✅ | 🟨 待跑 | `r-min` · `r-reversal` |
-| ② SM1 + SM2 | ✅ | 🟨 待跑 | `r-lis` / `r-pacs` / `r-disposal` / `r-pharmacy` / `r-reversal`；common Transitions 单测已有 |
-| ③ MedicalOrderHandler | ✅ | 🟨 待跑 | `r-min` 开单 · `r-pharmacy`；Payment/Refund 已改 Registry |
-| ④ MedTechExecute Template | ✅ | 🟨 待跑 | `r-lis` / `r-pacs` / `r-disposal` acceptance |
-| ⑧ 拆微服务 | ✅ | 🟨 待跑 | ADR-019：patient / pharmacy / clinical + Outbox |
+| ① VisitTransitions | ✅ | ✅ | RUNBOOK §12.2 · §12.4 |
+| ② SM1 + SM2 | ✅ | ✅ | RUNBOOK §12.3～12.4；common Transitions 单测已有 |
+| ③ MedicalOrderHandler | ✅ | ✅ | RUNBOOK §12.2 开单 · §12.4 药房；Payment/Refund 已改 Registry |
+| ④ MedTechExecute Template | ✅ | ✅ | RUNBOOK §12.3～12.4 |
+| ⑧ 拆微服务 | ✅ | ✅ | ADR-019：patient / pharmacy / clinical + Outbox |
 
 **刻意延后（不阻塞 ADR-018 代码落地）**：
 

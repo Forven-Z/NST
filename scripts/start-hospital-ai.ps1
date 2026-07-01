@@ -1,11 +1,11 @@
-# Start hospital-ai (Python CNN / FastAPI :8000)
+﻿# Start hospital-ai (Python CNN / FastAPI :8000)
 # Version: v1.1 | 2026-06-04
 #
 # Usage:
 #   .\scripts\start-hospital-ai.ps1
 #   .\scripts\start-hospital-ai.ps1 -Restart
 #
-# First time: powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
+# First time: see docs/AI_CNN_INTEGRATION.md §11（.venv + 权重）
 # Full stack: start-project.ps1 (pacs :9104) then this script for imaging CNN
 
 param(
@@ -86,8 +86,8 @@ if (-not (Test-Path $AiDir)) {
 }
 
 if (-not (Test-Path $VenvPy)) {
-    Write-Host 'FAIL  .venv not found - run setup first:' -ForegroundColor Red
-    Write-Host '      powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1' -ForegroundColor Yellow
+    Write-Host 'FAIL  .venv not found - see docs/AI_CNN_INTEGRATION.md §11' -ForegroundColor Red
+    Write-Host '      cd hospital-ai && python -m venv .venv && pip install GPU torch + requirements.txt' -ForegroundColor Yellow
     exit 1
 }
 

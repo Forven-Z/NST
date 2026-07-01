@@ -1111,13 +1111,17 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 > **勿**在 Windows 上单独执行 `pip install torch` 或 `pip install -r requirements.txt`（会装 **CPU 版** `torch+x.cpu`，推理极慢）。  
 > 代码逻辑是「有 CUDA 就用 GPU」（`model/Config.py`），前提是本机安装 **CUDA 版 PyTorch**。
 
-在项目根目录执行（推荐）：
+在项目根目录手动安装（`hospital-ai/`）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
+cd hospital-ai
+python -m venv .venv
+.\.venv\Scripts\activate
+# 按 https://pytorch.org 安装 GPU 版 torch（勿只 pip install requirements.txt）
+pip install -r requirements.txt
+mkdir model\weights -Force
+Copy-Item ..\shared\model-weights\*.pth model\weights\
 ```
-
-脚本会：创建 `.venv` → 安装 **cu124** 版 `torch` → 安装 `requirements.txt` 其余依赖。
 
 验证（`device` 须含 `cuda`，不能是 `cpu`）：
 
@@ -1129,7 +1133,7 @@ curl http://127.0.0.1:8000/v1/health
 
 权重 `hospital-ai/model/weights/best.pth` 本机复制，不进 Git。详见 [AI_CNN_INTEGRATION.md](./AI_CNN_INTEGRATION.md) §八。
 
-> **P1～P3**：可不启动 `hospital-ai`；Java 对 CNN 接口返回 STUB 即可。
+> **P1～P4**：可不启动 `hospital-ai` 时，门诊主链仍可用；CNN 演示需 `start-hospital-ai.ps1`。
 
 ---
 

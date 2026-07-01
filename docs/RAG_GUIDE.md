@@ -5,7 +5,7 @@
 > **数据库**：PostgreSQL `hospital` + pgvector  
 > **Embedding**：DashScope `text-embedding-v3`（1024 维）  
 > **版本**：v1.0 | 2026-06-04  
-> **状态**：🟨 开发收尾中（知识入库与 `diagnosis/suggest` 已可联调）
+> **状态**：✅ 已落地（需 `DASHSCOPE_API_KEY` + pgvector；见 §四 启动）
 
 ---
 

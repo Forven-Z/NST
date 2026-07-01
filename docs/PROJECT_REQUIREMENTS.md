@@ -151,9 +151,9 @@ NST/
 | 老师说的 HIS/LIS/PACS？ | **三个 Java 微服务**：`hospital-his` / `hospital-lis` / `hospital-pacs`；CNN 在 **hospital-ai（FastAPI）** |
 | 微服务要做到什么程度？ | **M1～M10**、启动组合 **R-min～R-full**，见 **`MICROSERVICES.md`** |
 | 故障隔离？ | 设计目标：尤其 **停 AI/影像，门诊仍可用**；共享 PostgreSQL/Gateway 为已知单点 |
-| 逻辑子模块放哪？ | **his 内扁平 `controller.*` 包**（`patient` / `doctor` / `registrar` / `pharmacy`），见 **`MICROSERVICES.md` §2.3**；业务域分工见 **`TEAM_COLLABORATION.md` §9.3** |
-| 患者登录？ | **his** `/patient/auth/wechat` + **auth** `/internal/token/patient`（方案 C） |
-| 代码是否已完成？ | **P3 核心已完成**（R-min～R-reversal 验收通过）；P4 AI/CNN 待做；见 **`PROGRESS.md`** |
+| 逻辑子模块放哪？ | **ADR-019**：`hospital-patient` / `hospital-his`（临床）/ `hospital-pharmacy` 三 jar，见 **`MICROSERVICES.md` §2.3** |
+| 患者登录？ | **patient** 微信登录 + **auth** `/internal/token/patient`（方案 C） |
+| 代码是否已完成？ | **是**。P0.5～P4 已落地；见 **`PROGRESS.md`** |
 
 ---
 
@@ -178,7 +178,7 @@ NST/
 4. **移交迭代**：部署、验收、少量优化
 
 > **技术架构图**：见 [`MICROSERVICES.md`](./MICROSERVICES.md) §八、[`images/tech-architecture.png`](./images/tech-architecture.png)  
-> **API 接口文档**：见 [`API.md`](./API.md)（Java 完整契约；Python/LLM 预留 STUB）  
+> **API 接口文档**：见 [`API.md`](./API.md)（唯一 HTTP 契约；Java + 内网 Python CNN）  
 > **环境配置手册**：见 [`DEV_ENV_SETUP.md`](./DEV_ENV_SETUP.md)（**Windows 本机、不装 Docker**；团队基线 JDK17 / Maven3.9.10 / **Nacos2.2.3** / Node22 / Redis5 / PyTorch2.x+CUDA12.6）  
 > 流程总览图、迭代示意图：见参考文档原图，待补充至 `docs/images/dev-process.png`
 
@@ -617,7 +617,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 - 主诉 `readme`、现病史 `present`、体格检查 `physique`、诊断 `diagnosis`、处理意见 `cure` 等（列级定义见 **`DATABASE_DESIGN.md` §5.2**）
 - **患者小程序仅可读 `status = 2`（已确诊提交）** 的病历（见 `DATABASE_DESIGN.md` §1.5 `medical_record_status`）
 
-> 建表脚本已交付：**`docs/sql/schema.sql`**（PostgreSQL，对齐 **DATABASE_DESIGN v1.14**）；执行说明见 **`docs/sql/README.md`**。
+> 建表脚本已交付：**`docs/sql/schema.sql`**（PostgreSQL，对齐 **DATABASE_DESIGN v1.16**）；执行说明见 **`docs/sql/README.md`**。
 
 ---
 

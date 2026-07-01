@@ -1,14 +1,12 @@
 package com.hospital.aibridge.controller;
 
 import com.hospital.common.Result;
-import com.hospital.aibridge.dto.AssistantStreamRequest;
 import com.hospital.aibridge.dto.DiagnosisSuggestRequest;
 import com.hospital.aibridge.dto.DoctorAiDraftRequest;
 import com.hospital.aibridge.dto.TriageBindRegisterRequest;
 import com.hospital.aibridge.dto.TriageChatRequest;
 import com.hospital.aibridge.dto.TriageChatResponse;
 import com.hospital.aibridge.repository.AiChatSessionRepository;
-import com.hospital.aibridge.service.AiStubService;
 import com.hospital.aibridge.service.DoctorAiAssistService;
 import com.hospital.aibridge.service.TriageChatService;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +24,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AiController {
 
-    private final AiStubService aiStubService;
     private final TriageChatService triageChatService;
     private final DoctorAiAssistService doctorAiAssistService;
     private final AiChatSessionRepository aiChatSessionRepository;
@@ -35,8 +32,7 @@ public class AiController {
     public Result<Map<String, Object>> health() {
         return Result.success(Map.of(
                 "status", "UP",
-                "service", "hospital-ai-bridge",
-                "stub", true
+                "service", "hospital-ai-bridge"
         ));
     }
 
@@ -56,12 +52,6 @@ public class AiController {
                 "bound", updated > 0,
                 "updated", updated
         ));
-    }
-
-    @PostMapping("/assistant/stream")
-    public Result<Map<String, Object>> assistantStream(@RequestBody AssistantStreamRequest request) {
-        // TODO: switch to a real text/event-stream endpoint after the frontend is ready for SSE.
-        return Result.success(aiStubService.assistantStream(request.getRegisterId(), request.getMessage()));
     }
 
     @PostMapping("/diagnosis/suggest")

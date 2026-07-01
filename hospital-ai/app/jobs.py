@@ -35,7 +35,7 @@ STATUS_FAILED = "FAILED"
 
 STUB_MESSAGES = {
     LUNG_CT_ARTIFACT: "肺部 CT 金属伪影模型尚未部署，请运行 scripts/install-model-weights.ps1（见 docs/AI_CNN_INTEGRATION.md §十一）",
-    TUMOR_SEG: "肿瘤分割模型尚未部署，请先完成训练并运行 scripts/install-model-weights.ps1",
+    TUMOR_SEG: "肿瘤分割模型尚未部署，请运行 scripts/install-model-weights.ps1",
 }
 
 

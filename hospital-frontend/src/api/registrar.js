@@ -24,7 +24,7 @@ export function fetchOutpatientDepartments() {
 
 export function fetchRegistLevels() {
   if (useMock()) return mockRegistLevels()
-  return request.get('/admin/regist-levels', { params: { pageSize: 20 } })
+  return request.get('/registrar/regist-levels', { params: { pageSize: 20 } })
 }
 
 export function fetchSettleCategories() {

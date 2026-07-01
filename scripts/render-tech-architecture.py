@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Render NST tech architecture diagram to docs/images/tech-architecture.png"""
 
 from pathlib import Path
@@ -7,19 +7,17 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
-# Chinese font on Windows
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
 
 OUT = Path(__file__).resolve().parents[1] / "docs" / "images" / "tech-architecture.png"
-W, H = 16, 11
+W, H = 18, 12
 fig, ax = plt.subplots(figsize=(W, H))
 ax.set_xlim(0, W)
 ax.set_ylim(0, H)
 ax.axis("off")
 fig.patch.set_facecolor("#F8FAFC")
 
-# Colors
 C_TITLE = "#0F172A"
 C_LAYER = "#E2E8F0"
 C_FE = "#DBEAFE"
@@ -28,9 +26,12 @@ C_GW = "#1E40AF"
 C_JAVA = "#EFF6FF"
 C_JAVA_BORDER = "#3B82F6"
 C_HIS = "#DBEAFE"
+C_PATIENT = "#BFDBFE"
+C_PHARM = "#93C5FD"
 C_LIS = "#E0E7FF"
 C_PACS = "#EDE9FE"
 C_DISPOSAL = "#FEF3C7"
+C_PLATFORM = "#F8FAFC"
 C_AI_PY = "#FFF7ED"
 C_AI_BORDER = "#EA580C"
 C_INFRA = "#F0FDF4"
@@ -70,138 +71,127 @@ def layer_band(y, h, label):
     text(1.15, y + h - 0.22, label, size=11, weight="bold", color=C_MUTED, ha="left")
 
 
+def svc_box(x, y, w, h, name, port, desc, fc, ec, lw=1.8):
+    box(x, y, w, h, fc, ec, lw=lw)
+    text(x + w / 2, y + h - 0.28, name, size=8.2, weight="bold")
+    text(x + w / 2, y + h - 0.52, port, size=7.8, color=C_MUTED)
+    text(x + w / 2, y + 0.18, desc, size=7.2, color=C_MUTED)
+
+
 # Title
-text(W / 2, H - 0.45, "智慧云脑诊疗平台 技术架构图", size=20, weight="bold", color=C_TITLE)
-text(W / 2, H - 0.85, "NST · Nexus Smart Treatment  |  9×Java jar + 1×Python  |  Gateway :9000", size=11, color=C_MUTED)
+text(W / 2, H - 0.45, "智慧云脑诊疗平台 · 技术架构图", size=20, weight="bold", color=C_TITLE)
+text(
+    W / 2, H - 0.88,
+    "NST · Nexus Smart Treatment  |  11×Java jar + 1×Python  |  Gateway :9000  |  ADR-019 HIS 三拆",
+    size=10.5, color=C_MUTED,
+)
 
-# --- Layer 1: Frontend ---
-layer1_y = 8.55
+# Layer 1: Frontend
+layer1_y = 9.35
 layer_band(layer1_y, 1.35, "前端层")
-box(2.0, layer1_y + 0.25, 4.8, 0.85, C_FE, C_FE_BORDER)
+box(1.8, layer1_y + 0.25, 5.2, 0.85, C_FE, C_FE_BORDER)
 text(4.4, layer1_y + 0.72, "患者微信小程序", size=12, weight="bold")
-text(4.4, layer1_y + 0.42, "原生 · /api/v1/patient/**", size=9, color=C_MUTED)
+text(4.4, layer1_y + 0.42, "/api/v1/patient/** · registrar", size=9, color=C_MUTED)
 
-box(9.2, layer1_y + 0.25, 4.8, 0.85, C_FE, C_FE_BORDER)
-text(11.6, layer1_y + 0.72, "医生 / 管理 PC", size=12, weight="bold")
-text(11.6, layer1_y + 0.42, "Vue3 + Element Plus + Pinia", size=9, color=C_MUTED)
+box(11.0, layer1_y + 0.25, 5.2, 0.85, C_FE, C_FE_BORDER)
+text(13.6, layer1_y + 0.72, "医生 / 管理 PC", size=12, weight="bold")
+text(13.6, layer1_y + 0.42, "Vue3 + Element Plus  ·  :5173", size=9, color=C_MUTED)
 
-# --- Layer 2: Gateway ---
-layer2_y = 7.35
-layer_band(layer2_y, 0.95, "网关层")
-box(4.8, layer2_y + 0.18, 6.4, 0.62, C_GW, "#1D4ED8", lw=2.2)
-text(8.0, layer2_y + 0.58, "Spring Cloud Gateway", size=13, weight="bold", color="white")
-text(8.0, layer2_y + 0.32, "统一入口 · JWT 校验 · 路由  |  :9000", size=9, color="#DBEAFE")
+# Layer 2: Gateway
+layer2_y = 8.05
+layer_band(layer2_y, 1.0, "网关层")
+box(5.2, layer2_y + 0.2, 7.6, 0.62, C_GW, "#1D4ED8", lw=2.2)
+text(9.0, layer2_y + 0.62, "Spring Cloud Gateway", size=13, weight="bold", color="white")
+text(9.0, layer2_y + 0.36, "统一入口 · JWT 校验 · 路由转发  |  :9000", size=9, color="#DBEAFE")
 
-# --- Layer 3: Microservices ---
-layer3_y = 3.55
-layer_band(layer3_y, 3.55, "微服务层")
+# Layer 3: Microservices
+layer3_y = 3.15
+layer_band(layer3_y, 4.65, "微服务层")
+text(5.0, layer3_y + 4.35, "Java 微服务（Spring Boot 3.2 · Java 17 · Nacos 注册）", size=11, weight="bold", color="#1D4ED8")
+box(0.55, layer3_y + 0.35, 10.2, 3.75, C_JAVA, C_JAVA_BORDER, lw=1.5)
 
-text(4.35, layer3_y + 3.15, "Java 微服务集群（Spring Boot 3.2 · Java 17）", size=11, weight="bold", color="#1D4ED8")
-box(0.65, layer3_y + 0.35, 8.4, 2.55, C_JAVA, C_JAVA_BORDER, lw=1.5)
+svc_w, svc_h = 2.95, 0.88
+row_y = [layer3_y + 2.55, layer3_y + 1.45, layer3_y + 0.45]
+col_x = [0.85, 3.95, 7.05]
 
-# Platform services row
-svc_w, svc_h = 1.85, 0.95
 platform = [
-    ("hospital-auth", ":9101", "认证 · JWT 签发"),
-    ("hospital-management", ":9107", "字典 · 排班"),
+    ("hospital-auth", ":9101", "认证 · JWT 签发", C_PLATFORM, C_JAVA_BORDER),
+    ("hospital-management", ":9107", "字典 · 排班 · 管理", C_PLATFORM, C_JAVA_BORDER),
+    ("hospital-ai-bridge", ":9106", "Spring AI · RAG · LLM", C_PLATFORM, C_JAVA_BORDER),
 ]
-for i, (name, port, desc) in enumerate(platform):
-    x = 1.0 + i * 2.05
-    y = layer3_y + 1.65
-    box(x, y, svc_w, svc_h, "#FFFFFF", C_JAVA_BORDER)
-    text(x + svc_w / 2, y + 0.68, name, size=8.5, weight="bold")
-    text(x + svc_w / 2, y + 0.42, port, size=8, color=C_MUTED)
-    text(x + svc_w / 2, y + 0.18, desc, size=7.5, color=C_MUTED)
+for i, item in enumerate(platform):
+    svc_box(col_x[i], row_y[0], svc_w, svc_h, *item)
 
-# Business HIS/LIS/PACS row
-business = [
-    ("hospital-his", ":9102", "HIS 门诊主业务", C_HIS, "#2563EB"),
+his_row = [
+    ("hospital-patient", ":9108", "患者 · 挂号 · 收费", C_PATIENT, "#2563EB"),
+    ("hospital-his", ":9102", "临床 · 医生 · 开单", C_HIS, "#2563EB"),
+    ("hospital-pharmacy", ":9109", "药房 · 发药 · 退药", C_PHARM, "#2563EB"),
+]
+for i, item in enumerate(his_row):
+    svc_box(col_x[i], row_y[1], svc_w, svc_h, *item, lw=2.0)
+
+text(5.4, row_y[1] - 0.22, "课件 HIS = patient + clinical + pharmacy（三 jar）", size=8, color=C_MUTED)
+
+medtech = [
     ("hospital-lis", ":9103", "LIS 检验执行", C_LIS, "#4F46E5"),
-    ("hospital-pacs", ":9104", "PACS 检查执行", C_PACS, "#7C3AED"),
+    ("hospital-pacs", ":9104", "PACS 检查 · 影像", C_PACS, "#7C3AED"),
     ("hospital-disposal", ":9105", "处置执行", C_DISPOSAL, "#D97706"),
 ]
-for i, (name, port, desc, fc, ec) in enumerate(business):
-    x = 1.0 + i * 2.05
-    y = layer3_y + 0.55
-    box(x, y, svc_w, svc_h, fc, ec, lw=2.0)
-    text(x + svc_w / 2, y + 0.68, name, size=8.5, weight="bold")
-    text(x + svc_w / 2, y + 0.42, port, size=8, color=C_MUTED)
-    text(x + svc_w / 2, y + 0.18, desc, size=7.5, color=C_MUTED)
+for i, item in enumerate(medtech):
+    svc_box(col_x[i], row_y[2], svc_w, svc_h, *item, lw=2.0)
 
-# his internal modules note
-text(4.35, layer3_y + 0.22, "his 内含：patient · doctor · pharmacy · registrar（处置开立）", size=8, color=C_MUTED)
-
-# AI bridge
-box(5.15, layer3_y + 1.65, 1.85, 0.95, "#FFFFFF", C_JAVA_BORDER)
-text(6.075, layer3_y + 2.33, "hospital-ai-bridge", size=8.5, weight="bold")
-text(6.075, layer3_y + 2.07, ":9106", size=8, color=C_MUTED)
-text(6.075, layer3_y + 1.83, "Spring AI · LLM", size=7.5, color=C_MUTED)
-
-# common jar
-text(7.35, layer3_y + 2.1, "hospital-common", size=8.5, weight="bold", color=C_MUTED, ha="left")
-text(7.35, layer3_y + 1.85, "共享 jar（非进程）", size=7.5, color=C_MUTED, ha="left")
+text(0.75, layer3_y + 3.55, "hospital-common（共享 jar，非进程）", size=8.5, weight="bold", color=C_MUTED, ha="left")
 
 # Python AI
-text(12.0, layer3_y + 3.15, "AI 影像服务（Python）", size=11, weight="bold", color="#C2410C")
-box(9.55, layer3_y + 0.55, 5.0, 2.55, C_AI_PY, C_AI_BORDER, lw=2.0)
-text(12.05, layer3_y + 2.35, "hospital-ai", size=12, weight="bold", color="#9A3412")
-text(12.05, layer3_y + 2.05, "FastAPI + PyTorch CNN", size=9, color=C_MUTED)
-text(12.05, layer3_y + 1.75, "医学影像推理 · :8000", size=9, color=C_MUTED)
-text(12.05, layer3_y + 1.15, "P4 阶段 · 异步回调 pacs", size=8.5, color="#B45309")
-text(12.05, layer3_y + 0.85, "bridge 经 HTTP 调 LLM（预留）", size=8.5, color="#B45309")
+text(14.2, layer3_y + 4.35, "AI 影像服务（Python）", size=11, weight="bold", color="#C2410C")
+box(11.15, layer3_y + 0.55, 5.8, 3.55, C_AI_PY, C_AI_BORDER, lw=2.0)
+text(14.05, layer3_y + 3.35, "hospital-ai", size=12, weight="bold", color="#9A3412")
+text(14.05, layer3_y + 3.05, "FastAPI + PyTorch CNN", size=9, color=C_MUTED)
+text(14.05, layer3_y + 2.75, "头部 / 肺部 / 肿瘤 三态", size=9, color=C_MUTED)
+text(14.05, layer3_y + 2.35, "内网 :8000 · 不经 Gateway", size=8.5, color="#B45309")
+text(14.05, layer3_y + 1.85, "pacs 异步调用 → 回调写库", size=8.5, color="#B45309")
+text(14.05, layer3_y + 1.35, "MinIO 读影像 · GPU 推理", size=8.5, color="#B45309")
 
-# --- Layer 4: Infrastructure ---
+# Layer 4: Infrastructure
 layer4_y = 0.55
-layer_band(layer4_y, 2.65, "基础设施与存储")
+layer_band(layer4_y, 2.35, "基础设施与存储")
 infra = [
-    ("PostgreSQL\n+ pgvector", "业务库 hospital\n向量检索 P4+"),
-    ("MinIO", "影像 / 附件\n对象存储"),
-    ("Nacos", "注册发现\n配置中心"),
-    ("Redis", "缓存 / 会话\nP1 不依赖"),
+    ("PostgreSQL\n+ pgvector", "业务库 hospital\nRAG 向量检索"),
+    ("MinIO", "影像 / 附件\n对象存储 :9001"),
+    ("Nacos", "注册发现\n配置中心 :8848"),
 ]
 for i, (title, desc) in enumerate(infra):
-    x = 1.0 + i * 3.55
-    dashed = i == 3
-    box(x, layer4_y + 0.45, 3.15, 1.75, C_INFRA, C_INFRA_BORDER, lw=1.5 if not dashed else 1.2)
-    if dashed:
-        rect = FancyBboxPatch(
-            (x, layer4_y + 0.45), 3.15, 1.75,
-            boxstyle="round,pad=0.02,rounding_size=0.08",
-            facecolor="none", edgecolor=C_INFRA_BORDER, linewidth=1.2, linestyle="--", zorder=3,
-        )
-        ax.add_patch(rect)
-    text(x + 1.575, layer4_y + 1.65, title, size=11, weight="bold")
-    text(x + 1.575, layer4_y + 1.05, desc, size=8.5, color=C_MUTED)
+    x = 1.0 + i * 4.15
+    box(x, layer4_y + 0.4, 3.65, 1.65, C_INFRA, C_INFRA_BORDER, lw=1.5)
+    text(x + 1.825, layer4_y + 1.55, title, size=11, weight="bold")
+    text(x + 1.825, layer4_y + 1.0, desc, size=8.5, color=C_MUTED)
 
-# --- Arrows ---
-# Frontend -> Gateway
-arrow(4.4, layer1_y + 0.25, 7.0, layer2_y + 0.8)
-arrow(11.6, layer1_y + 0.25, 9.0, layer2_y + 0.8)
+# Arrows
+arrow(4.4, layer1_y + 0.25, 7.5, layer2_y + 0.82)
+arrow(13.6, layer1_y + 0.25, 10.5, layer2_y + 0.82)
+arrow(9.0, layer2_y + 0.2, 5.4, layer3_y + 4.1)
 
-# Gateway -> Java cluster (center)
-arrow(8.0, layer2_y + 0.18, 4.35, layer3_y + 3.55)
+for tx in [2.825, 6.375, 10.0, 14.05]:
+    arrow(tx, layer3_y + 0.35, tx if tx < 13 else 10.0, layer4_y + 2.05, color="#475569")
 
-# Java -> Infra (solid)
-for tx in [2.575, 6.125, 9.675]:
-    arrow(tx, layer3_y + 0.35, tx, layer4_y + 2.2, color="#475569")
+# pacs -> MinIO
+arrow(8.375, layer3_y + 0.45, 6.375, layer4_y + 2.05, color="#7C3AED", style="--", lw=1.4)
 
-# pacs -> MinIO (dashed)
-arrow(9.675, layer3_y + 0.55, 6.125, layer4_y + 2.2, color="#7C3AED", style="--", lw=1.4)
+# pacs -> hospital-ai
+arrow(8.375, layer3_y + 0.95, 11.15, layer3_y + 2.0, color="#EA580C", style="--", lw=1.6, rad=0.12)
 
-# pacs/bridge -> hospital-ai (dashed)
-arrow(5.025, layer3_y + 1.0, 9.55, layer3_y + 1.5, color="#EA580C", style="--", lw=1.6, rad=0.15)
-arrow(6.075, layer3_y + 1.65, 10.2, layer3_y + 1.8, color="#EA580C", style="--", lw=1.6, rad=-0.1)
+# patient -> his (Feign / internal)
+arrow(2.325, row_y[1] + svc_h / 2, 5.425, row_y[1] + svc_h / 2, color="#2563EB", style="--", lw=1.2, rad=0.08)
 
 # Legend
-leg_x, leg_y = 0.55, 0.15
+leg_x, leg_y = 0.55, 0.08
 text(leg_x + 0.1, leg_y + 0.35, "图例", size=10, weight="bold", ha="left")
-arrow(leg_x + 0.9, leg_y + 0.35, leg_x + 1.5, leg_y + 0.35, color="#475569")
-text(leg_x + 1.65, leg_y + 0.35, "P1～P3 主链路（Java 门诊闭环）", size=9, ha="left")
-arrow(leg_x + 5.4, leg_y + 0.35, leg_x + 6.0, leg_y + 0.35, color="#EA580C", style="--")
-text(leg_x + 6.15, leg_y + 0.35, "P4 AI / 影像 CNN（HTTP 异步）", size=9, ha="left")
-rect = mpatches.Rectangle((leg_x + 10.2, leg_y + 0.22), 0.35, 0.25, fill=False, edgecolor=C_INFRA_BORDER, linestyle="--")
-ax.add_patch(rect)
-text(leg_x + 10.75, leg_y + 0.35, "可选组件", size=9, ha="left")
+arrow(leg_x + 0.75, leg_y + 0.35, leg_x + 1.35, leg_y + 0.35, color="#475569")
+text(leg_x + 1.5, leg_y + 0.35, "P1～P3 主链路（经 Gateway）", size=9, ha="left")
+arrow(leg_x + 5.0, leg_y + 0.35, leg_x + 5.6, leg_y + 0.35, color="#EA580C", style="--")
+text(leg_x + 5.75, leg_y + 0.35, "P4 CNN / 影像异步（内网 HTTP）", size=9, ha="left")
+arrow(leg_x + 10.5, leg_y + 0.35, leg_x + 11.1, leg_y + 0.35, color="#2563EB", style="--")
+text(leg_x + 11.25, leg_y + 0.35, "Feign / 内部 API", size=9, ha="left")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 plt.tight_layout(pad=0.2)
