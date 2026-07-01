@@ -125,7 +125,7 @@ public class RefundService {
                 refundAmount,
                 (String) paymentLink.get("channel"),
                 operatorId,
-                reason != null ? reason : "mock refund"
+                reason != null ? reason : "窗口退费"
         );
 
         billRepository.markRefunded(billId);

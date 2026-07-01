@@ -47,8 +47,8 @@ export function mockAiSchedulingSuggest(params) {
     suggestions: buildLeaveAwareSuggestions(list),
     pendingLeaveCount: pendingLeave,
     message: pendingLeave
-      ? `【Mock】检测到 ${pendingLeave} 条待审批请假；已优先生成替班建议`
-      : '【Mock】AI 排班建议已生成，可点击「应用 AI 替换」或手工编辑',
+      ? `检测到 ${pendingLeave} 条待审批请假；已优先生成替班建议`
+      : 'AI 排班建议已生成，可点击「应用 AI 替换」或手工编辑',
   })
 }
 

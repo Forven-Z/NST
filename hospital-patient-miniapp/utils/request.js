@@ -22,7 +22,7 @@ function request(options) {
       timeout: 15000,
       success(res) {
         if (res.statusCode === 502 || res.statusCode === 503) {
-          reject(new Error('Gateway 不可用，请确认已运行 scripts/start-r-min.ps1'))
+          reject(new Error('服务暂不可用，请稍后重试或联系管理员'))
           return
         }
         const payload = res.data
@@ -46,7 +46,7 @@ function request(options) {
       fail(err) {
         const msg = err.errMsg || '网络异常'
         if (!USE_MOCK && (msg.indexOf('fail') >= 0 || msg.indexOf('timeout') >= 0)) {
-          reject(new Error('无法连接 Gateway (127.0.0.1:9000)。请启动后端并勾选「不校验合法域名」'))
+          reject(new Error('无法连接服务器，请检查网络后重试'))
           return
         }
         reject(new Error(msg))

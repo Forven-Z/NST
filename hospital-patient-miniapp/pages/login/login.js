@@ -131,7 +131,7 @@ Page({
     } catch (err) {
       wx.showModal({
         title: '登录失败',
-        content: err.message || '请确认 Gateway :9000 已启动',
+        content: err.message || '请检查网络后重试',
         showCancel: false,
       })
     } finally {

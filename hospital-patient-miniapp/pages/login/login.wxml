@@ -51,7 +51,7 @@
     <view class="link-row" wx:if="{{hasAccounts && !addMode}}">
       <text class="link" bindtap="goAddMode">添加其他病人账户</text>
     </view>
-    <view class="tip" wx:if="{{useMock}}">Mock 模式可直接填写档案登录；本机可保存多个账户并切换。</view>
-    <view class="tip" wx:else>联调模式：Gateway 127.0.0.1:9000；若身份证已在院内建档将自动合并。</view>
+    <view class="tip" wx:if="{{useMock}}">本地演示模式：可直接填写档案登录；本机可保存多个账户并切换。</view>
+    <view class="tip" wx:else>若身份证已在院内建档，登录后将自动关联您的就诊档案。</view>
   </view>
 </view>

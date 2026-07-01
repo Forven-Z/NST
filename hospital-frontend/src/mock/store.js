@@ -54,11 +54,11 @@ function initResultFields(row, techType) {
 function mockCurrentRealName() {
   try {
     const raw = readStaffAuthRaw()
-    if (!raw) return '演示医师'
+    if (!raw) return '当班医师'
     const data = JSON.parse(raw)
-    return data.user?.realName || '演示医师'
+    return data.user?.realName || '当班医师'
   } catch {
-    return '演示医师'
+    return '当班医师'
   }
 }
 

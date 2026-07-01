@@ -553,13 +553,13 @@ async function submitResult(signOpts, successMessage) {
         </template>
       </div>
       <el-form v-else label-position="top">
-        <el-form-item label="结果文本（resultText）" required>
+        <el-form-item label="报告正文" required>
           <el-input
             v-model="resultText"
             type="textarea"
             :rows="8"
             :readonly="dialogMode === 'review' || dialogMode === 'readonly'"
-            placeholder="按 API §5.7.3 填写检查结果或检验报告正文"
+            placeholder="填写检查结果或检验报告正文"
           />
         </el-form-item>
       </el-form>

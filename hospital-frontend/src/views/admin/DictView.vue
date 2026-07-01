@@ -57,7 +57,7 @@ function onTabChange() {
     <div class="page-head">
       <h2 class="page-title">基础字典</h2>
       <p class="page-desc">
-        科室、号别、药品、医技项目等主数据由 management 模块维护；此处为只读查看。Mock 数据与 seed-dict.sql 对齐并扩展演示科室。
+        科室、号别、药品、医技项目等主数据由系统管理模块维护，此处仅供只读查看。
       </p>
     </div>
 

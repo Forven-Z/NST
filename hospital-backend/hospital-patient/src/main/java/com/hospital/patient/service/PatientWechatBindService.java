@@ -39,7 +39,7 @@ public class PatientWechatBindService {
         if (patientProperties.getWechat().isMockEnabled()) {
             return "mock_openid_" + sha256(code);
         }
-        throw new BusinessException(ErrorCode.BAD_REQUEST, "微信绑定未配置，请开启 mock 模式");
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "微信绑定未配置，请联系管理员");
     }
 
     private String sha256(String input) {

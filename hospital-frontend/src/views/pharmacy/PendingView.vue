@@ -123,7 +123,7 @@ function onDrawerChanged() {
       <el-table
         v-loading="loading"
         :data="list"
-        empty-text="暂无处方（Mock：李小红 MR202606040002 有待发药处方）"
+        empty-text="暂无处方"
         class="rx-table"
         @row-click="openDetail"
       >

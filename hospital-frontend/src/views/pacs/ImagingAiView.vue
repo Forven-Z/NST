@@ -41,19 +41,19 @@ const pageTitle = computed(() => {
 })
 
 const analyzeButtonLabel = computed(() => {
-  if (generating.value) return 'CNN 推理中（约 15–60 秒）…'
+  if (generating.value) return 'AI 分析中（约 15–60 秒）…'
   if (uploading.value) return '正在上传源数据…'
   return isTumorSeg.value ? '开始 AI 分割' : '开始 AI 检测'
 })
 
 const uploadTip = computed(() => {
   if (isTumorSeg.value && mode.value === 'dicom') {
-    return '选文件夹后自动上传至 MinIO。'
+    return '选文件夹后自动上传。'
   }
   if (isTumorSeg.value) {
-    return '选文件后自动上传源数据至 MinIO；AI 完成后分割掩码与预览由后端自动写入 MinIO。'
+    return '选文件后自动上传源数据；AI 完成后分割掩码与预览将自动保存。'
   }
-  return '选文件后自动上传源数据至 MinIO；AI 完成后伪影掩码与预览由后端自动写入 MinIO。'
+  return '选文件后自动上传源数据；AI 完成后伪影掩码与预览将自动保存。'
 })
 
 const maskEmptyHint = computed(() => {
@@ -152,12 +152,12 @@ function onUploadProgress(e) {
 
 function startInferenceProgress() {
   stopProgressTimer()
-  setProgress(30, 'CNN 推理中（约 15–60 秒，请勿重复点击）…')
+  setProgress(30, 'AI 分析中（约 15–60 秒，请勿重复点击）…')
   progressTimer = setInterval(() => {
     if (progressPct.value < 88) {
       setProgress(progressPct.value + 1)
     } else if (progressPct.value < 95) {
-      setProgress(progressPct.value + 1, 'CNN 仍在推理，请耐心等待…')
+      setProgress(progressPct.value + 1, 'AI 仍在分析，请耐心等待…')
     }
   }, 3000)
 }
@@ -187,13 +187,13 @@ async function uploadToMinio() {
   resetResults()
   resetProgress()
   error.value = ''
-  studyStatus.value = '正在上传源数据到 MinIO…'
+  studyStatus.value = '正在上传源数据…'
   setProgress(2, '准备上传…')
   try {
     const res = await uploadPacsImaging(checkRequestId.value, files, onUploadProgress)
     uploadedFingerprint.value = fp
     studyStatus.value = '源数据已入库，可开始 AI 检测'
-    setProgress(25, '源数据已写入 MinIO')
+    setProgress(25, '源数据已上传')
     ElMessage.success(`已自动上传 ${res.data?.uploadedCount || files.length} 个文件`)
     return true
   } catch (err) {
@@ -231,7 +231,7 @@ async function loadStoredPreview() {
   error.value = ''
   resetResults()
   previewLoading.value = true
-  studyStatus.value = '正在从 MinIO 加载历史影像…'
+  studyStatus.value = '正在加载历史影像…'
   try {
     const previewRes = await fetchPacsImagingPreview(checkRequestId.value)
     applyPreviewMeta(previewRes.data)
@@ -242,7 +242,7 @@ async function loadStoredPreview() {
     ctObjectUrl.value = ctUrl
     maskObjectUrl.value = maskUrl
     showResults.value = true
-    studyStatus.value = '已加载 MinIO 中的影像与掩码'
+    studyStatus.value = '已加载历史影像与掩码'
     await nextTick()
     mountViewer.value = true
   } catch (err) {
@@ -298,7 +298,7 @@ async function onAgentAiAnalysis() {
     const uploaded = await uploadToMinio()
     if (!uploaded) return
 
-    studyStatus.value = 'CNN 推理中，结果将自动写入 MinIO…'
+    studyStatus.value = 'AI 分析中，结果将自动保存…'
     startInferenceProgress()
     const res = await generatePacsAiReport(checkRequestId.value)
     stopProgressTimer()
@@ -306,8 +306,8 @@ async function onAgentAiAnalysis() {
     showResults.value = true
     detail.value = res.data
     studyStatus.value = isTumorSeg.value
-      ? '分析完成（分割掩码与预览已写入 MinIO）'
-      : '分析完成（伪影掩码与预览已写入 MinIO）'
+      ? '分析完成（分割掩码与预览已保存）'
+      : '分析完成（伪影掩码与预览已保存）'
     ElMessage.success(isTumorSeg.value ? 'AI 肿瘤分割完成' : 'AI 影像分析完成')
     await loadPreviewVolumes()
   } catch (err) {
@@ -518,7 +518,7 @@ onBeforeUnmount(() => {
       <div>
         <h1>{{ pageTitle }}</h1>
         <p class="subtitle">
-          智慧云脑 · 影像 AI 工作台（Gateway → pacs → hospital-ai）
+          智慧云脑 · 影像 AI 工作台
           <template v-if="checkRequestId">
             · 检查 #{{ checkRequestId }} {{ patientName }} · {{ itemName }}
           </template>
@@ -588,7 +588,7 @@ onBeforeUnmount(() => {
               <li>分析完成后，右侧<strong>默认只加载源数据 CT</strong>（灰度图）。</li>
               <li>要看 AI 分割结果，请点击<strong>「叠加 AI 分割掩码」</strong>——蓝色区域为肿瘤/病灶范围。</li>
               <li>某层无蓝色区域表示该层 AI 未检出明显病灶。</li>
-              <li>本结果为 AI 辅助分割，仅供演示，<strong>不能替代临床诊断</strong>。</li>
+              <li>本结果为 AI 辅助分析，<strong>不能替代临床诊断</strong>。</li>
               <li>点击轴位 / 冠状 / 矢状视图可<strong>放大</strong>查看。</li>
             </ul>
             <ul v-else>
@@ -604,7 +604,7 @@ onBeforeUnmount(() => {
 
       <section class="viewer-panel">
         <h2>影像浏览</h2>
-        <div v-if="previewLoading" class="preview-loading">正在从 MinIO 拉取预览…</div>
+        <div v-if="previewLoading" class="preview-loading">正在加载预览…</div>
         <div v-else-if="showResults && ctObjectUrl && mountViewer && !generating" class="viewer-wrap">
           <MprViewer
             ref="mprViewerRef"

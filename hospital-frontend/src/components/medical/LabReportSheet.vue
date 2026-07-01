@@ -66,7 +66,7 @@ const footer = computed(() => props.report?.footer || {})
       :editable-doctor="editableDoctor"
       ai-section-title="诊断分析"
       doctor-section-title="检验医师意见"
-      ai-placeholder="点击「生成 AI 报告」后，LLM 将根据上方检验数据归纳分析…"
+      ai-placeholder="点击「生成 AI 报告」后，将根据上方检验数据归纳分析…"
       doctor-placeholder="在 AI 分析基础上补充检验医师签阅意见…"
       @update:ai-report-text="emit('update:aiReportText', $event)"
       @update:doctor-report-text="emit('update:doctorReportText', $event)"

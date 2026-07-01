@@ -54,7 +54,7 @@ async function onSuggest() {
     return
   }
   if (!props.recordSaved) {
-    ElMessage.warning('建议先保存病历，再执行 AI 智能诊断（ADR-015）')
+    ElMessage.warning('建议先保存病历，再执行 AI 智能诊断')
   }
   loadingSuggest.value = true
   try {
@@ -122,7 +122,7 @@ function labelOf(type) {
 <template>
   <div class="ai-bar">
     <div class="ai-bar-head">
-      <span class="label">AI 辅助诊疗（ADR-015）</span>
+      <span class="label">AI 辅助诊疗</span>
       <el-button
         size="small"
         :disabled="disabled || !registerId"

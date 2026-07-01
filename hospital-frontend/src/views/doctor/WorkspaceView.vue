@@ -336,7 +336,7 @@ function formatGender(gender) {
       show-icon
       class="flow-tip"
       title="门诊流程"
-      description="ADR-015：叫号 → 保存病历 → AI 智能诊断 → 草稿编辑确认开单 → 确诊提交 → 患者缴费 → 医技录入 resultText → 结束看诊"
+      description="叫号 → 保存病历 → AI 辅助诊断 → 编辑并确认草稿开单 → 确诊提交 → 患者缴费 → 医技录入报告 → 结束看诊"
     />
 
     <el-card shadow="never" class="section-card">
