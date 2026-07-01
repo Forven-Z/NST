@@ -366,6 +366,5 @@ Write-Host ' PC:      http://localhost:5173' -ForegroundColor Green
 Write-Host ' API:     http://127.0.0.1:9000/api/v1' -ForegroundColor Green
 Write-Host ' Login:   doctor01 / 123456' -ForegroundColor Green
 Write-Host ' Stop:    .\scripts\stop-project.ps1' -ForegroundColor Green
-Write-Host ' LB demo: .\scripts\start-his-replica.ps1 (after start, see RUNBOOK A.1)' -ForegroundColor Green
 Write-Host ' Logs:    logs/project' -ForegroundColor Green
 Write-Host '========================================' -ForegroundColor Green

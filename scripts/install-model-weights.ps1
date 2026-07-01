@@ -15,4 +15,4 @@ foreach ($name in @('best.pth', 'lung_artifact_best.pth', 'tumor_seg_best.pth'))
     Write-Host "OK: $name -> hospital-ai\model\weights\" -ForegroundColor Green
 }
 Write-Host ''
-Write-Host 'Done. Restart scripts\start-r-pacs-ai.bat and check http://127.0.0.1:8000/v1/health' -ForegroundColor Green
+Write-Host 'Done. Run .\scripts\start-hospital-ai.ps1 and check http://127.0.0.1:8000/v1/health' -ForegroundColor Green

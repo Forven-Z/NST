@@ -8,8 +8,8 @@ import com.hospital.patient.repository.DepartmentRepository;
 import com.hospital.patient.repository.EmployeeRepository;
 import com.hospital.patient.repository.PatientRepository;
 import com.hospital.patient.repository.RegisterRepository;
+import com.hospital.patient.repository.RegistLevelRepository;
 import com.hospital.patient.repository.SettleCategoryRepository;
-import com.hospital.patient.security.AuthContextHolder;
 import com.hospital.patient.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,6 +33,7 @@ public class RegistrarQueryService {
     private final RegisterRepository registerRepository;
     private final DepartmentRepository departmentRepository;
     private final SettleCategoryRepository settleCategoryRepository;
+    private final RegistLevelRepository registLevelRepository;
     private final EmployeeRepository employeeRepository;
     private final SchedulingService schedulingService;
     private final FinancialQueryService financialQueryService;
@@ -53,6 +54,16 @@ public class RegistrarQueryService {
                 "list", settleCategoryRepository.listAll(),
                 "page", 1,
                 "pageSize", 20
+        );
+    }
+
+    public Map<String, Object> listRegistLevels() {
+        requireRegistrar();
+        List<Map<String, Object>> list = registLevelRepository.listAll();
+        return Map.of(
+                "list", list,
+                "page", 1,
+                "pageSize", Math.max(list.size(), 20)
         );
     }
 

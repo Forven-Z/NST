@@ -55,6 +55,11 @@ public class RegistrarController {
         return Result.success(registrarQueryService.listSettleCategories());
     }
 
+    @GetMapping("/regist-levels")
+    public Result<Map<String, Object>> listRegistLevels() {
+        return Result.success(registrarQueryService.listRegistLevels());
+    }
+
     @GetMapping("/doctors")
     public Result<Map<String, Object>> listDoctors(@RequestParam Long deptId) {
         return Result.success(registrarQueryService.listDoctorsByDept(deptId));

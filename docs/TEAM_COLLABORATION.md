@@ -18,7 +18,7 @@
 阶段 B（后端模块负责人，可并行）
   按 MICROSERVICES 边界实现各 jar
   严格遵循 API.md 路径与报文，不改契约除非走变更流程
-  每模块自带验收脚本 + 更新 PROGRESS.md
+  联调后更新 PROGRESS.md；验收见 RUNBOOK §十二
 ```
 
 **核心规则**：**先文档、后代码；先契约、后实现。** 不允许「代码里临时起路径、文档事后补」。
@@ -42,9 +42,9 @@
 | 角色                                 | 主要职责                                       | 主要产出                                                                                        |
 | ---------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | **前端 + 库表负责人**                     | PC / 小程序全页面；库表与 API 契约维护；Mock 层；联调清单       | `hospital-frontend/`、`hospital-patient-miniapp/`、`docs/sql/`、**`API.md`** |
-| **hospital-his 负责人**               | 门诊、患者端、挂号收费、药房、医嘱开立、registrar              | `hospital-his` 代码、`scripts/r-*-acceptance.ps1`（his 相关）                                      |
-| **hospital-lis 负责人**               | 检验队列、执行、结果录入                               | `hospital-lis`、LIS 验收脚本                                                                     |
-| **hospital-pacs 负责人**              | 检查队列、执行、结果、影像上传                            | `hospital-pacs`、PACS 验收脚本                                                                   |
+| **hospital-his 负责人**               | 门诊、患者端、挂号收费、药房、医嘱开立、registrar              | `hospital-his` 代码、联调 checklist（RUNBOOK §十二）                                      |
+| **hospital-lis 负责人**               | 检验队列、执行、结果录入                               | `hospital-lis`、LIS 联调步骤                                                                     |
+| **hospital-pacs 负责人**              | 检查队列、执行、结果、影像上传                            | `hospital-pacs`、PACS 联调步骤                                                                   |
 | **hospital-auth 负责人**              | 登录、JWT、内部 token、角色                         | `hospital-auth`                                                                             |
 | **hospital-management 负责人**        | 字典 CRUD、排班、报表                              | `hospital-management`                                                                       |
 | **hospital-gateway 负责人**           | 路由、JWT 白名单、跨域                              | `hospital-gateway`                                                                          |
@@ -96,7 +96,7 @@
 ### 3.3 库表完成标准
 
 - 变更先改 `DATABASE_DESIGN.md`，再改 `docs/sql/schema.sql`  
-- **当前定稿**：`DATABASE_DESIGN.md` **v1.14**（业务单号即各表 `id`；无 `bill_no`/`payment_no`/`prescription_no`/`refund_no`）  
+- **当前定稿**：`DATABASE_DESIGN.md` **v1.16**（业务单号即各表 `id`；含 `clinical_sync_task`）  
 - 状态枚举与 `BUSINESS_FLOW.md` §八一致（挂号、检查、检验、处方、处置）  
 - 新表在 `MICROSERVICES.md` §表写归属中登记  
 - 本地执行 `schema.sql` + `seed-dict.sql` 无报错  
@@ -127,7 +127,7 @@ VITE_USE_MOCK=false
 
 ### 4.1 认领与边界
 
-每人只改 **自己模块** 的 `src/main/java` 与 `pom.xml`（及该模块验收脚本）。跨模块调用：
+每人只改 **自己模块** 的 `src/main/java` 与 `pom.xml`。跨模块调用：
 
 - 优先 **Feign + API 契约**（见 `MICROSERVICES.md` §Feign）  
 - 禁止 his 直接写 lis 专属表（除非文档明确只读）
@@ -141,7 +141,7 @@ VITE_USE_MOCK=false
 - 业务异常使用 `BusinessException` + `ErrorCode`  
 - 状态变更符合 `BUSINESS_FLOW.md`（例如：仅 `已缴费(20)` 后可执行）  
 - 在 `JwtAuthFilter`（服务内）与 `JwtAuthGlobalFilter`（gateway）补充路由鉴权（若为新前缀）  
-- 提供或更新 `scripts/r-xxx-acceptance.ps1` 至少覆盖 happy path  
+- 提供或更新 [RUNBOOK.md §十二](./RUNBOOK.md#十二联调与验收清单) 对应手工步骤，至少覆盖 happy path  
 - 更新 `PROGRESS.md` 对应行
 
 ### 4.3 开发账号（联调）
@@ -185,7 +185,7 @@ VITE_USE_MOCK=false
 ### 6.1 规则
 
 - 在 `**feature/*`、`fix/*`、`docs/*`** 上开发并 push；**合并进 `main` 须走 GitHub Pull Request**（不能 `push origin main`）。
-- Merge 前确认 `**main` 仍可运行**（相关服务能启、对应 `scripts/r-*-acceptance.ps1` 能过；改表则同步 `schema.sql` / `API.md`）。
+- Merge 前确认 **`main` 仍可运行**（`start-project.ps1` 能启、RUNBOOK §十二 对应步骤可过；改表则同步 `schema.sql` / `API.md`）。
 
 ### 6.2 分支命名
 
@@ -283,22 +283,20 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 - 后端已实现且经 Gateway 可达  
 - `API.md` 与实现一致  
-- 验收脚本 PASS 或 Postman/联调清单有对应步骤 PASS  
+- [RUNBOOK.md §十二](./RUNBOOK.md#十二联调与验收清单) 手工 checklist PASS 或 Postman 对应步骤 PASS  
 - 前端已关 Mock、页面走真实接口
 
-### 7.3 里程碑验收脚本
+### 7.3 里程碑验收（手工）
 
+| 组合         | 说明       |
+| ---------- | -------- |
+| R-min      | 挂号、接诊、病历 |
+| R-lis      | 检验闭环     |
+| R-pacs     | 检查闭环     |
+| R-pharmacy | 处方发药     |
+| R-reversal | 退号/退费/退药 |
 
-| 组合         | 脚本                                  | 说明       |
-| ---------- | ----------------------------------- | -------- |
-| R-min      | `scripts/r-min-acceptance.ps1`      | 挂号、接诊、病历 |
-| R-lis      | `scripts/r-lis-acceptance.ps1`      | 检验闭环     |
-| R-pacs     | `scripts/r-pacs-acceptance.ps1`     | 检查闭环     |
-| R-pharmacy | `scripts/r-pharmacy-acceptance.ps1` | 处方发药     |
-| R-reversal | `scripts/r-reversal-acceptance.ps1` | 退号/退费/退药 |
-
-
-新模块应新增或扩展现有脚本，**禁止**仅口头验收。
+详细步骤见 [RUNBOOK.md §十二](./RUNBOOK.md#十二联调与验收清单)。**禁止**仅口头验收。
 
 ---
 
@@ -332,22 +330,24 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 ### 9.1 模块认领表
 
 
-| 模块                         | 端口     | 负责人     | 状态  | 验收脚本                          |
-| -------------------------- | ------ | ------- | --- | ----------------------------- |
-| `hospital-common`          | —（jar） | **zcl** | ✅   | 随各 `r-*`                      |
-| `hospital-gateway`         | 9000   | **zcl** | ✅   | r-min 依赖                      |
-| `hospital-auth`            | 9101   | **zcl** | ✅   | r-min A1/A2                   |
-| `hospital-his`             | 9102   | **zcl** | ✅   | r-min, r-pharmacy, r-reversal |
-| `hospital-lis`             | 9103   | **lzr** | ✅   | r-lis                         |
-| `hospital-pacs`            | 9104   | **lzr** | 🟨  | r-pacs（upload 待完善）            |
-| `hospital-disposal`        | 9105   | **zcl** | ✅   | 处置队列/执行/结果                    |
-| `hospital-management`      | 9107   | **lzr** | 🟨  | r-modules-smoke；**P5 排班必做**   |
-| `hospital-ai-bridge`       | 9106   | **lml** | 🟨  | r-modules-smoke → r-full      |
-| `hospital-ai`（Python CNN）  | 8000   | **wsh** | ⬜   | P4 / r-full                   |
-| PC 前端 `hospital-frontend/` | —      | **zcl** | 🟨  | RUNBOOK §十二                   |
-| 患者小程序                      | —      | **zcl** | ✅   | r-min B/C/D                   |
-| 契约 / SQL / 架构文档            | —      | **zcl** | 持续  | 评审                            |
-| 测试与验收                      | —      | **zty** | 持续  | 全部 `r-*`                      |
+| 模块                         | 端口     | 负责人     | 状态  | 验收                          |
+| -------------------------- | ------ | ------- | --- | --------------------------- |
+| `hospital-common`          | —（jar） | **zcl** | ✅   | —                           |
+| `hospital-gateway`         | 9000   | **zcl** | ✅   | RUNBOOK §12                 |
+| `hospital-auth`            | 9101   | **zcl** | ✅   | RUNBOOK §12.2               |
+| `hospital-his`（临床）       | 9102   | **zcl** | ✅   | RUNBOOK §12.2～12.4         |
+| `hospital-patient`         | 9108   | **zcl** | ✅   | RUNBOOK §12.2 + 小程序      |
+| `hospital-pharmacy`        | 9109   | **zcl** | ✅   | RUNBOOK §12.4               |
+| `hospital-lis`             | 9103   | **lzr** | ✅   | RUNBOOK §12.3               |
+| `hospital-pacs`            | 9104   | **lzr** | ✅   | RUNBOOK §12.4 + §12.5 CNN   |
+| `hospital-disposal`        | 9105   | **zcl** | ✅   | RUNBOOK §12.4               |
+| `hospital-management`      | 9107   | **lzr** | ✅   | RUNBOOK §12 + 排班 AI       |
+| `hospital-ai-bridge`       | 9106   | **lml** | ✅   | RUNBOOK §12.5 LLM/RAG       |
+| `hospital-ai`（Python CNN）  | 8000   | **wsh** | ✅   | RUNBOOK §12.5               |
+| PC 前端 `hospital-frontend/` | —      | **zcl** | ✅   | RUNBOOK §12                 |
+| 患者小程序                      | —      | **zcl** | ✅   | RUNBOOK §12.2               |
+| 契约 / SQL / 架构文档            | —      | **zcl** | ✅   | 定稿交付                      |
+| 测试与验收                      | —      | **zty** | ✅   | RUNBOOK §十二 手工 checklist  |
 
 
 ### 9.2 AI 辅助开单（ADR-015 · 已定稿）
@@ -356,10 +356,10 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 | 步骤             | 方案         | 接口                                              | 主负责人                            |
 | -------------- | ---------- | ----------------------------------------------- | ------------------------------- |
 | 1. 是否开检查/检验/处置 | **A** 分支判断 | `POST /ai/diagnosis/suggest`                    | **lml**（bridge）                 |
-| 2. 生成草稿        | **B** 三步之① | `POST /doctor/*-requests/ai-draft`              | **lml** 生成 JSON；**zcl** his 落草稿 |
-| 3. 医生编辑        | **B** 三步之② | `PUT /doctor/*-requests/ai-draft/{id}`          | **zcl**                         |
-| 4. 确认已开立       | **B** 三步之③ | `POST /doctor/*-requests/ai-draft/{id}/confirm` | **zcl**（写单 + bill + Feign）      |
-| 5. 处方（同模式）     | **B**      | `/prescriptions/ai-draft/`**                    | **lml** + **zcl**               |
+| 2. 生成草稿        | **B** 三步之① | `POST /ai/doctor/*-requests/ai-draft`              | **lml**（bridge）                 |
+| 3. 医生编辑        | **B** 三步之② | `PUT /ai/doctor/*-requests/ai-draft/{id}`          | **lml** + **zcl**（confirm 写单） |
+| 4. 确认已开立       | **B** 三步之③ | `POST /ai/doctor/*-requests/ai-draft/{id}/confirm` | **zcl**（写单 + bill + Feign）      |
+| 5. 处方（同模式）     | **B**      | `/ai/doctor/prescriptions/ai-draft/**`                    | **lml** + **zcl**               |
 
 
 `*` = `check` | `inspection` | `disposal`。缴费后执行：**lzr**（lis/pacs）；处置执行：**zcl**（**disposal** 微服务）。
@@ -369,7 +369,7 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 #### zcl — 架构 + 前端 + HIS/平台
 
 - **平台**：gateway 路由/JWT、auth、common；新前缀 PR 统一 Review。
-- **his**：门诊/患者/registrar/pharmacy/**处置**；PENDING 补全（窗口挂号收费、确诊、finish、patient 列表等）；**§5.3～5.5 ai-draft 实现**。
+- **his**：门诊/患者/registrar/pharmacy/**处置**；其余主链 ✅。
 - **患者/医生看影像结果**：Feign 调 pacs（`imaging-studies?patientId=` → `result-detail`），不直连 MinIO；见 §9.5、[IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)。
 - **前端**：小程序；**草稿 UI 设计**。
 - **文档**：`API.md`、`schema.sql` 变更。
@@ -378,13 +378,13 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 - **lis / pacs**：队列、结果、Feign 联调；**MinIO** + 影像 upload；pacs 调 **wsh** CNN 异步链。
 - **pacs 对外**：维护 `imaging-studies`（含 `?patientId=` / `?medicalRecordNo=`）、`result-detail`、preview 代理；跨模块约定见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md)。
-- **management**：字典 CRUD；**P5 排班 CRUD + Timefold**（必做）。
+- **management**：字典 CRUD；排班 CRUD ✅；**P5 Timefold**（必做）。
 - **不改** his / ai-bridge 代码。
 
 #### lml — Spring AI（大模型）
 
-- `diagnosis/suggest`、检查/检验/处置/处方 **草稿 JSON 生成**（供 his Feign）。
-- `assistant/stream`（SSE）、小程序 `triage/chat`；RAG（pgvector）；**P5** `/ai/scheduling/suggest`（配合 lzr Timefold）。
+- ✅ `diagnosis/suggest`、检查/检验/处置/处方 **草稿 JSON**（`/ai/doctor/**/ai-draft`）；✅ 小程序 `triage/chat`；✅ RAG（pgvector，需 Key）。
+- **交付范围外**：P5 `/ai/scheduling/suggest` LLM 接入管理端（现 §9.2 规则引擎已满足演示）。
 - **不**直接写业务申请单表。
 
 #### wsh — CNN 影像
@@ -397,7 +397,7 @@ commit 前缀建议：`feat:` / `fix:` / `docs:` + 模块名。改契约/改表�
 
 - 前端：PC 全角色（含 **处置科** `/disposal/`**、检验/检查/管理员）实现和优化；Mock。
 
-- 维护用例表、缺陷台账；跑通 `r-min`～`r-reversal`、**r-full**（P4 牵头扩展）。
+- 维护用例表、缺陷台账；按 RUNBOOK §十二 手工走通 R-min～R-reversal、**R-full**（P4 演示）。
 - 里程碑签字；PR 前冒烟（改哪模块跑哪脚本）；**ADR-015** 场景：suggest → 草稿 → 改 → 确认 → 缴费 → 医技/处置。
 
 ### 9.4 后端边界（固定）
@@ -452,7 +452,7 @@ MinIO 控制台里的 `studies/1/`、`studies/62001/` 等数字 = **`check_reque
 
 契约变更涉及影像查询时：先改 **API.md** + **IMAGING_DATA_ACCESS.md**，再改 pacs 代码。
 
-## 十、当前实现与 PENDING 摘要（2026-06）
+## 十、当前实现与 PENDING 摘要（2026-06-04）
 
 便于后端认领时对齐；**以代码与 [PROGRESS.md](./PROGRESS.md) 为准**，本文仅作协作快照。
 
@@ -460,29 +460,25 @@ MinIO 控制台里的 `studies/1/`、`studies/62001/` 等数字 = **`check_reque
 
 > **说明**：本节是 **接口级快照**；各人待办与优先级以 **§9.3** 为准。
 
-- 患者：微信登录、档案、**家属就诊人**（`GET/POST /patient/family-members`）、线上挂号、模拟支付、退号、病历  
-- 医生：队列、叫号、病历、开检验/检查/处方、查结果  
-- 检验/检查：`/lis/**`、`/pacs/**` 队列、execute、result  
-- 药房：待发药、发药、退药  
-- 收费员（**部分**）：按病历号查账单、退费、退号（`controller.registrar`；**窗口挂号/收费结算仍 PENDING**，见 §9.3）  
-- 管理：字典只读
+- 患者：微信登录、档案、**家属就诊人**、线上/窗口挂号、模拟支付、退号、病历、报告、医嘱
+- 医生：队列、叫号、finish、病历、开检验/检查/处置/处方、查结果
+- 检验/检查/处置：`/lis/**`、`/pacs/**`、`/disposal/**` 队列、execute、result、**result-detail**；LIS/PACS **ai-report**（LLM）
+- 管理：排班 **AI 建议/替班**（`ai-suggest`、`ai-replace`，规则引擎）
+- PACS 影像：`imaging-studies`、`imaging/upload`、CNN 三 taskType（头部/肺部/肿瘤）
+- 药房：待发药、发药、退药、驳回
+- 收费员：`/registrar/**` 窗口挂号、收费、退费、退号、**号别字典**
+- 管理：字典只读、科室/员工/排班 CRUD、请假审批
+- AI：`/ai/triage/chat`、`/ai/diagnosis/suggest`、`/ai/doctor/**/ai-draft`
 
-### 10.2 文档有、后端 PENDING（前端可 Mock）
+### 10.2 文档有、后端仍 PENDING（前端可 Mock 或临时方案）
 
 > 与 **§9.3** 任务列表一致；实现后移入 §10.1 并关 Mock。
 
 | 能力 | 典型 API | 负责人 |
 |------|----------|--------|
-| **窗口挂号 / 收费结算** | `POST /registrar/registers`、`POST /registrar/charges`（或等价 settle） | zcl · his（§9.3） |
-| 门诊确诊 / 结束看诊 | `POST .../medical-record/confirm`、`POST .../finish` | zcl · his |
-| **处置全流程（必做）** | `/doctor/disposal-requests/**`（his 开立）、`/disposal/**`（disposal 执行/结果） | zcl · his + disposal |
-| **AI 分支诊断** | `POST /ai/diagnosis/suggest` | lml · ai-bridge |
-| **AI 检查/检验/处置草稿** | `POST/PUT/confirm …/ai-draft/**` | lml 生成 + zcl · his |
-| AI 处方草稿 | `/prescriptions/ai-draft/**` | lml + zcl |
-| 字典/排班 CRUD、Timefold | `/admin/**`、`/admin/scheduling/**` | lzr · management（P5 必做） |
-| MinIO + CNN 链路 | `/pacs/imaging/upload`、`hospital-ai` jobs；跨模块查患者影像见 [IMAGING_DATA_ACCESS.md](./IMAGING_DATA_ACCESS.md) | lzr + wsh |
-| 患者缴费/退款列表 | `GET /patient/payments`、`GET /patient/refunds` | zcl · his |
-| AI SSE / RAG | `/ai/assistant/stream`、`/ai/rag/**` | lml |
+| 字典写 CRUD | `POST/PUT/DELETE /admin/**` 各资源 | lzr · management |
+| 真微信支付 | `/callback/wechat/**` | zcl · patient |
+| 排班 LLM（可选） | `POST /ai/scheduling/suggest`（UI 现用规则引擎） | lml · ai-bridge |
 
 
 前端做这些页面时，在 `API.md` §二 标 ⬜ 并启用 Mock。
@@ -496,7 +492,7 @@ MinIO 控制台里的 `studies/1/`、`studies/62001/` 等数字 = **`check_reque
 | ------ | ----------------------------------- |
 | 每周 1 次 | 对照 `PROGRESS.md`、PENDING 清零计划、阻塞项   |
 | 契约变更   | 随时同步，**必须先改文档**                     |
-| 里程碑前   | 跑通对应 `r-*-acceptance.ps1` + 前端全角色点检 |
+| 里程碑前   | RUNBOOK §十二 手工 checklist + 前端全角色点检 |
 
 
 ---
@@ -506,6 +502,7 @@ MinIO 控制台里的 `studies/1/`、`studies/62001/` 等数字 = **`check_reque
 
 | 日期      | 说明                                             |
 | ------- | ---------------------------------------------- |
+| 2026-06-04 | **定稿交付**：全模块 ✅；TEAM 认领表/RAG/REFACTORING 同步 |
 | 2026-06 | §2.3 扁平 `controller.*` 定稿；DATABASE §4.3 **`patient_family_link`** 字段说明 |
 | 2026-06 | §3.3 标注 DATABASE **v1.14** 定稿；§十 与 §9.3 分工对齐 |
 | 2026-06 | §九 六人分工定稿；ADR-015 AI 开单（suggest + ai-draft 三步） |

@@ -4,7 +4,7 @@
 > **文档索引**：[README.md](./README.md)（权威范围、术语、端口、阅读顺序）  
 > **关联**：`API.md`、`DATABASE_DESIGN.md` §1.4、`PROJECT_REQUIREMENTS.md` §0.1  
 > **架构图与时序**：见本文 **§八**（原 TECH_ARCHITECTURE 已并入）  
-> **版本**：v1.8 | 2026-06-04  
+> **版本**：v1.9 | 2026-06-04 · **定稿交付**
 > **HIS 三拆**：**ADR-019 已定稿且编码已落地**（patient :9108 · clinical his :9102 · pharmacy :9109）；三 jar 独立进程，对外 API 不变。
 > **数据模型**：与 [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.16** 一致（含 `clinical_sync_task`；业务单号即各表 `id`）  
 > **老师口径（已确认）**：HIS / LIS / PACS **三个子系统各为一个 Java 微服务**；PACS 涉及 CNN 的部分由 **Python（FastAPI）** 独立部署；Java 微服务上线形态为 **jar**；开发期允许多进程本地联调。
@@ -26,7 +26,7 @@
 | **hospital-pacs** | 9104 | 业务 · PACS | 检查/影像流程：执行检查、维护 `imaging_study`、异步调 Python CNN、录入文字结果 |
 | **hospital-disposal** | 9105 | 业务 · 处置执行 | 处置待执行队列、执行登记、录入处置结果（`result_text`）；与 LIS/PACS 对称 |
 | **hospital-management** | 9107 | 平台 · 管理 | 科室/员工/号别/排班、药品与医技字典、疾病字典、统计报表（可选） |
-| **hospital-ai-bridge** | 9106 | AI · Java | Spring AI：智能问诊、医生助理 SSE、RAG（pgvector）；P1～P3 可 STUB，关停不影响门诊主链 |
+| **hospital-ai-bridge** | 9106 | AI · Java | Spring AI：智能问诊、医生助理 SSE、RAG（pgvector）；**triage/诊断/草稿/报告 LLM 已接**；关停不影响门诊主链 |
 | **hospital-ai**（Python FastAPI） | 8000 | AI · Python | 内网 CNN 推理：MinIO 读影像 → 预处理 → 模型推理 → 回调 pacs；不经 Gateway |
 | **hospital-common** | — | 共享库 | Maven 依赖 jar（统一响应、异常、状态机常量、跨服务 DTO）；**不单独启动** |
 
@@ -341,8 +341,9 @@
 |----|------|
 | **端口** | 9106 |
 | **Gateway 前缀** | `/api/v1/ai/**` |
-| **职责** | Spring AI：智能问诊、医生助理 SSE、RAG（pgvector）、排班建议（P5） |
-| **P1～P3** | 允许 **STUB**（50301） |
+| **职责** | Spring AI：智能问诊、RAG（pgvector）、诊断/草稿/报告 LLM |
+| **实现现状** | ✅ `triage/chat`、`diagnosis/suggest`、`/ai/doctor/**/ai-draft`、检验/影像 LLM 报告、RAG（pgvector）；管理端排班 AI 为 **management 规则引擎**（非 LLM） |
+| **交付范围外** | P5：`POST /ai/scheduling/suggest`（LLM）未接管理端 UI；`POST /admin/scheduling/solve`（Timefold）未实现 |
 | **故障隔离** | 关停后 **his 门诊主链不受影响** |
 
 ---

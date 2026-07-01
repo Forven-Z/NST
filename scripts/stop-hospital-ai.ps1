@@ -1,4 +1,4 @@
-# Stop hospital-ai (Python CNN on :8000)
+﻿# Stop hospital-ai (Python CNN on :8000)
 # Version: v1.1 | 2026-06-04
 # Usage: .\scripts\stop-hospital-ai.ps1
 

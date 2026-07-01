@@ -2,7 +2,7 @@
 # 版本：v1.1 | 2026-06-15
 # 用法（当前 PowerShell 窗口有效）：
 #   . .\scripts\env-local.ps1
-# 或在 start-r-min.ps1 中： .\scripts\start-r-min.ps1 -EnvProfile local
+# 或在 start-project.ps1 中： .\scripts\start-project.ps1 -EnvProfile local
 
 $script:HospitalEnvProfile = 'local'
 

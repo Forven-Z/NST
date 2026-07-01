@@ -21,8 +21,8 @@
 
 **留痕要点**（CNN 肺部合并 main，2026-06）：
 
-- 分支 `feature/ai-task-type` 已合并；演示单 #62001 头部 / #62002 肺部 / #62006 肿瘤 STUB
-- 权重：`shared/model-weights/best.pth`、`lung_artifact_best.pth`；安装脚本 `scripts/install-model-weights.ps1`
+- 分支 `feature/ai-task-type` 已合并；演示单 #62001 头部 / #62002 肺部 / #62006 肿瘤分割
+- 权重：`shared/model-weights/best.pth`、`lung_artifact_best.pth`、`tumor_seg_best.pth`；复制到 `hospital-ai/model/weights/`
 - CNN 仅输出掩码与 NIfTI 预览；文字报告由 LLM（ai-bridge）负责
 
 查看删除前原文：`git log --all -- docs/LUNG_INTEGRATION_TEAM_CHANGELOG.md`

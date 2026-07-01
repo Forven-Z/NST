@@ -26,7 +26,7 @@ cd NST
 ## 快速入口
 
 - **每次开机一键启动**：[docs/RUNBOOK.md §零](./docs/RUNBOOK.md) → `.\scripts\start-project.ps1`
-- **环境脚本**：`scripts/env-cloud.ps1` · `scripts/env-local.ps1` · `scripts/stop-project.ps1`
+- **环境脚本**：`scripts/start-project.ps1` · `stop-project.ps1` · `env-cloud.ps1` · `env-local.ps1` · `start-hospital-ai.ps1` · `install-model-weights.ps1`
 - **团队协作**：[docs/TEAM_COLLABORATION.md](./docs/TEAM_COLLABORATION.md)
 - **启动 + 联调验收**：[docs/RUNBOOK.md](./docs/RUNBOOK.md)（含 §十二 验收清单）
 - **文档索引（分层阅读）**：[docs/README.md](./docs/README.md)
@@ -42,7 +42,7 @@ cd NST
 
 ## 当前阶段
 
-**P3 核心已完成**；**P4 CNN 已合并 main**（头部 + 肺部）；**LLM/RAG 收尾中**。详见 [docs/PROGRESS.md](./docs/PROGRESS.md)。
+**定稿交付（P0.5～P4）**：门诊主链 + CNN 三态 + LLM/RAG 已全部落地。详见 [docs/PROGRESS.md](./docs/PROGRESS.md)。
 
-**数据模型 v1.14 已定稿**：表结构、API、后端代码、前端 Mock 已对齐。  
-**联调数据库**：日常默认 **本机 PostgreSQL**（`.\scripts\start-project.ps1`）；答辩/展示改 `.\scripts\start-project.ps1 -EnvProfile cloud`。详见 [RUNBOOK §零](./docs/RUNBOOK.md)。
+**数据模型 v1.16**：表结构、API、后端、前端、小程序已对齐。  
+**联调**：`.\scripts\start-project.ps1`（默认本机库）；答辩展示 `-EnvProfile cloud`。CNN：`install-model-weights.ps1` → `start-hospital-ai.ps1`。详见 [RUNBOOK §零](./docs/RUNBOOK.md)。

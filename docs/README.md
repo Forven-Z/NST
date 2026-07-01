@@ -3,7 +3,8 @@
 > **项目仓库**：**NST**（**N**exus **S**mart **T**reatment，枢纽智能诊疗）  
 > **培训背景**：东软公司 NEU Software Training 实训项目  
 > **中文产品名**：智慧云脑诊疗平台  
-> **文档体系版本**：v2.4 | 2026-06-04  
+> **文档体系版本**：v2.5 | 2026-06-04 · **定稿交付**  
+> **实现进度**：[PROGRESS.md](./PROGRESS.md) — **P0.5～P4 已全部落地**
 > **数据模型**：[`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md) **v1.16**（表结构定稿；`docs/sql/schema.sql` 已对齐，含 `clinical_sync_task`）  
 > **实施策略**：自启动 **微服务**（**11×Java** + 1×Python FastAPI）；课件三系统 **HIS / LIS / PACS** 各一 jar；HIS 临床域另拆 **patient**、**pharmacy**（ADR-019）；**处置执行** 另拆 **`hospital-disposal`**（ADR-017）。
 
@@ -118,4 +119,5 @@
 | v1.0～v1.6 | 2026-05 | 见历史条目 |
 | v1.7 | 2026-05 | **文档精简**：合并 INTEGRATION / RATIONALE / TECH；分层阅读 L1～L4 |
 | v2.1 | 2026-06 | 全库对齐 **DATABASE v1.14**；`API.md` v1.4 端口/字段修正 |
-| v2.4 | 2026-06-04 | **ADR-019 编码落地**；§1.0 服务·端口·职责一览表；索引端口表增职责列 |
+| v2.5 | 2026-06-04 | **定稿交付**：PROGRESS 全模块 ✅；架构图 ADR-019；脚本清单同步 RUNBOOK |
+| v2.4 | 2026-06-04 | ADR-019 编码落地；§1.0 服务·端口·职责一览表 |

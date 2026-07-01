@@ -1,8 +1,8 @@
 # CT 金属伪影 CNN — 集成说明与变更清单
 
 > **负责人**：wsh（CNN / hospital-ai）  
-> **版本**：v1.2 | 2026-06-04  
-> **状态**：头部 + 肺部 CNN 已合并 main；`taskType` 三态已落地（肿瘤仍为 STUB）
+> **版本**：v1.3 | 2026-06-04  
+> **状态**：头部 + 肺部 + 肿瘤 CNN 三态均已合并 main；权重见 `shared/model-weights/`（复制到 `hospital-ai/model/weights/`）
 > **依据**：`PROJECT_REQUIREMENTS.md` §0.1.5、`API.md` §六/§十一、`MICROSERVICES.md` §2.6
 
 ---
@@ -103,20 +103,14 @@ hospital-ai :8000（Python，仅 pacs 内网调用，不经 Gateway）
 
 ```text
 1. PostgreSQL（hospital 库 + schema.sql + seed-dict.sql）
-2. Nacos :8848  →  C:\dev\start-nacos.bat
-3. MinIO :9001  →  C:\dev\start-minio-community.bat  （或 scripts\start-minio-community.bat）
-4. Java：auth → management → his → pacs → gateway
-5. hospital-ai（**必须先装 GPU 版 PyTorch**，勿只 `pip install -r requirements.txt`）：
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts/setup-hospital-ai.ps1
-   ```
-   验证：`http://127.0.0.1:8000/v1/health` 中 `"device":"cuda:0"` 或含 `cuda`（非 `cpu`）。
-   一键启动：`scripts/start-r-pacs-ai.bat`（已绑定 `.venv` 内 Python）。
-6. 演示检查单（队列非空，与 Mock #62001 对齐）：
+2. 一键 Java 全栈：.\scripts\start-project.ps1
+3. hospital-ai：
+   .\scripts\start-hospital-ai.ps1
+   验证：http://127.0.0.1:8000/v1/health
+4. 演示检查单（可选）：
    psql -U postgres -d hospital -f docs/sql/seed-demo-check.sql
-   或：powershell -File scripts/seed-demo-check.ps1
-7. 前端（**`VITE_USE_MOCK=false`**，改后需重启 `npm run dev`）：
-   cd hospital-frontend && npm install && npm run dev
+5. 前端（VITE_USE_MOCK=false，改后需重启 npm run dev）：
+   start-project 已可自动启 PC 前端；或 cd hospital-frontend && npm run dev
 ```
 
 > **常见错误「检查申请不存在」**：前端仍为 `VITE_USE_MOCK=true` 时，队列是内存假数据（如 #62001），但影像上传走真实 pacs 库，ID 不存在即报错。请关 Mock 并执行 `seed-demo-check.sql`，或从医生开单→缴费走完整链路。
@@ -172,7 +166,7 @@ hospital-ai 内网（pacs 调用）：
 |----|------|
 | 代码默认 | `Config.py`：`cuda` 可用则用 GPU，否则 `cpu` |
 | Git 仓库 | **不包含** `.venv`；`requirements.txt` **不含** torch，避免误装 CPU 版 |
-| 正确安装 | RTX 50 系用 `scripts/install-gpu-torch.ps1`（cu128）；或 `setup-hospital-ai.ps1` |
+| 正确安装 | 在 `hospital-ai/` 创建 `.venv`，按 [PyTorch 官网](https://pytorch.org) 安装 **GPU 版** torch，再 `pip install -r requirements.txt` |
 | 自检 | `GET /v1/health` → `device` / `lungDevice` 应为 `cuda`；若为 `cpu` 推理极慢 |
 | 运行目录权重 | `hospital-ai/model/weights/*.pth` 在 `.gitignore` 中（每人本机安装后的副本） |
 | 小组共享权重 | `shared/model-weights/*.pth` 随 Git 提交（§十一；**肺部联调验收通过后由 wsh push**） |
@@ -231,9 +225,10 @@ hospital-ai 内网（pacs 调用）：
 |------|-----------|------|
 | `shared/model-weights/best.pth` | ✅ | 头部权重（小组共享） |
 | `shared/model-weights/lung_artifact_best.pth` | ✅ | 肺部权重（小组共享） |
+| `shared/model-weights/tumor_seg_best.pth` | ✅ | 肿瘤分割权重（小组共享） |
 | `hospital-ai/model/weights/*.pth` | ❌ | 运行副本，由安装脚本生成 |
 
-> **提交时机**：`shared/model-weights/` 内两个 `.pth` 在 **肺部 #62002 联调验收通过后**，由 wsh `git add` + `push`（单文件约 33MB）。此前组员可先向 wsh 本机拷贝或等 push 后 `git pull`。
+> **提交时机**：`shared/model-weights/` 内三个 `.pth` 随 main 交付；单文件约 33MB。组员 `git pull` 后运行 `scripts/install-model-weights.ps1`。
 
 ### 11.2 拉代码后（每人执行一次）
 
@@ -241,14 +236,19 @@ hospital-ai 内网（pacs 调用）：
 cd <仓库根目录>
 
 # 1. Python 环境与 GPU torch（若尚未安装）
-powershell -ExecutionPolicy Bypass -File scripts\setup-hospital-ai.ps1
-# RTX 50 系若 health 非 cuda，改跑 scripts\install-gpu-torch.ps1
+cd hospital-ai
+python -m venv .venv
+.\.venv\Scripts\activate
+# 按 GPU 型号安装 torch（勿只 pip install requirements.txt 里的 CPU 版）
+pip install -r requirements.txt
 
 # 2. 安装 CNN 权重到运行目录
-powershell -ExecutionPolicy Bypass -File scripts\install-model-weights.ps1
+powershell -ExecutionPolicy Bypass -File ..\scripts\install-model-weights.ps1
 
-# 3. 启动服务
-scripts\start-r-pacs-ai.bat
+# 3. 启动 Java 全栈 + CNN
+cd ..
+.\scripts\start-project.ps1
+.\scripts\start-hospital-ai.ps1
 ```
 
 ### 11.3 验证
@@ -263,12 +263,14 @@ GET http://127.0.0.1:8000/v1/health
 {
   "modelLoaded": true,
   "lungModelLoaded": true,
+  "tumorModelLoaded": true,
   "device": "cuda:0",
-  "lungDevice": "cuda:0"
+  "lungDevice": "cuda:0",
+  "tumorDevice": "cuda:0"
 }
 ```
 
-缺 `best.pth` → 服务启动失败。缺 `lung_artifact_best.pth` → 仅 62002 肺部 CT 报 STUB，62001 仍可用。
+缺 `best.pth` → 服务启动失败。缺 `lung_artifact_best.pth` → 仅 62002 肺部 CT 报 STUB，62001 仍可用。缺 `tumor_seg_best.pth` → 仅 62006 肿瘤分割报 STUB，头部/肺部不受影响。
 
 ### 11.4 权重更新流程（组长 wsh）
 
@@ -284,7 +286,7 @@ GET http://127.0.0.1:8000/v1/health
 |----------------------------|--------------------------|-------------------|----------|
 | 头部 CT | `CT_HEAD` | `HEAD_CT_ARTIFACT` | ✅ `best.pth` |
 | 肺部 CT | `CT_LUNG` | `LUNG_CT_ARTIFACT` | ✅ `lung_artifact_best.pth`（Dice ≈ 0.87） |
-| 肿瘤 CT 分割 | `TUMOR_SEG` | `TUMOR_SEG` | ⬜ STUB：明确失败 |
+| 肿瘤 CT 分割 | `TUMOR_SEG` | `TUMOR_SEG` | ✅ `tumor_seg_best.pth`；无权重时明确失败 |
 | 其他含 CT | `CT_HEAD` | `HEAD_CT_ARTIFACT` | 默认兼容 demo |
 
 **推断规则**（`ImagingService.java`，前后端一致）：
@@ -293,7 +295,7 @@ GET http://127.0.0.1:8000/v1/health
 2. 含 **肿瘤、病灶、肿物** → `TUMOR_SEG`
 3. 含 **头、颅、脑、HEAD** 或无法判断 → `CT_HEAD`
 
-演示检查单：`seed-demo-check.sql` 含 **#62001 头部**、**#62002 肺部**、**#62006 肿瘤**（肿瘤用于 STUB 验收）。可选 `seed-demo-check-extra.sql` 补充 #62003–#62005。
+演示检查单：`seed-demo-check.sql` 含 **#62001 头部**、**#62002 肺部**、**#62006 肿瘤**（肿瘤分割联调验收）。可选 `seed-demo-check-extra.sql` 补充 #62003–#62005。
 
 **设计约束**（ADR 与实现一致）：不新建表、不改 `schema.sql`；任务类型写入已有 `imaging_study.modality` 与 `report_json`。
 
@@ -327,7 +329,7 @@ GET http://127.0.0.1:8000/v1/health
 
 **答辩表述**：临床侧无现成肺部伪影标注库时，采用 LIDC-IDRI 公开肺部 CT，按与头部相同的 HU 规范自标注；集成 taskType 已通，无权重时 STUB 明确失败、不会误用头部权重。
 
-**与肿瘤分割**：肿瘤需病灶掩码，标注难度更高；当前 `TUMOR_SEG` 仅 STUB，建议答辩中单独说明为 P4 扩展项。
+**与肿瘤分割**：`TUMOR_SEG` 已合并 main；权重 `tumor_seg_best.pth` 随 `shared/model-weights/` 交付，运行前执行 `scripts/install-model-weights.ps1`。
 
 ---
 
@@ -338,3 +340,4 @@ GET http://127.0.0.1:8000/v1/health
 | v1.0 | 2026-06 | 6.8 迁入 NST；头部 CT 正式链路 |
 | v1.1 | 2026-06-15 | 肺部扩展 §十、权重 §十一 |
 | v1.2 | 2026-06-04 | 肺部合并 main；合并 `LUNG_*`、`AI_TASK_TYPE_MINIMAL` 至本文；删除过程文档，留痕见 §十四 |
+| v1.3 | 2026-06-04 | 肿瘤分割 `TUMOR_SEG` 集成完成；§十一～§十二、§十四 同步 |

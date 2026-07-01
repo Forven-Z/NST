@@ -45,27 +45,21 @@ psql -U postgres -d hospital -f docs\sql\patch-pharmacy-reject.sql
 
 （新库已跑过 `schema.sql` 且含 `patient_family_link`、prescription 驳回字段时，对应 patch 可跳过。）
 
-### 2. 启动 R-min 后端
+### 2. 启动后端
 
 ```powershell
-.\scripts\start-r-min.ps1
-# 若曾手动停过部分进程、出现 503，请完整重启：
-.\scripts\start-r-min.ps1 -Restart
+.\scripts\start-project.ps1
+# 完整重启：
+.\scripts\start-project.ps1 -Restart
 ```
 
 停止：
 
 ```powershell
-.\scripts\stop-r-min.ps1
+.\scripts\stop-project.ps1
 ```
 
-依次启动 **Nacos :8848** → **auth :9101** → **his :9102** → **patient :9108** → **pharmacy :9109** → **gateway :9000**。脚本会等待 login 接口可用（避免 Gateway 已起但 patient 未注册 Nacos 导致 **503**）。日志在 `logs/r-min/`。
-
-验收：
-
-```powershell
-.\scripts\miniapp-smoke.ps1
-```
+一键启动 **Nacos :8848** → 全部 Java 微服务（9000、9101～9109）→ PC 前端（5173）。日志在 `logs/project/`。
 
 ### 3. 小程序切联调
 
@@ -107,7 +101,7 @@ POST https://report-online.sh.wxgateway.com/SdkReport net::ERR_CONNECTION_CLOSED
 1. **可忽略**：只要 Network 里 `/api/v1/patient/**` 正常，业务不受此错误影响。
 2. **详情 → 本地设置**：勾选「不校验合法域名…」；关闭「增强编译」「热重载」试是否更流畅。
 3. **详情 → 本地设置 → 调试基础库**：与 `project.config.json` 的 `libVersion` 对齐（如 3.5.7），或换稳定版，避免工具 1.06 + 基础库 3.16 组合异常。
-4. **确认后端已启**：未启动 Gateway 时首页会串行等待多个接口，体感像「整站很卡」——先跑 `.\scripts\start-r-min.ps1 -Restart`。
+4. **确认后端已启**：未启动 Gateway 时首页会串行等待多个接口，体感像「整站很卡」——先跑 `.\scripts\start-project.ps1 -Restart`。
 5. 本仓库已在 `project.private.config.json` 关闭 `useApiHook` / `useApiHostProcess`，减轻工具 Hook 开销（需**重新编译**小程序后生效）。
 
 ## Mock 演示（无后端）
@@ -131,6 +125,4 @@ POST https://report-online.sh.wxgateway.com/SdkReport net::ERR_CONNECTION_CLOSED
 | **检查三视图** | PACS 为检查单写入 `imaging_study.report_json.reportSnapshots` 并重采 PNG；详见 `docs/IMAGING_DATA_ACCESS.md` |
 | **报告空态** | 有进行中检验/检查时 `pendingCount>0`，列表显示「报告尚未出具」 |
 
-验收脚本扩展：`scripts/miniapp-smoke.ps1`（挂号/账单/报告/病历/缴费详情）。
-
-详见 `docs/API.md`（附录 A）、`docs/RUNBOOK.md` §6.2、`scripts/start-r-min.ps1`。
+验收见 [RUNBOOK.md §十二](./RUNBOOK.md#十二联调与验收清单)（手工 checklist）。
