@@ -405,7 +405,7 @@ function openCreate() {
 
 async function onCreateSchedule() {
   if (createForm.scheduleKind === 2) {
-    return ElMessage.warning('科室值班排班尚未支持，请选择门诊出诊')
+    return ElMessage.warning('科室值班排班暂未支持，请选择门诊出诊')
   }
   if (!createForm.employeeId) return ElMessage.warning('请选择人员（来自员工管理列表）')
   if (!createForm.workDate) return ElMessage.warning('请选择出诊日期')
@@ -464,18 +464,47 @@ async function onAiSuggest() {
   aiRiskItems.value = []
   aiWarnings.value = []
   try {
-    const res = await fetchAiSchedulingSuggest({ deptId: deptFilter.value || undefined })
+    const res = await fetchAiSchedulingSuggest({
+      deptId: deptFilter.value || undefined,
+      weekStart: weekStart.value,
+      mode: 'WEEK',
+    })
+    const changes = res.data?.changes ?? []
+    for (const change of changes) {
+      onGridChange(change)
+    }
     aiSuggestions.value = res.data?.suggestions ?? []
     aiRiskItems.value = res.data?.riskItems ?? []
     aiWarnings.value = res.data?.warnings ?? []
-    ElMessage.success(res.data?.message || 'AI 排班建议已生成')
+    ElMessage.success(res.data?.message || `AI 已生成 ${changes.length} 条周排班草稿，请检查后保存`)
   } catch (err) {
-    ElMessage.warning(err.message || 'AI 排班建议尚未接入')
+    ElMessage.warning(err.message || 'AI 排班建议生成失败')
   } finally {
     aiLoading.value = false
   }
 }
 
+async function onAiSubstituteSuggest() {
+  aiLoading.value = true
+  aiSuggestions.value = []
+  aiRiskItems.value = []
+  aiWarnings.value = []
+  try {
+    const res = await fetchAiSchedulingSuggest({
+      deptId: deptFilter.value || undefined,
+      weekStart: weekStart.value,
+      mode: 'SUBSTITUTE',
+    })
+    aiSuggestions.value = res.data?.suggestions ?? []
+    aiRiskItems.value = res.data?.riskItems ?? []
+    aiWarnings.value = res.data?.warnings ?? []
+    ElMessage.success(res.data?.message || 'AI 已生成替班建议')
+  } catch (err) {
+    ElMessage.warning(err.message || 'AI 替班建议生成失败')
+  } finally {
+    aiLoading.value = false
+  }
+}
 function getAiSuggestion(schedulingId) {
   return aiSuggestions.value.find((s) => s.schedulingId === schedulingId)
 }
@@ -514,7 +543,7 @@ async function onApplyAiReplace(suggestion) {
   try {
     await applyAiSchedulingReplace(schedulingId, suggestion || {})
   } catch (err) {
-    ElMessage.warning(err.message || 'AI 替班尚未接入')
+    ElMessage.warning(err.message || 'AI 替班暂不可用')
   } finally {
     replacingId.value = null
   }
@@ -721,9 +750,9 @@ function rowClassName({ row }) {
         <el-select v-model="deptFilter" placeholder="选择门诊科室" style="width: 160px" @change="loadWeekGrid">
           <el-option v-for="d in outpatientDepts" :key="d.id" :label="d.deptName" :value="d.id" />
         </el-select>
-        <el-button @click="shiftWeek(-1)">◀ 上周</el-button>
+        <el-button @click="shiftWeek(-1)">上一周</el-button>
         <span class="week-label">{{ weekStart }} ~ {{ weekEndLabel }}</span>
-        <el-button @click="shiftWeek(1)">下周 ▶</el-button>
+        <el-button @click="shiftWeek(1)">下一周</el-button>
         <el-button :loading="copyingWeek" @click="onCopyWeek">复制上周</el-button>
         <el-button :loading="applyingTemplate" @click="onApplyTemplate">应用模板</el-button>
         <el-button type="primary" :loading="gridSaving" :disabled="!pendingChanges.length" @click="onSaveGrid">
@@ -756,9 +785,12 @@ function rowClassName({ row }) {
         <span class="label">本周排班列表</span>
         <el-button type="primary" plain @click="openCreate">补录单条</el-button>
         <el-button type="primary" :loading="aiLoading" @click="onAiSuggest">
-          获取 AI 排班建议
+          获取 AI 周排班建议
         </el-button>
-        <el-tag type="warning" size="small">含请假替班</el-tag>
+        <el-button type="warning" plain :loading="aiLoading" @click="onAiSubstituteSuggest">
+          AI 替班建议
+        </el-button>
+        <el-tag type="warning" size="small">周排班为草稿预填，替班建议单独生成</el-tag>
       </div>
 
       <el-table
@@ -800,7 +832,7 @@ function rowClassName({ row }) {
             <el-tag v-if="row.pendingLeave" size="small" type="warning">待审</el-tag>
             <el-tag v-else-if="row.needsSubstitute" size="small" type="danger">待替班</el-tag>
             <el-tag v-else-if="row.leaveSubstituted" size="small" type="success">已替班</el-tag>
-            <span v-else class="muted">—</span>
+            <span v-else class="muted">-</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="248" fixed="right" class-name="col-actions">
@@ -830,7 +862,7 @@ function rowClassName({ row }) {
 
       <el-card v-if="aiSuggestions.length || aiRiskItems.length || aiWarnings.length" shadow="never" class="ai-suggest-card">
         <template #header>
-          <span>AI 排班建议详情</span>
+          <span>AI 建议详情</span>
         </template>
         <el-alert
           v-for="(w, index) in aiWarnings"

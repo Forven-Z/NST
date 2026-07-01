@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -29,10 +30,12 @@ public class PacsCheckService extends AbstractMedTechExecuteTemplate {
     private final PacsAiReportCache pacsAiReportCache;
 
     public Map<String, Object> listQueue(Integer status, int page, int pageSize) {
+        autoAssignPaidRequests();
         int offset = Math.max(page - 1, 0) * pageSize;
         Integer queryStatus = status != null ? status : InspectionRequestStatus.PAID;
+        Long executorId = queueExecutorFilter();
         return Map.of(
-                "list", checkRequestRepository.findQueue(queryStatus, offset, pageSize),
+                "list", checkRequestRepository.findQueue(queryStatus, executorId, offset, pageSize),
                 "page", page,
                 "pageSize", pageSize
         );
@@ -105,6 +108,44 @@ public class PacsCheckService extends AbstractMedTechExecuteTemplate {
     @Override
     protected String orderIdResultKey() {
         return "checkRequestId";
+    }
+
+    private Long queueExecutorFilter() {
+        var context = AuthContextHolder.require();
+        if (context.getRoles() != null && context.getRoles().contains("ADMIN")) {
+            return null;
+        }
+        return context.getEmployeeId();
+    }
+
+    private void autoAssignPaidRequests() {
+        List<Long> requestIds = checkRequestRepository.findUnassignedPaidIdsForUpdate();
+        if (requestIds.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> doctors = checkRequestRepository.findDoctorLoads("CHECK_DOCTOR");
+        if (doctors.isEmpty()) {
+            return;
+        }
+
+        for (Long requestId : requestIds) {
+            Map<String, Object> doctor = doctors.get(0);
+            Long doctorId = ((Number) doctor.get("employeeId")).longValue();
+            checkRequestRepository.assignExecutorIfUnassigned(requestId, doctorId);
+            doctor.put("loadCount", ((Number) doctor.get("loadCount")).intValue() + 1);
+            doctors.sort((left, right) -> {
+                int byLoad = Integer.compare(
+                        ((Number) left.get("loadCount")).intValue(),
+                        ((Number) right.get("loadCount")).intValue());
+                if (byLoad != 0) {
+                    return byLoad;
+                }
+                return Long.compare(
+                        ((Number) left.get("employeeId")).longValue(),
+                        ((Number) right.get("employeeId")).longValue());
+            });
+        }
     }
 
     private String resolveResultText(CheckResultRequest request, Map<String, Object> context) {
