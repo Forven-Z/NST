@@ -1,6 +1,6 @@
 -- 智慧云脑诊疗平台 — 业务库 DDL
 -- PostgreSQL 15+
--- 依据：docs/DATABASE_DESIGN.md v1.14
+-- 依据：docs/DATABASE_DESIGN.md v1.16
 -- 用法：psql -U postgres -d hospital -f docs/sql/schema.sql
 
 SET client_encoding = 'UTF8';
@@ -514,6 +514,27 @@ CREATE TABLE IF NOT EXISTS refund_record (
 );
 CREATE INDEX IF NOT EXISTS ix_refund_record_payment_id ON refund_record(payment_id);
 CREATE INDEX IF NOT EXISTS ix_refund_record_patient_id ON refund_record(patient_id);
+
+-- ADR-019 · patient → clinical 支付/退费后同步医嘱 status（轻量 Outbox）
+CREATE TABLE IF NOT EXISTS clinical_sync_task (
+    id              BIGSERIAL PRIMARY KEY,
+    biz_type        VARCHAR(32)  NOT NULL,
+    biz_id          BIGINT       NOT NULL,
+    action          VARCHAR(32)  NOT NULL,
+    status          VARCHAR(16)  NOT NULL DEFAULT 'PENDING',
+    retry_count     INT          NOT NULL DEFAULT 0,
+    max_retries     INT          NOT NULL DEFAULT 10,
+    next_retry_at   TIMESTAMPTZ,
+    last_error      TEXT,
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    update_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_clinical_sync_task UNIQUE (biz_type, biz_id, action)
+);
+CREATE INDEX IF NOT EXISTS idx_clinical_sync_task_status_retry
+    ON clinical_sync_task (status, next_retry_at)
+    WHERE status IN ('PENDING', 'FAILED');
+
+COMMENT ON TABLE clinical_sync_task IS 'patient 支付/退费后同步 clinical 医嘱 status；失败可重试';
 
 -- =============================================================================
 -- G. 影像与 AI 会话

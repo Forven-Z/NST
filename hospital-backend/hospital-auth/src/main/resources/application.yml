@@ -25,6 +25,6 @@ hospital:
     internal:
       header: X-Internal-Service
       allowed-services:
-        - hospital-his
-        - hospital-management
+        - hospital-patient
+        - hospital-pharmacy
         - hospital-management

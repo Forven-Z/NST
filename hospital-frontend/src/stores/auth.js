@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
 import { staffLogin } from '../api/auth'
 import { refreshStaffToken } from '../api/refreshToken'
-
-const STORAGE_KEY = 'hospital_staff_auth'
+import {
+  clearStaffAuthRaw,
+  readStaffAuthRaw,
+  writeStaffAuthRaw,
+} from '../utils/staffAuthStorage'
 
 let refreshInFlight = null
 
@@ -29,7 +32,7 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     restore() {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = readStaffAuthRaw()
       if (!raw) return
       try {
         const data = JSON.parse(raw)
@@ -42,8 +45,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     persist() {
-      localStorage.setItem(
-        STORAGE_KEY,
+      writeStaffAuthRaw(
         JSON.stringify({
           accessToken: this.accessToken,
           refreshToken: this.refreshToken,
@@ -98,7 +100,7 @@ export const useAuthStore = defineStore('auth', {
       this.accessToken = ''
       this.refreshToken = ''
       this.user = null
-      localStorage.removeItem(STORAGE_KEY)
+      clearStaffAuthRaw()
     },
   },
 })

@@ -18,6 +18,8 @@
         <module>hospital-gateway</module>
         <module>hospital-auth</module>
         <module>hospital-his</module>
+        <module>hospital-patient</module>
+        <module>hospital-pharmacy</module>
         <module>hospital-lis</module>
         <module>hospital-pacs</module>
         <module>hospital-disposal</module>

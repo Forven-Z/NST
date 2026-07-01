@@ -4,13 +4,35 @@
 > **文档索引**：[README.md](./README.md)（权威范围、术语、端口、阅读顺序）  
 > **关联**：`API.md`、`DATABASE_DESIGN.md` §1.4、`PROJECT_REQUIREMENTS.md` §0.1  
 > **架构图与时序**：见本文 **§八**（原 TECH_ARCHITECTURE 已并入）  
-> **版本**：v1.6 | 2026-06  
-> **数据模型**：与 [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.14** 一致（业务单号即各表 `id`；排班科室取自 `employee.dept_id`）  
+> **版本**：v1.8 | 2026-06-04  
+> **HIS 三拆**：**ADR-019 已定稿且编码已落地**（patient :9108 · clinical his :9102 · pharmacy :9109）；三 jar 独立进程，对外 API 不变。
+> **数据模型**：与 [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.16** 一致（含 `clinical_sync_task`；业务单号即各表 `id`）  
 > **老师口径（已确认）**：HIS / LIS / PACS **三个子系统各为一个 Java 微服务**；PACS 涉及 CNN 的部分由 **Python（FastAPI）** 独立部署；Java 微服务上线形态为 **jar**；开发期允许多进程本地联调。
 
 ---
 
 ## 一、服务总览
+
+### 1.0 微服务模块一览（服务 · 端口 · 职责）
+
+| 服务（`spring.application.name`） | 端口 | 类别 | 职责 |
+|-----------------------------------|------|------|------|
+| **hospital-gateway** | **9000** | 平台 | 对外唯一 HTTP 入口：路由转发、JWT 校验、跨域；不写库、不含业务逻辑 |
+| **hospital-auth** | 9101 | 平台 | 统一 Token 签发：医护登录、刷新 Token；内部 `POST /internal/token/patient` 供 patient 代发患者 Token |
+| **hospital-his** | 9102 | 业务 · HIS 临床 | 门诊医生域：叫号/结束看诊、病历、开立检验/检查/处置/处方；`/internal/orders/*` 供 patient 缴费/退费回调 |
+| **hospital-patient** | 9108 | 业务 · HIS 患者 | 患者小程序、微信登录/绑定、线上挂号、账单与模拟支付/退费、窗口 registrar、挂号生命周期与日终关单（21:00） |
+| **hospital-pharmacy** | 9109 | 业务 · HIS 药房 | 药师待发药队列、发药、退药、药师驳回（Feign patient 退费后更新处方状态与库存） |
+| **hospital-lis** | 9103 | 业务 · LIS | 检验待执行队列、执行登记、录入检验结果；写 `inspection_request` 执行侧状态 |
+| **hospital-pacs** | 9104 | 业务 · PACS | 检查/影像流程：执行检查、维护 `imaging_study`、异步调 Python CNN、录入文字结果 |
+| **hospital-disposal** | 9105 | 业务 · 处置执行 | 处置待执行队列、执行登记、录入处置结果（`result_text`）；与 LIS/PACS 对称 |
+| **hospital-management** | 9107 | 平台 · 管理 | 科室/员工/号别/排班、药品与医技字典、疾病字典、统计报表（可选） |
+| **hospital-ai-bridge** | 9106 | AI · Java | Spring AI：智能问诊、医生助理 SSE、RAG（pgvector）；P1～P3 可 STUB，关停不影响门诊主链 |
+| **hospital-ai**（Python FastAPI） | 8000 | AI · Python | 内网 CNN 推理：MinIO 读影像 → 预处理 → 模型推理 → 回调 pacs；不经 Gateway |
+| **hospital-common** | — | 共享库 | Maven 依赖 jar（统一响应、异常、状态机常量、跨服务 DTO）；**不单独启动** |
+
+基础设施（非业务微服务）：PostgreSQL **5432**（共享库 `hospital`）、Nacos **8848**、MinIO API **9001**。
+
+> Gateway 路由与各服务详细边界见本文 **§二**、**§四**；HIS 三拆 Feign 契约见 [DESIGN_DECISIONS ADR-019](./DESIGN_DECISIONS.md#七adr-019his-三服务拆分patient--clinical--pharmacy)。
 
 ### 1.1 一共拆成几个服务？
 
@@ -20,7 +42,7 @@
 | **平台能力（Java）** | **3** | `hospital-gateway`、`hospital-auth`、`hospital-management` |
 | **AI 能力** | **2** | `hospital-ai-bridge`（Java · Spring AI）、`hospital-ai`（Python · FastAPI · CNN） |
 | **共享库（非进程）** | **1** | `hospital-common`（jar 依赖，不单独运行） |
-| **可独立启动进程合计** | **9 个 Java + 1 个 Python** | 另加 PostgreSQL、Nacos、MinIO 等基础设施 |
+| **可独立启动进程合计** | **11 个 Java + 1 个 Python** | ADR-019 后 +2（patient、pharmacy）；另加 PostgreSQL、Nacos、MinIO 等基础设施 |
 
 ### 1.3 单体「子模块」与微服务「进程」对照
 
@@ -28,13 +50,13 @@
 
 | 单体（一个 jar） | 微服务（本项目） | 说明 |
 |------------------|------------------|------|
-| `his` 逻辑模块 | **`hospital-his` 进程** | 患者/门诊/收费/药房等 = his **内部包**，**不再**拆成多个 jar |
+| `his` 逻辑模块 | **`hospital-his`（临床）** + **`hospital-patient`** + **`hospital-pharmacy`**（ADR-019） | 患者/挂号/钱 → patient；医生/开单 → clinical his；发药 → pharmacy |
 | `lis` 逻辑模块 | **`hospital-lis` 进程** | 检验执行与结果 |
 | `pacs` 逻辑模块 | **`hospital-pacs` 进程** + `hospital-ai` | Java 管流程；CNN 在 Python |
 | `common` 工具包 | `hospital-common` | 依赖 jar，不启动 |
 | — | gateway / auth / management / ai-bridge | 平台与 AI 能力，非课件三系统 |
 
-**结论**：当前 **9+1 进程**（含 **hospital-disposal**），无需把 pharmacy、registrar 等再拆成独立微服务。
+**结论**：ADR-019 实施后 **11+1 进程**（含 disposal）；课件 **HIS** 对应 **patient + clinical + pharmacy** 三 jar，对外仍一套 Gateway API。
 
 ```text
                          ┌─────────────────────────────────────┐
@@ -44,16 +66,20 @@
                                             │ Nacos 发现
         ┌───────────────┬───────────┬───────┴───────┬───────────────┬───────────────┐
         ▼               ▼           ▼               ▼               ▼               ▼
-   hospital-auth   hospital-his  hospital-lis  hospital-pacs  hospital-disposal  hospital-management
-      :9101           :9102         :9103         :9104            :9105              :9107
+   hospital-auth  hospital-patient  hospital-his   hospital-lis  hospital-pacs  hospital-disposal
+      :9101           :9108      (临床 :9102)       :9103         :9104            :9105
         │               │             │             │                │                │
-        │               │             │             ├──────HTTP──────┼──► hospital-ai-bridge :9106
+        │          hospital-pharmacy   │             │                │                │
+        │              :9109          │             │                │                │
+        │               │             ├──────HTTP──────┼──► hospital-ai-bridge :9106
         │               │             │             │                │                │
         │               │             │             └──────HTTP──────┘──► hospital-ai (FastAPI) :8000
         └───────────────┴─────────────┴─────────────┴────────────────┴────────────────┘
                                     PostgreSQL（共享库 hospital）
                                     MinIO（影像对象）
 ```
+
+> **ADR-019 已落地**：patient / clinical his / pharmacy 为三独立 jar；上图为当前架构。
 
 ### 1.2 与「一体化平台」的关系
 
@@ -86,51 +112,111 @@
 | **端口** | 9101 |
 | **职责** | **统一 Token 签发中心**：医护登录、**患者 Token（internal）**、刷新 Token；JWT 校验规则/公钥 |
 | **对外 API** | `/api/v1/auth/staff/login`、`/token/refresh` 等（**不**对外提供患者微信登录） |
-| **内部 API** | `POST /internal/token/patient`（仅 **his** 调用，见 ADR-001） |
+| **内部 API** | `POST /internal/token/patient`（**patient** 调用） |
 | **独占表** | `sys_user`（写）；读 `employee`（校验账号） |
 | **不做** | 微信 code2session、**不写** `patient` / `patient_wechat`；无挂号/病历业务 |
 
 ---
 
-### 2.3 `hospital-his`（业务 · 门诊信息系统 HIS）
+### 2.3 `hospital-his`（业务 · 门诊临床 · ADR-019）
 
-对应课件 **HIS**：门诊主业务 + 患者端 + 挂号收费 + 门诊医生 + 药师发药；**处置开立** 在 his，**处置执行** 在 `hospital-disposal`（ADR-017）。
+对应课件 **HIS · 医生临床域**：叫号/病历/医嘱开立；**处置开立** 在 clinical his，**处置执行** 在 `hospital-disposal`（ADR-017）。患者/挂号/钱 → **`hospital-patient`**；药房 → **`hospital-pharmacy`**。
 
 | 项 | 内容 |
 |----|------|
 | **端口** | 9102 |
-| **面向角色** | 患者（小程序）、门诊医生、挂号收费员、药师 |
-| **Gateway 路由前缀** | `/api/v1/patient/**`、`/api/v1/his/**`、`/api/v1/doctor/**`（门诊）、`/api/v1/pharmacy/**`、`/api/v1/registrar/**`（可与 his 合并前缀） |
+| **面向角色** | 门诊医生 |
+| **Gateway 路由前缀** | `/api/v1/doctor/**` |
 
-#### 代码组织（定稿 · 扁平 `controller` 包，**不**拆 jar）
+#### 代码组织（当前）
 
-> 与 Gateway 路由一一对应；**不按** `registration` / `emr` / `billing` 等再拆 Java 子包（业务域仅作阅读/分工概念，见 `TEAM_COLLABORATION.md` §9.3）。**共享 PostgreSQL**，跨域协同用 **状态机 + Feign 通知**（无需 outbox 表）。
+| 代码包 | 职责 |
+|--------|------|
+| `controller.doctor` | 队列/叫号/finish、病历、开立检查/检验/处置/处方 |
+| `order.handler.*` | `MedicalOrderHandler` + Registry（开单 + 内部 settle 回调） |
+| `visit.VisitLifecycleCoordinator` | **CALL**、**FINISH** |
+| `controller.internal` | `/internal/orders/*` 供 patient Feign |
 
-| 代码包（`hospital-his`） | 职责 | Gateway 前缀 |
-|--------------------------|------|--------------|
-| `controller.patient` | 微信登录、档案、挂号/支付/待缴、**家属就诊人** | `/api/v1/patient/**` |
-| `controller.doctor` | 队列/叫号/病历、开立检查/检验/处方 | `/api/v1/doctor/**` |
-| `controller.registrar` | 收费员：查账单、窗口退费、窗口退号 | `/api/v1/registrar/**` |
-| `controller.pharmacy` | 待发药、发药、退药 | `/api/v1/pharmacy/**` |
-| `service` / `repository` | 领域逻辑与 JDBC，按类名划分，**不再分子模块包** | — |
-| `integration`（Feign 等） | 调 auth / lis / pacs / ai-bridge | — |
+**主写表**：`medical_record`、`medical_record_disease`；医嘱开立；`disposal_request` 开立侧；处方开立 + **预扣库存**。
 
-**业务域对照（仅文档/分工用，非目录结构）**
+**内部 API（不经 Gateway）**：见 [DESIGN_DECISIONS ADR-019 §7.3](./DESIGN_DECISIONS.md#73-跨服务协作feign--方案-a)。
 
-| 概念域 | 主要落在 |
-|--------|----------|
-| 患者与家属 | `controller.patient` |
-| 挂号与排班查询 | `controller.patient`（线上）；窗口挂号/收费 **PENDING** → 后续 `controller.registrar` |
-| 门诊病历/叫号 | `controller.doctor` |
-| 医嘱开立 | `controller.doctor` |
-| 待缴/支付/退款 | `controller.patient`（线上）；`controller.registrar`（窗口部分） |
-| 药房 | `controller.pharmacy` |
+#### 与其它服务边界
 
-> **v1.14 数据约定**：`bill` / `payment_record` / `refund_record` / `prescription` 的业务标识均为表 **`id`**（API 字段 `billId`、`paymentId` 等）；患者端病历仅 `medical_record.status=2` 可见。
+| 方向 | 规则 |
+|------|------|
+| ← **patient** | Feign `on-bill-paid` / `on-refund` / `assert-refundable` |
+| → **lis / pacs** | 开立后 Feign 通知（ADR-003） |
+| → **management** | 字典 |
+| → **ai-bridge** | AI 草稿（P4+） |
+| **不做** | 患者登录、挂号占号、支付、发药（归 patient / pharmacy） |
 
-#### 独占写权限表（主）
+---
 
-`patient`、`patient_wechat`、`patient_family_link`、`register`、`medical_record`、`medical_record_disease`、`prescription`、`prescription_item`、`ai_prescription_draft`、`disposal_request`（**开立**与 status 10/20/50）、`bill`、`payment_record`、`payment_bill`、`refund_record`（患者支付与窗口收费路径）。
+### 2.3a `hospital-patient`（业务 · 患者与挂号收费 · ADR-019）
+
+| 项 | 内容 |
+|----|------|
+| **端口** | **9108** |
+| **面向角色** | 患者（小程序）、挂号收费员 |
+| **Gateway 路由前缀** | `/api/v1/patient/**`、`/api/v1/registrar/**`、`/api/v1/callback/wechat/**` |
+
+#### 代码组织（自原 `hospital-his` 迁出）
+
+| 代码包 | 职责 |
+|--------|------|
+| `controller.patient` | 微信登录/绑定、档案、家属、线上挂号、待缴、支付 |
+| `controller.registrar` | 窗口挂号、窗口收费、窗口退费、退号 |
+| `PaymentService` / `RefundService` | 账单与模拟支付/退费 |
+| `visit.PatientVisitLifecycleCoordinator` | PAY_REGISTRATION、取消/超时、未叫号退号、**AUTO_DAY_CLOSE** |
+| `RegisterLifecycleService` | 待支付超时、**21:00 日结定时任务** |
+| `clinicalsync.*` | **`clinical_sync_task` Outbox**：支付/退费后 Feign clinical，失败退避重试 |
+
+**主写表**：`patient`、`patient_wechat`、`patient_family_link`、`register`、`bill`、`payment_record`、`payment_bill`、`refund_record`、**`clinical_sync_task`**。
+
+**Feign → clinical**：经 Outbox 投递 `POST /internal/orders/on-bill-paid` / `on-refund`（**方案 A + 轻量 Outbox**，ADR-019）。
+
+**Feign → auth**：`POST /internal/token/patient`（ADR-001）。
+
+---
+
+### 2.3b `hospital-pharmacy`（业务 · 药房 · ADR-019）
+
+| 项 | 内容 |
+|----|------|
+| **端口** | **9109** |
+| **面向角色** | 药师 |
+| **Gateway 路由前缀** | `/api/v1/pharmacy/**` |
+
+#### 代码组织（自原 `hospital-his` 迁出）
+
+| 代码包 | 职责 |
+|--------|------|
+| `controller.pharmacy` | 待发药、发药、退药、药师驳回 |
+| `PharmacyService` | SM2：DISPENSE / RETURN_DRUG / PHARMACY_REJECT；驳回/退药 **回增库存** |
+
+**Feign → patient**：驳回时 `POST /internal/refunds/prescription-pharmacy-reject`。
+
+**不做**：处方开立、开立预扣（归 **clinical his**）。
+
+---
+
+### 2.3c `hospital-his`（ADR-019 实施前 · 归档）
+
+> **历史说明**（2026-06-04 前）：patient / registrar / pharmacy 曾合并在 **`hospital-his` 单 jar**；ADR-019 编码已落地，以下仅作迁移对照留痕。
+
+| 代码包（现 `hospital-his`） | 职责 | 迁移目标 |
+|-----------------------------|------|----------|
+| `controller.patient` | 患者/挂号/支付 | → **patient** |
+| `controller.registrar` | 窗口收费 | → **patient** |
+| `controller.doctor` | 医生/开单 | → **clinical his** |
+| `controller.pharmacy` | 药房 | → **pharmacy** |
+
+**独占写权限表（现 his · 拆分后见 §2.3～§2.3b）**
+
+`patient`、`patient_wechat`、`patient_family_link`、`register`、`medical_record`、`medical_record_disease`、`prescription`、`prescription_item`、`ai_prescription_draft`、`disposal_request`（开立与 10/20/50）、`bill`、`payment_record`、`payment_bill`、`refund_record`。
+
+> **v1.14 数据约定**：`bill` / `payment_record` / `refund_record` / `prescription` 的业务标识均为表 **`id`**；患者端病历仅 `medical_record.status=2` 可见。
 
 #### 与其它服务边界
 
@@ -282,22 +368,28 @@
 | 前端 → 后端 | **仅 HTTPS/HTTP → Gateway** |
 | Java → Java | **OpenFeign**（首选）；紧急调试可用 RestTemplate |
 | pacs → Python | **WebClient/RestTemplate 异步** + 超时 + 失败写 `imaging_study.FAILED` |
-| 跨服务需要患者信息 | **Feign 调 his**，避免 lis/pacs 随意扩 scope 写 his 表 |
+| 跨服务需要患者信息 | **Feign 调 patient/clinical**，避免 lis/pacs 随意扩 scope 写 patient 表 |
 | 共享库 | 允许 **只读** 他库；**写** 必须遵守 §二 表归属 |
 
 ### 3.2 Feign 依赖图（建议）
 
 ```text
-hospital-his  ──► hospital-auth（**POST /internal/token/patient** 签发患者 Token）
-              ──► hospital-management（字典缓存）
-              ──► hospital-lis（创建检验单后的通知，可选）
-              ──► hospital-pacs（创建检查单后的通知，可选）
-              ──► hospital-ai-bridge（P4+）
+hospital-patient ──► hospital-auth（POST /internal/token/patient）
+                 ──► hospital-his（POST /internal/orders/on-bill-paid 等，ADR-019）
+                 ──► hospital-management（排班/字典读，可选）
 
-hospital-lis  ──► hospital-his（读患者/挂号摘要，可选）
+hospital-his（临床）──► hospital-auth
+                    ──► hospital-management（字典缓存）
+                    ──► hospital-lis / hospital-pacs（开立后通知，ADR-003）
+                    ──► hospital-ai-bridge（P4+）
+
+hospital-pharmacy ──► hospital-patient（POST /internal/refunds/prescription-pharmacy-reject）
+                  ──► hospital-auth
+
+hospital-lis  ──► hospital-his 或 hospital-patient（读摘要，可选；ADR-005 共享库只读）
               ──► hospital-auth
 
-hospital-pacs ──► hospital-his（读医嘱/患者摘要，可选）
+hospital-pacs ──► hospital-his（读医嘱摘要，可选）
               ──► hospital-ai（HTTP 推理，内网）
               ──► hospital-auth
 
@@ -315,18 +407,18 @@ hospital-ai-bridge ──► hospital-his（读病历上下文 P4+）
 | 外部路径前缀 | `spring.application.name` | 说明 |
 |--------------|---------------------------|------|
 | `/api/v1/auth/**` | `hospital-auth` | 登录、Token |
-| `/api/v1/patient/**` | `hospital-his` | 患者小程序 |
-| `/api/v1/his/**` | `hospital-his` | 可选别名 |
-| `/api/v1/doctor/**` | `hospital-his` | 门诊医生、医嘱开立 |
-| `/api/v1/registrar/**` | `hospital-his` | 挂号收费员 |
-| `/api/v1/pharmacy/**` | `hospital-his` | 药师发药 |
+| `/api/v1/patient/**` | **`hospital-patient`** | 患者小程序 |
+| `/api/v1/his/**` | **`hospital-patient`** 或 **`hospital-his`** | 可选别名 |
+| `/api/v1/doctor/**` | **`hospital-his`**（临床） | 门诊医生、医嘱开立 |
+| `/api/v1/registrar/**` | **`hospital-patient`** | 挂号收费员 |
+| `/api/v1/pharmacy/**` | **`hospital-pharmacy`** | 药师发药 |
 | `/api/v1/lis/**` | `hospital-lis` | 检验科 |
 | `/api/v1/pacs/**` | `hospital-pacs` | 检查/影像科 |
 | `/api/v1/disposal/**` | `hospital-disposal` | 处置科 |
 | `/api/v1/admin/**` | `hospital-management` | 管理端 |
 | `/api/v1/ai/**` | `hospital-ai-bridge` | LLM / SSE |
-| `/api/v1/callback/wechat/pay` | `hospital-his` | 支付回调 |
-| `/internal/**` | 各服务 | **禁止 Gateway 对外暴露**；仅服务间（AI 回调 pacs 等） |
+| `/api/v1/callback/wechat/pay` | **`hospital-patient`** | 支付回调 |
+| `/internal/**` | 各服务 | **禁止 Gateway 对外暴露** |
 
 ---
 
@@ -347,7 +439,7 @@ hospital-ai-bridge ──► hospital-his（读病历上下文 P4+）
 
 详见 **[DESIGN_DECISIONS.md §二 ADR-001](./DESIGN_DECISIONS.md#二adr-001-患者微信登录与-token-签发已定稿--方案-c)**。
 
-- **his**：`POST /api/v1/patient/auth/wechat` → 微信 + 写 `patient` / `patient_wechat`
+- **his**：`POST /api/v1/patient/auth/wechat` → 微信 + 写 `patient` / `patient_wechat`（**ADR-019 后由 patient 承担**）
 - **auth**：`POST /internal/token/patient` → 返回 JWT（**医护、患者 Token 均只由 auth 签发**）
 
 其余实现选择见 **同文档 §一、§三**。
@@ -365,20 +457,24 @@ hospital-ai-bridge ──► hospital-his（读病历上下文 P4+）
 | `hospital-lis` | 检验无法执行；**门诊、检查、发药仍可用** |
 | `hospital-pacs` | 检查/影像不可用；**检验、门诊、处置仍可用** |
 | `hospital-disposal` | 处置无法执行；**门诊、检验、检查、发药仍可用** |
-| `hospital-his` | **核心门诊中断** |
+| `hospital-patient` | 患者无法登录/挂号/支付；临床已开医嘱无法缴费变 20（Feign 断） |
+| `hospital-pharmacy` | 无法发药/驳回；**门诊、检验、检查仍可用** |
+| `hospital-his`（临床） | 无法叫号/开单/病历；**已挂号患者仍可缴费（patient）** |
+| `hospital-his`（临床） | 医生开单/叫号中断；patient/pharmacy 可独立运行 |
 | `hospital-management` | 字典/排班维护不可用；已缓存数据下门诊可降级 |
 | PostgreSQL / Gateway | **全平台不可用** |
 
 ### 6.2 开发期启动顺序与组合
 
-**启动顺序**：PostgreSQL → MinIO（P4 起）→ Nacos → auth → management → **his → lis → pacs → disposal** → ai-bridge（可选）→ gateway → hospital-ai（P4 起）
+**启动顺序**：PostgreSQL → MinIO（P4 起）→ Nacos → auth → management → **patient + his（临床）+ pharmacy** → lis → pacs → disposal → ai-bridge（可选）→ gateway → hospital-ai（P4 起）
 
 | 组合 | 进程 | 用途 |
 |------|------|------|
-| **R-min** | gateway + auth + his + **management**（或 `seed-dict.sql`） | P1 门诊最小链（ADR-012） |
+| **R-min** | gateway + auth + **patient + his + pharmacy** | P1 门诊最小链（小程序 + 医生开单 + 发药） |
 | **R-lis** | R-min + lis | 检验闭环 |
 | **R-pacs** | R-min + pacs + MinIO | 检查闭环 |
 | **R-disposal** | R-min + **disposal** | 处置闭环 |
+| **R-pharmacy** | R-min + **pharmacy** + **patient** | 发药闭环（ADR-019） |
 | **R-full** | 上述 + ai-bridge + hospital-ai | 全能力答辩 |
 
 ---
@@ -390,7 +486,9 @@ hospital-backend/
 ├── hospital-common
 ├── hospital-gateway
 ├── hospital-auth
-├── hospital-his          ← 门诊主业务（含原 patient/doctor 逻辑，见 §1.3）
+├── hospital-his          ← 门诊临床（doctor + Handler + 内部 API，ADR-019）
+├── hospital-patient      ← 患者 + registrar + 支付/退费（ADR-019 · :9108）
+├── hospital-pharmacy     ← 药房（ADR-019 · :9109）
 ├── hospital-lis
 ├── hospital-pacs
 ├── hospital-disposal
@@ -402,7 +500,7 @@ hospital-frontend/
 hospital-patient-miniapp/
 ```
 
-> **说明**：`hospital-backend/pom.xml` 已登记 **his / lis / pacs / disposal**。对外 API 路径保持 `/patient`、`/doctor` 前缀，Gateway **路由到 his**（见 `API.md` §〇）；处置执行 **`/disposal/**`** 路由至 disposal。
+> **说明**：ADR-019 **编码已落地**（patient :9108 · clinical his :9102 · pharmacy :9109）。对外 API 路径不变；Gateway 路由见 §四。当前支付/登录为 **mock**（点即支付成功；微信 OAuth 生产能力待后续迭代）。
 
 ---
 
@@ -416,7 +514,8 @@ hospital-patient-miniapp/
 |------|------|
 | **Java 先行** | P1～P3 门诊闭环；不阻塞于 Python/大模型 |
 | **统一入口** | 外部仅 Gateway :9000 |
-| **三子系统** | HIS / LIS / PACS 各一 Java 进程 |
+| **三子系统** | HIS / LIS / PACS 各一 Java 进程（**HIS 运行态为 patient + clinical + pharmacy**，ADR-019） |
+| **HIS 三拆** | patient（钱/挂号）· clinical his（医生/开单）· pharmacy（发药）；**共库** |
 | **处置扩展** | **`hospital-disposal`** 独立进程（:9105），非第四课件子系统 |
 | **数据一体** | 单库 `hospital`；表写归属见 §二 |
 
@@ -483,7 +582,7 @@ flowchart TB
 
 | 项 | 方案 |
 |----|------|
-| 患者 | his 微信登录 → Feign auth 签发 JWT（ADR-001 方案 C） |
+| 患者 | patient 登录 → Feign auth 签发 JWT（ADR-001 + ADR-019） |
 | 医护 | auth `staff/login` → JWT + roles |
 | 网关 | 白名单登录/回调；其余统一 JWT 校验 |
 
@@ -509,10 +608,10 @@ flowchart TB
 | 文档章节 | 服务 |
 |----------|------|
 | API §三 auth | `hospital-auth` |
-| API §四 patient | `hospital-his` · `controller.patient` |
-| API §五 doctor | `hospital-his` · `controller.doctor` |
-| API §五 pharmacy | `hospital-his` · `controller.pharmacy` |
-| API §五 窗口收费 | `hospital-his` · `controller.registrar`（`/registrar/**`） |
+| API §四 patient | **`hospital-patient`** · `controller.patient` |
+| API §五 doctor | **`hospital-his`（临床）** · `controller.doctor` |
+| API §五 pharmacy | **`hospital-pharmacy`** · `controller.pharmacy` |
+| API §五 窗口收费 | **`hospital-patient`** · `controller.registrar` |
 | API §五 医技（将拆） | 检验 → **lis**；检查 → **pacs** |
 | API §六 admin | `hospital-management` |
 | API §七 ai | `hospital-ai-bridge` |
@@ -532,3 +631,6 @@ flowchart TB
 | v1.4 | 2026-05 | 合并原 TECH_ARCHITECTURE（§八 架构视图与 M1～M10） |
 | v1.5 | 2026-06 | §2.3 HIS 内部分包（`registration`/`emr`/`billing` 等）；§十 API 对应更新；对齐 **DATABASE v1.14** |
 | v1.6 | 2026-06 | §2.3 改为 **扁平 `controller.*` 包**定稿；业务域仅作分工概念 |
+| v1.9 | 2026-07-01 | 去除「实施前」表述；对齐 DATABASE **v1.16**；R-min 含 patient + pharmacy |
+| v1.8 | 2026-06-04 | **§1.0 微服务模块一览**（服务·端口·职责）；ADR-019 编码已落地；§2.3c 归档 |
+| v1.7 | 2026-06-04 | **ADR-019**：his 三拆 patient/clinical/pharmacy；§2.3～§2.3c、Gateway、Feign、端口、启动组合 |

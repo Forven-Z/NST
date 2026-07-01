@@ -3,7 +3,7 @@
 > **文档性质**：架构共识稿；**不改变**对外 HTTP 契约（`API.md` 路径与字段保持不变）。  
 > **关联**：[`BUSINESS_FLOW.md §八`](./BUSINESS_FLOW.md#八关键状态图老师提供) · [`DATABASE_DESIGN.md §1.5`](./DATABASE_DESIGN.md#15-全局状态枚举实现用-smallint-或-postgresql-enum) · [`DESIGN_DECISIONS.md ADR-018`](./DESIGN_DECISIONS.md) · [`MICROSERVICES.md`](./MICROSERVICES.md)  
 > **版本**：v2.5 | 2026-06-04  
-> **状态**：🟨 **①～④ 代码已落地** — 待跑验收脚本后标 ✅；**单测扩充**与**步骤 ⑧ 微服务拆分**延后（见 §十一）
+> **状态**：🟨 **①～④ 与 ⑧ 代码已落地** — 验收脚本待重跑；**单测扩充**延后（见 §十一）
 
 ---
 
@@ -485,7 +485,7 @@ hospital-lis|pacs|disposal/
 
 ## 九、阶段③ — 微服务拆分（模式重构完成之后）
 
-> 拆分 = 剪切粘贴 + Feign；先完成步骤 ①～④。拆分前更新 `MICROSERVICES.md`、**ADR-019**。
+> 拆分 = 剪切粘贴 + Feign；先完成步骤 ①～④ 验收。**边界已定稿** → [DESIGN_DECISIONS ADR-019](./DESIGN_DECISIONS.md#七adr-019-his-三拆patient--clinical--pharmacy已定稿)。
 
 | 服务 | 路由 | 写归属 |
 |------|------|--------|
@@ -519,12 +519,11 @@ hospital-lis|pacs|disposal/
 | ② SM1 + SM2 | ✅ | 🟨 待跑 | `r-lis` / `r-pacs` / `r-disposal` / `r-pharmacy` / `r-reversal`；common Transitions 单测已有 |
 | ③ MedicalOrderHandler | ✅ | 🟨 待跑 | `r-min` 开单 · `r-pharmacy`；Payment/Refund 已改 Registry |
 | ④ MedTechExecute Template | ✅ | 🟨 待跑 | `r-lis` / `r-pacs` / `r-disposal` acceptance |
-| ⑧ 拆微服务 | ⬜ | — | ADR-019；**待 ①～④ 验收 ✅ 后再做** |
+| ⑧ 拆微服务 | ✅ | 🟨 待跑 | ADR-019：patient / pharmacy / clinical + Outbox |
 
 **刻意延后（不阻塞 ADR-018 代码落地）**：
 
-- **单测扩充**：Coordinator / Handler / Execute 模板层集成测试（common Transitions 单测已覆盖非法迁移）。  
-- **步骤 ⑧**：patient / pharmacy / clinical 三拆 + Feign。
+- **单测扩充**：Coordinator / Handler / Execute 模板层集成测试（common Transitions 单测已覆盖非法迁移）。
 
 ---
 
@@ -532,7 +531,8 @@ hospital-lis|pacs|disposal/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| v2.5 | 2026-06-04 | **①～④ 代码已落地**；同步包结构 §八、§4.3.1 库存实现状态；单测/步骤⑧ 明确延后 |
+| v2.6 | 2026-07-01 | **步骤 ⑧ ADR-019 已编码**；patient Repository 只读化与 `RegisterRepository` 临床死代码清理 |
+| v2.5 | 2026-06-04 | **①～④ 代码已落地**；同步包结构 §八、§4.3.1 库存实现状态 |
 | v2.4 | 2026-06-30 | 处方 SM2 增加 **库存联动**（开立预扣、退费/退药/驳回回增、不足拒开）；§4.3.1 |
 | v2.3 | 2026-06-30 | **2 层叙述 + 3 表实现**；Strategy 双接口合并为 **Handler + Registry**；**单模板三子类**（execute 范围）；修订日期改 **年月日** |
 | v2.2 | 2026-06-04 | visit 最先；三张状态图 + Strategy 类图/时序 + 执行 Template 流程；四步实施顺序定稿 |

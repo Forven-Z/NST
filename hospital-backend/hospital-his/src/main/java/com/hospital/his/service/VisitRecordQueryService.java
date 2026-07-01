@@ -2,9 +2,9 @@ package com.hospital.his.service;
 
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.exception.BusinessException;
-import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.repository.MedicalRecordRepository;
 import com.hospital.his.repository.PatientRepository;
+import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,10 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 患者就诊记录（一次挂号 = 一条就诊）：列表摘要与 Hub 聚合。
- * 供患者小程序 Hub 使用；医生端既往就诊可复用同一契约（Phase 3）。
- */
 @Service
 @RequiredArgsConstructor
 public class VisitRecordQueryService {
@@ -33,63 +29,9 @@ public class VisitRecordQueryService {
     private final RegisterRepository registerRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final PatientRepository patientRepository;
-    private final PatientFamilyService patientFamilyService;
     private final DoctorMedicalRecordService doctorMedicalRecordService;
     private final RegisterOrdersService registerOrdersService;
 
-    public Map<String, Object> listVisits(Long visitPatientId, int page, int pageSize) {
-        Long operatorId = AuthContextHolder.require().getPatientId();
-        Long visitId = patientFamilyService.resolveVisitPatientId(visitPatientId);
-        if (!patientFamilyService.canAccessVisitPatient(operatorId, visitId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看该就诊人记录");
-        }
-
-        int offset = Math.max(page - 1, 0) * pageSize;
-        List<Map<String, Object>> list = registerRepository
-                .findVisitSummariesForOperator(operatorId, visitId, offset, pageSize)
-                .stream()
-                .map(this::toVisitSummary)
-                .toList();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", list);
-        result.put("page", page);
-        result.put("pageSize", pageSize);
-        result.put("visitPatientId", visitId);
-        return result;
-    }
-
-    public Map<String, Object> getVisitHub(Long registerId) {
-        Long operatorId = AuthContextHolder.require().getPatientId();
-        Map<String, Object> reg = registerRepository.findDetailForOwner(registerId, operatorId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "就诊记录不存在"));
-
-        int visitState = ((Number) reg.get("visitState")).intValue();
-        if (visitState != 1 && visitState != 2 && visitState != 3) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "该挂号状态不可作为就诊记录查看");
-        }
-
-        Integer mrStatus = medicalRecordRepository.findStatusByRegisterId(registerId).orElse(null);
-        boolean hasSubmitted = mrStatus != null && mrStatus == 2;
-
-        Map<String, Object> hub = new HashMap<>();
-        hub.put("registerSummary", toRegisterSummary(reg));
-        hub.put("medicalRecordStatus", mrStatus);
-        hub.put("hasMedicalRecord", hasSubmitted);
-
-        if (hasSubmitted) {
-            hub.put("medicalRecord", doctorMedicalRecordService.getPatientMedicalRecord(registerId));
-        } else {
-            hub.put("medicalRecord", null);
-        }
-
-        hub.put("orders", registerOrdersService.getOrdersForPatient(registerId));
-        return hub;
-    }
-
-    /**
-     * 门诊医生查阅指定患者的就诊记录列表（Phase 3）。
-     */
     public Map<String, Object> listVisitsForDoctor(Long patientId, int page, int pageSize) {
         assertDoctorStaff();
         if (patientRepository.findMedicalRecordNo(patientId) == null) {
@@ -111,9 +53,6 @@ public class VisitRecordQueryService {
         return result;
     }
 
-    /**
-     * 门诊医生只读 Hub：病历（含未提交草稿）+ 医嘱。
-     */
     public Map<String, Object> getVisitHubForDoctor(Long patientId, Long registerId) {
         assertDoctorStaff();
         Map<String, Object> reg = registerRepository.findDetailByPatient(registerId, patientId)

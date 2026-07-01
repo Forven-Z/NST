@@ -3,9 +3,9 @@
 > **项目仓库**：**NST**（**N**exus **S**mart **T**reatment，枢纽智能诊疗）  
 > **培训背景**：东软公司 NEU Software Training 实训项目  
 > **中文产品名**：智慧云脑诊疗平台  
-> **文档体系版本**：v2.2 | 2026-06-04  
-> **数据模型**：[`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md) **v1.14**（表结构定稿；`docs/sql/schema.sql` 已对齐）  
-> **实施策略**：自启动 **微服务**（**9×Java** + 1×Python FastAPI）；课件三系统 **HIS / LIS / PACS** 各一 jar；**处置执行** 另拆 **`hospital-disposal`**（ADR-017）。
+> **文档体系版本**：v2.4 | 2026-06-04  
+> **数据模型**：[`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md) **v1.16**（表结构定稿；`docs/sql/schema.sql` 已对齐，含 `clinical_sync_task`）  
+> **实施策略**：自启动 **微服务**（**11×Java** + 1×Python FastAPI）；课件三系统 **HIS / LIS / PACS** 各一 jar；HIS 临床域另拆 **patient**、**pharmacy**（ADR-019）；**处置执行** 另拆 **`hospital-disposal`**（ADR-017）。
 
 ---
 
@@ -16,12 +16,12 @@
 | **L1 必读** | [TEAM_COLLABORATION.md](./TEAM_COLLABORATION.md) | 协作方式、Mock、契约变更、模块认领 |
 | **L1 必读** | [RUNBOOK.md](./RUNBOOK.md) | **启动 + 联调验收**（含原 INTEGRATION_CHECKLIST） |
 | **L2 契约** | [API.md](./API.md) | **唯一** HTTP 契约（路径定稿、报文、实现状态、页面速查附录） |
-| **L2 契约** | [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) | 表结构、状态枚举（**v1.14 定稿**） |
+| **L2 契约** | [DATABASE_DESIGN.md](./DATABASE_DESIGN.md) | 表结构、状态枚举（**v1.16**） |
 | **L2 契约** | [MICROSERVICES.md](./MICROSERVICES.md) | 微服务边界、路由、**架构图 §八**、M1～M10 |
 | **L3 计划** | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | 分期任务、DoD、**开发动机附录 §八** |
 | **L3 参考** | [PROJECT_REQUIREMENTS.md](./PROJECT_REQUIREMENTS.md) | 需求、角色、答辩材料 |
 | **L3 参考** | [BUSINESS_FLOW.md](./BUSINESS_FLOW.md) | 业务流程与状态图 |
-| **L3 参考** | [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) | ADR 已定稿 |
+| **L3 参考** | [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) | ADR 已定稿（含 **ADR-019** his 三拆） |
 | **L3 参考** | [REFACTORING_DESIGN_PATTERNS.md](./REFACTORING_DESIGN_PATTERNS.md) | **HIS 设计模式重构**（ADR-018 · ①～④ 已落地） |
 | **L4 按需** | [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md) | Windows 首次装环境 |
 | **活文档** | [PROGRESS.md](./PROGRESS.md) | 实现进度（每周更新） |
@@ -67,7 +67,7 @@
 |------|------|
 | **HIS / LIS / PACS** | 课件三子系统 = **`hospital-his` / `hospital-lis` / `hospital-pacs` 三个 Java 进程** |
 | **处置执行** | **`hospital-disposal`**（:9105），镜像 LIS/PACS；开立仍在 **his** |
-| **逻辑模块** | his 内部的 **Java 包**（patient、pharmacy…），**不是**独立微服务 |
+| **逻辑模块** | his 内部的 **Java 包**（patient、doctor、pharmacy…）；ADR-019 后 **patient / pharmacy 已独立为 jar** |
 | **一体化** | 一个库 `hospital`、一个 Gateway :9000；与多 jar 部署不矛盾 |
 | **hospital-common** | 共享 jar，**不单独启动** |
 
@@ -75,17 +75,22 @@
 
 ## 四、服务与端口
 
-| 服务 | 端口 |
-|------|------|
-| hospital-gateway | **9000**（对外唯一 HTTP） |
-| hospital-auth | 9101 |
-| hospital-his | 9102 |
-| hospital-lis | 9103 |
-| hospital-pacs | 9104 |
-| hospital-management | 9107 |
-| hospital-ai-bridge | 9106 |
-| hospital-disposal | 9105 |
-| hospital-ai (Python) | 8000 |
+| 服务 | 端口 | 职责 |
+|------|------|------|
+| hospital-gateway | **9000** | 对外唯一 HTTP 入口：路由、JWT、跨域 |
+| hospital-auth | 9101 | Token 签发（医护登录、patient 内部代发患者 Token） |
+| hospital-his（临床） | 9102 | 医生：叫号/病历/医嘱开立；内部 orders API |
+| hospital-patient | 9108 | 患者/挂号/收费退费/registrar/日终关单 |
+| hospital-pharmacy | 9109 | 药房：发药、驳回、退药 |
+| hospital-lis | 9103 | 检验执行与结果录入 |
+| hospital-pacs | 9104 | 检查/影像流程、CNN 任务调度 |
+| hospital-disposal | 9105 | 处置执行与结果录入 |
+| hospital-management | 9107 | 管理后台：字典、排班、员工 |
+| hospital-ai-bridge | 9106 | LLM/RAG、医生 AI 助理（Spring AI） |
+| hospital-ai (Python) | 8000 | CNN 影像推理（内网，不经 Gateway） |
+| hospital-common | — | 共享 jar，不单独启动 |
+
+完整说明见 [MICROSERVICES.md §1.0](./MICROSERVICES.md#10-微服务模块一览服务--端口--职责)。
 
 基础设施：PostgreSQL `5432`，Nacos `8848`，MinIO API `9001`。
 
@@ -113,4 +118,4 @@
 | v1.0～v1.6 | 2026-05 | 见历史条目 |
 | v1.7 | 2026-05 | **文档精简**：合并 INTEGRATION / RATIONALE / TECH；分层阅读 L1～L4 |
 | v2.1 | 2026-06 | 全库对齐 **DATABASE v1.14**；`API.md` v1.4 端口/字段修正 |
-| v2.2 | 2026-06-04 | CNN/RAG 各合并为 1 份；删除过程文档；新增 [archive/](./archive/) 留痕索引 |
+| v2.4 | 2026-06-04 | **ADR-019 编码落地**；§1.0 服务·端口·职责一览表；索引端口表增职责列 |

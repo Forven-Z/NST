@@ -827,7 +827,7 @@ jdbc:postgresql://127.0.0.1:5432/hospital
 
 1. 连接 → **PostgreSQL** → 新建连接
 2. 填入上表参数 → **测试连接** → 确定
-3. 展开 `hospital` → **表**，可查看 `schema.sql` 创建的 26 张业务表
+3. 展开 `hospital` → **表**，可查看 `schema.sql` 创建的业务表（含 `clinical_sync_task` 等，见 DATABASE_DESIGN v1.16）
 
 **pgAdmin 4 建立连接**
 

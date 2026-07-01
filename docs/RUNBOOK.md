@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — 启动、联调与验收手册
 
-> **版本**：v2.12 | 2026-06-04  
+> **版本**：v2.13 | 2026-07-01  
 > **用途**：日常 **开什么、怎么开**；**R-min～R-full 联调验收**（原 INTEGRATION_CHECKLIST 已并入本文 §十二）。  
 > **环境安装**（首次装软件）：见 [DEV_ENV_SETUP.md](./DEV_ENV_SETUP.md)  
 > **实现进度**：见 [PROGRESS.md](./PROGRESS.md)  
@@ -97,13 +97,13 @@ IDEA 启动 Java 时：先 `. .\scripts\env-cloud.ps1`，或把变量粘到 Run 
 
 | 文件 | 作用 | 不会启动 |
 |------|------|----------|
-| [scripts/start-project.ps1](../scripts/start-project.ps1) | **一键启动**：`env-{profile}.ps1` → **MinIO**（local 自动启 9001 / cloud 远程健康检查）→ Nacos（8848，若未运行）→ **8 个 Java 微服务**（9101～9107、9000）→ PC 前端（5173） | PostgreSQL、**Python hospital-ai（8000）**、小程序 |
-| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9107、**9202**）+ 前端（5173） | **不关** Nacos（8848）、MinIO（9001）、Python（8000）、PG |
+| [scripts/start-project.ps1](../scripts/start-project.ps1) | **一键启动**：`env-{profile}.ps1` → **MinIO**（local 自动启 9001 / cloud 远程健康检查）→ Nacos（8848，若未运行）→ **10 个 Java 微服务**（9000、9101～9109）→ PC 前端（5173） | PostgreSQL、**Python hospital-ai（8000）**、小程序 |
+| [scripts/stop-project.ps1](../scripts/stop-project.ps1) | 停止 Java（9000、9101～9109、**9202**）+ 前端（5173） | **不关** Nacos（8848）、MinIO（9001）、Python（8000）、PG |
 | [scripts/start-his-replica.ps1](../scripts/start-his-replica.ps1) | **答辩用**：在 9102 已启后，再起 his 副本 **9202**（Nacos 双实例 + Gateway LB） | 不启 Nacos/Gateway/其他微服务 |
 | [scripts/stop-his-replica.ps1](../scripts/stop-his-replica.ps1) | 仅停 his 副本 **9202** | 不影响主实例 9102 |
 | [scripts/env-cloud.ps1](../scripts/env-cloud.ps1) | `DB_HOST` / `MINIO_*` → ECS；`DB_PASSWORD` 为**云 PG 密码**（≠ 本机 `123456`） | 不启任何进程 |
 | [scripts/env-local.ps1](../scripts/env-local.ps1) | `DB_HOST` / `MINIO_*` → `127.0.0.1` | 不启任何进程 |
-| [scripts/start-r-min.ps1](../scripts/start-r-min.ps1) | **R-min 精简**：auth + his + ai-bridge + gateway（无 lis/pacs/前端） | 同上 |
+| [scripts/start-r-min.ps1](../scripts/start-r-min.ps1) | **R-min 精简**：auth + his + **patient + pharmacy** + ai-bridge + gateway（无 lis/pacs/前端） | 同上 |
 
 **`start-project.ps1` 默认 `-EnvProfile local`**（本机 PostgreSQL）。云端答辩时用：
 
@@ -522,7 +522,7 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 ### 12.1 环境准备（每次联调前）
 
 - [ ] **环境 profile**：云端展示 `. .\scripts\env-cloud.ps1` 或 `start-r-min.ps1 -EnvProfile cloud`；本地 `. .\scripts\env-local.ps1`
-- [ ] PostgreSQL：`hospital` 库已执行 **`schema.sql`（v1.14）** + `seed-dict.sql`（云库运维已导入；本地见 [sql/README.md §四](./sql/README.md)）
+- [ ] PostgreSQL：`hospital` 库已执行 **`schema.sql`（v1.16，含 `clinical_sync_task`）** + `seed-dict.sql`（云库运维已导入；本地见 [sql/README.md §四](./sql/README.md)）
 - [ ] Nacos standalone 运行（8848，**本机**）
 - [ ] 各服务 `NACOS_SERVER_ADDR=127.0.0.1:8848`、`DB_HOST` 与 profile 一致
 - [ ] Gateway **9000** 未被 MinIO 占用（MinIO 用 **9001**）
@@ -612,4 +612,4 @@ curl -X POST http://127.0.0.1:9000/api/v1/auth/staff/login -H "Content-Type: app
 | v2.8 | 2026-06-15 | §A.1 `start-his-replica.ps1` / `stop-his-replica.ps1`（his 双实例 LB 答辩演示）；`stop-project` 含 9202 |
 | v2.9 | 2026-06-15 | `start-project.ps1`：local 自动启 MinIO / cloud 远程健康检查；`-SkipMinio`、`-MinioHome` |
 | v2.10 | 2026-06-04 | 测试账号链至 `sql/README.md` §三；§4.5 补充 `seed-demo-patients.sql` / 云库重跑 seed 说明 |
-| v2.12 | 2026-06-04 | 挂号生命周期：未叫号可退号；待支付 10 分钟超时；当日 21:00 自动关单（`remark=AUTO_DAY_CLOSE`） |
+| v2.13 | 2026-07-01 | ADR-019 启动口径：10 个 Java 服务（9101～9109 + 9000）；`start-r-min` 含 patient + pharmacy |

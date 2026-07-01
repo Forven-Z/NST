@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 服务间内部接口，不经 Gateway 暴露；由 hospital-his 通过 Feign 直连调用。
+ * 服务间内部接口，不经 Gateway 暴露；由 hospital-patient 通过 OpenFeign 直连调用。
  */
 @RestController
 @RequestMapping("/internal/token")

@@ -1,15 +1,14 @@
 package com.hospital.his.order.handler;
 
 import com.hospital.common.constant.BillBizType;
-import com.hospital.common.constant.BillStatus;
 import com.hospital.common.constant.ErrorCode;
 import com.hospital.common.constant.PrescriptionStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.doctor.CreatePrescriptionRequest;
 import com.hospital.his.dto.doctor.UpdatePrescriptionRequest;
+import com.hospital.his.client.PatientBillBridge;
 import com.hospital.his.order.state.OrderStatusCoordinator;
-import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.DrugRepository;
 import com.hospital.his.repository.PrescriptionRepository;
 import com.hospital.his.repository.RegisterRepository;
@@ -30,19 +29,19 @@ public class PrescriptionMedicalOrderHandler implements MedicalOrderHandler {
     private final RegisterRepository registerRepository;
     private final DrugRepository drugRepository;
     private final PrescriptionRepository prescriptionRepository;
-    private final BillRepository billRepository;
+    private final PatientBillBridge patientBillBridge;
     private final OrderStatusCoordinator orderStatusCoordinator;
 
     public PrescriptionMedicalOrderHandler(
             RegisterRepository registerRepository,
             DrugRepository drugRepository,
             PrescriptionRepository prescriptionRepository,
-            BillRepository billRepository,
+            PatientBillBridge patientBillBridge,
             OrderStatusCoordinator orderStatusCoordinator) {
         this.registerRepository = registerRepository;
         this.drugRepository = drugRepository;
         this.prescriptionRepository = prescriptionRepository;
-        this.billRepository = billRepository;
+        this.patientBillBridge = patientBillBridge;
         this.orderStatusCoordinator = orderStatusCoordinator;
     }
 
@@ -68,7 +67,7 @@ public class PrescriptionMedicalOrderHandler implements MedicalOrderHandler {
                 request.getRegisterId(), patientId, doctorId, built.totalAmount(), PrescriptionStatus.ORDERED);
         persistItems(prescriptionId, built.snapshots());
 
-        long billId = billRepository.insertBill(
+        long billId = patientBillBridge.createBill(
                 patientId, request.getRegisterId(), BillBizType.PRESCRIPTION, prescriptionId,
                 "处方费 #" + prescriptionId, built.totalAmount());
 
@@ -111,21 +110,8 @@ public class PrescriptionMedicalOrderHandler implements MedicalOrderHandler {
         orderStatusCoordinator.resubmitPrescription(prescriptionId, totalAmount);
 
         String billTitle = "处方费 #" + prescriptionId;
-        long billId = billRepository.findByBiz(BillBizType.PRESCRIPTION, prescriptionId)
-                .map(existing -> {
-                    int status = ((Number) existing.get("status")).intValue();
-                    if (status != BillStatus.REFUNDED) {
-                        throw new BusinessException(ErrorCode.BAD_REQUEST, "处方账单状态异常，无法重新提交");
-                    }
-                    Long existingBillId = ((Number) existing.get("id")).longValue();
-                    if (billRepository.resetForResubmit(existingBillId, billTitle, totalAmount) == 0) {
-                        throw new BusinessException(ErrorCode.BAD_REQUEST, "处方账单重置失败");
-                    }
-                    return existingBillId;
-                })
-                .orElseGet(() -> billRepository.insertBill(
-                        patientId, registerId, BillBizType.PRESCRIPTION, prescriptionId,
-                        billTitle, totalAmount));
+        long billId = patientBillBridge.resubmitPrescriptionBill(
+                prescriptionId, patientId, registerId, billTitle, totalAmount);
 
         Map<String, Object> result = new HashMap<>();
         result.put("prescriptionId", prescriptionId);

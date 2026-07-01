@@ -19,6 +19,7 @@ function request(options) {
       method,
       data,
       header,
+      timeout: 15000,
       success(res) {
         if (res.statusCode === 502 || res.statusCode === 503) {
           reject(new Error('Gateway 不可用，请确认已运行 scripts/start-r-min.ps1'))

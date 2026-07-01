@@ -29,6 +29,7 @@ import {
   getDrugById,
   getMedicalTechById,
 } from './dict'
+import { readStaffAuthRaw } from '../utils/staffAuthStorage'
 
 function buildPublishedResultText({ instrumentData = '', aiReportText = '', doctorReportText = '' }) {
   const parts = []
@@ -52,7 +53,7 @@ function initResultFields(row, techType) {
 
 function mockCurrentRealName() {
   try {
-    const raw = localStorage.getItem('hospital_staff_auth')
+    const raw = readStaffAuthRaw()
     if (!raw) return '演示医师'
     const data = JSON.parse(raw)
     return data.user?.realName || '演示医师'

@@ -35,11 +35,13 @@ $frontend = Join-Path $RepoRoot 'hospital-frontend'
 $logs = Join-Path $RepoRoot 'logs\project'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 
-$mvnModules = 'hospital-auth,hospital-his,hospital-lis,hospital-pacs,hospital-disposal,hospital-management,hospital-ai-bridge,hospital-gateway'
+$mvnModules = 'hospital-auth,hospital-his,hospital-patient,hospital-pharmacy,hospital-lis,hospital-pacs,hospital-disposal,hospital-management,hospital-ai-bridge,hospital-gateway'
 $serviceChain = @(
     @{ Name = 'hospital-auth'; Port = 9101; Module = 'hospital-auth' },
     @{ Name = 'hospital-management'; Port = 9107; Module = 'hospital-management' },
     @{ Name = 'hospital-his'; Port = 9102; Module = 'hospital-his' },
+    @{ Name = 'hospital-patient'; Port = 9108; Module = 'hospital-patient' },
+    @{ Name = 'hospital-pharmacy'; Port = 9109; Module = 'hospital-pharmacy' },
     @{ Name = 'hospital-lis'; Port = 9103; Module = 'hospital-lis' },
     @{ Name = 'hospital-pacs'; Port = 9104; Module = 'hospital-pacs' },
     @{ Name = 'hospital-disposal'; Port = 9105; Module = 'hospital-disposal' },
