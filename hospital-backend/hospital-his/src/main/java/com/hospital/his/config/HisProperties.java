@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 public class HisProperties {
 
     private Auth auth = new Auth();
-    private Wechat wechat = new Wechat();
     private Internal internal = new Internal();
 
     @Data
@@ -21,11 +20,6 @@ public class HisProperties {
     @Data
     public static class Jwt {
         private String secret;
-    }
-
-    @Data
-    public static class Wechat {
-        private boolean mockEnabled = true;
     }
 
     @Data

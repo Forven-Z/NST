@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps({
   title: { type: String, required: true },
-  subtitle: { type: String, default: '智慧云脑诊疗平台 · HIS' },
+  subtitle: { type: String, default: '智慧云脑诊疗平台' },
   accent: { type: String, default: '#0f766e' },
   menuItems: {
     type: Array,

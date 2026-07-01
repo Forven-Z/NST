@@ -33,7 +33,7 @@
 
   <view class="trip card guest-trip" wx:else>
     <view class="trip-label">欢迎使用</view>
-    <view class="muted">登录病人账户后可挂号、缴费；可像 QQ 一样添加并切换多个就诊人</view>
+    <view class="muted">登录病人账户后可挂号、缴费；可添加并切换多个就诊人</view>
     <button class="btn-primary trip-btn" bindtap="onGoLogin">登录病人账户</button>
   </view>
 

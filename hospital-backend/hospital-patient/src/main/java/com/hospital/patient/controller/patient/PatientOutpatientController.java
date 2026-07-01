@@ -1,0 +1,215 @@
+package com.hospital.patient.controller.patient;
+
+import com.hospital.common.Result;
+import com.hospital.patient.dto.patient.CreateRegisterRequest;
+import com.hospital.patient.dto.patient.MockPaymentRequest;
+import com.hospital.patient.dto.registrar.CancelRegisterRequest;
+import com.hospital.patient.dto.registrar.RefundRequest;
+import com.hospital.patient.service.FinancialQueryService;
+import com.hospital.patient.service.PatientFamilyService;
+import com.hospital.patient.service.RegisterOrdersService;
+import com.hospital.patient.service.PaymentService;
+import com.hospital.patient.service.RefundService;
+import com.hospital.patient.service.RegisterCancelService;
+import com.hospital.patient.service.RegisterService;
+import com.hospital.patient.repository.DepartmentRepository;
+import com.hospital.patient.service.PatientMedicalRecordQueryService;
+import com.hospital.patient.service.PatientPrescriptionQueryService;
+import com.hospital.patient.service.PatientRegisterMedicalRecordService;
+import com.hospital.patient.service.PatientRegisterQueryService;
+import com.hospital.patient.service.VisitRecordQueryService;
+import com.hospital.patient.service.SchedulingService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v1/patient")
+@RequiredArgsConstructor
+public class PatientOutpatientController {
+
+    private final SchedulingService schedulingService;
+    private final RegisterService registerService;
+    private final PaymentService paymentService;
+    private final RefundService refundService;
+    private final RegisterCancelService registerCancelService;
+    private final PatientRegisterMedicalRecordService patientRegisterMedicalRecordService;
+    private final PatientRegisterQueryService patientRegisterQueryService;
+    private final DepartmentRepository departmentRepository;
+    private final com.hospital.patient.service.PatientReportService patientReportService;
+    private final PatientMedicalRecordQueryService patientMedicalRecordQueryService;
+    private final FinancialQueryService financialQueryService;
+    private final PatientFamilyService patientFamilyService;
+    private final RegisterOrdersService registerOrdersService;
+    private final PatientPrescriptionQueryService patientPrescriptionQueryService;
+    private final VisitRecordQueryService visitRecordQueryService;
+
+    @GetMapping("/departments")
+    public Result<Map<String, Object>> listDepartments() {
+        return Result.success(Map.of("list", departmentRepository.listOutpatientDepartments()));
+    }
+
+    @GetMapping("/registers")
+    public Result<Map<String, Object>> listRegisters(
+            @RequestParam(required = false) Integer visitState,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(patientRegisterQueryService.listRegisters(visitState, page, pageSize, visitId));
+    }
+
+    @GetMapping("/registers/{registerId}")
+    public Result<Map<String, Object>> getRegister(@PathVariable Long registerId) {
+        return Result.success(patientRegisterQueryService.getRegister(registerId));
+    }
+
+    @GetMapping("/registers/{registerId}/queue-status")
+    public Result<Map<String, Object>> queueStatus(@PathVariable Long registerId) {
+        return Result.success(patientRegisterQueryService.getQueueStatus(registerId));
+    }
+
+    @GetMapping("/registers/{registerId}/orders")
+    public Result<Map<String, Object>> getRegisterOrders(@PathVariable Long registerId) {
+        return Result.success(registerOrdersService.getOrdersForPatient(registerId));
+    }
+
+    @GetMapping("/schedules")
+    public Result<Map<String, Object>> listSchedules(
+            @RequestParam(required = false) Long deptId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate,
+            @RequestParam(required = false) Integer noonType,
+            @RequestParam(required = false) Long registLevelId) {
+        return Result.success(schedulingService.listSchedules(deptId, workDate, noonType, registLevelId));
+    }
+
+    @PostMapping("/registers")
+    public Result<Map<String, Object>> createRegister(@Valid @RequestBody CreateRegisterRequest request) {
+        return Result.success(registerService.createRegister(request));
+    }
+
+    @GetMapping("/bills")
+    public Result<Map<String, Object>> listBills(
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) Long registerId,
+            @RequestParam(required = false) String scope,
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(paymentService.listBills(visitId, status, registerId, scope));
+    }
+
+    @GetMapping("/payments")
+    public Result<Map<String, Object>> listPayments(
+            @RequestParam(required = false) Long registerId,
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        Long visitId = patientFamilyService.resolveVisitPatientId(
+                visitPatientId != null ? visitPatientId : patientId);
+        return Result.success(financialQueryService.listPayments(visitId, registerId, page, pageSize));
+    }
+
+    @GetMapping("/payments/{paymentId}")
+    public Result<Map<String, Object>> getPayment(
+            @PathVariable Long paymentId,
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId) {
+        Long visitId = patientFamilyService.resolveVisitPatientId(
+                visitPatientId != null ? visitPatientId : patientId);
+        return Result.success(financialQueryService.getPaymentDetail(visitId, paymentId));
+    }
+
+    @GetMapping("/refunds")
+    public Result<Map<String, Object>> listRefunds(
+            @RequestParam(required = false) Long registerId,
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        Long visitId = patientFamilyService.resolveVisitPatientId(
+                visitPatientId != null ? visitPatientId : patientId);
+        return Result.success(financialQueryService.listRefunds(visitId, registerId, page, pageSize));
+    }
+
+    @PostMapping("/payments")
+    public Result<Map<String, Object>> mockPayment(@Valid @RequestBody MockPaymentRequest request) {
+        return Result.success(paymentService.mockPay(request));
+    }
+
+    @PostMapping("/refunds")
+    public Result<Map<String, Object>> refund(@Valid @RequestBody RefundRequest request) {
+        return Result.success(refundService.refundByPatient(request.getBillId(), request.getReason()));
+    }
+
+    @PostMapping("/registers/{registerId}/cancel")
+    public Result<Map<String, Object>> cancelRegister(
+            @PathVariable Long registerId,
+            @RequestBody(required = false) CancelRegisterRequest request) {
+        String reason = request != null ? request.getReason() : null;
+        return Result.success(registerCancelService.cancelByPatient(registerId, reason));
+    }
+
+    @GetMapping("/medical-records")
+    public Result<Map<String, Object>> listMedicalRecords(
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(patientMedicalRecordQueryService.listRecords(visitId));
+    }
+
+    /** 就诊记录列表（一次挂号一条，含医嘱/报告计数；替代仅已提交病历的列表场景） */
+    @GetMapping("/visits")
+    public Result<Map<String, Object>> listVisits(
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(visitRecordQueryService.listVisits(visitId, page, pageSize));
+    }
+
+    /** 就诊 Hub：registerSummary + medicalRecord（可空）+ orders */
+    @GetMapping("/visits/{registerId}/hub")
+    public Result<Map<String, Object>> getVisitHub(@PathVariable Long registerId) {
+        return Result.success(visitRecordQueryService.getVisitHub(registerId));
+    }
+
+    @GetMapping("/medical-records/{registerId}")
+    public Result<Map<String, Object>> getMedicalRecord(@PathVariable Long registerId) {
+        return Result.success(patientRegisterMedicalRecordService.getPatientMedicalRecord(registerId));
+    }
+
+    @GetMapping("/prescriptions/{prescriptionId}")
+    public Result<Map<String, Object>> getPrescription(@PathVariable Long prescriptionId) {
+        return Result.success(patientPrescriptionQueryService.getDetail(prescriptionId));
+    }
+
+    @GetMapping("/reports")
+    public Result<Map<String, Object>> listReports(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Long visitPatientId,
+            @RequestParam(required = false) Long patientId) {
+        Long visitId = visitPatientId != null ? visitPatientId : patientId;
+        return Result.success(patientReportService.listReports(type, visitId));
+    }
+
+    @GetMapping("/reports/{type}/{requestId}")
+    public Result<Map<String, Object>> getReportDetail(
+            @PathVariable String type,
+            @PathVariable Long requestId) {
+        return Result.success(patientReportService.getReportDetail(type, requestId));
+    }
+}

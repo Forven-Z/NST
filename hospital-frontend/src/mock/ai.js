@@ -37,7 +37,7 @@ export function mockClinicalAiDraft(type, registerId) {
     draftId: draftSeq,
     draftType: type,
     registerId,
-    aiReason: '【Mock】AI 根据病历主诉生成的申请草稿，请医生核对后确认',
+    aiReason: 'AI 根据病历主诉生成的申请草稿，请医生核对后确认',
     items,
   })
 }
@@ -71,7 +71,7 @@ export function mockPrescriptionAiDraft(registerId) {
     draftId: draftSeq,
     draftType: 'PRESCRIPTION',
     registerId,
-    aiReason: '【Mock】AI 根据病历生成的处方草稿，请医生编辑后确认',
+    aiReason: 'AI 根据病历生成的处方草稿，请医生编辑后确认',
     items,
   })
 }

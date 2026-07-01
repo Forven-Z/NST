@@ -4,8 +4,8 @@ import com.hospital.common.constant.BillBizType;
 import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.his.dto.doctor.CreateInspectionRequest;
 import com.hospital.his.order.MedTechOrderKind;
+import com.hospital.his.client.PatientBillBridge;
 import com.hospital.his.order.state.OrderStatusCoordinator;
-import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.DisposalRequestRepository;
 import com.hospital.his.repository.MedicalTechnologyRepository;
 import com.hospital.his.repository.RegisterRepository;
@@ -23,10 +23,10 @@ public class DisposalMedicalOrderHandler extends AbstractMedicalOrderHandler {
     public DisposalMedicalOrderHandler(
             RegisterRepository registerRepository,
             MedicalTechnologyRepository medicalTechnologyRepository,
-            BillRepository billRepository,
+            PatientBillBridge patientBillBridge,
             OrderStatusCoordinator orderStatusCoordinator,
             DisposalRequestRepository disposalRequestRepository) {
-        super(registerRepository, medicalTechnologyRepository, billRepository, orderStatusCoordinator);
+        super(registerRepository, medicalTechnologyRepository, patientBillBridge, orderStatusCoordinator);
         this.disposalRequestRepository = disposalRequestRepository;
     }
 

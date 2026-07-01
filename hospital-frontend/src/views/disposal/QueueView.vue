@@ -13,7 +13,7 @@ import {
     title="处置待执行队列"
     tech-type="DISPOSAL"
     request-id-key="disposalRequestId"
-    workflow-hint="流程：患者缴费 → 开始执行 → 填写处置过程与观察结果 → 发布。API：GET result-detail · POST result（无 AI）"
+    workflow-hint="流程：患者缴费 → 开始执行 → 填写处置过程与观察结果 → 签阅发布"
     :fetch-queue="fetchDisposalQueue"
     :fetch-result-detail="fetchDisposalResultDetail"
     :execute-request="executeDisposalRequest"

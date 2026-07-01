@@ -29,14 +29,7 @@ spring:
           filters:
             - StripPrefix=0
 
-        # --- HIS：患者 / 门诊 / 收费 / 药房 ---
-        - id: hospital-his-patient
-          uri: lb://hospital-his
-          predicates:
-            - Path=/api/v1/patient/**
-          filters:
-            - StripPrefix=0
-
+        # --- HIS 临床（医生开单） ---
         - id: hospital-his-doctor
           uri: lb://hospital-his
           predicates:
@@ -44,24 +37,33 @@ spring:
           filters:
             - StripPrefix=0
 
-        - id: hospital-his-registrar
-          uri: lb://hospital-his
+        # --- 患者 / 挂号收费（ADR-019）---
+        - id: hospital-patient
+          uri: lb://hospital-patient
+          predicates:
+            - Path=/api/v1/patient/**
+          filters:
+            - StripPrefix=0
+
+        - id: hospital-patient-registrar
+          uri: lb://hospital-patient
           predicates:
             - Path=/api/v1/registrar/**
           filters:
             - StripPrefix=0
 
-        - id: hospital-his-pharmacy
-          uri: lb://hospital-his
+        - id: hospital-patient-wechat-callback
+          uri: lb://hospital-patient
           predicates:
-            - Path=/api/v1/pharmacy/**
+            - Path=/api/v1/callback/wechat/**
           filters:
             - StripPrefix=0
 
-        - id: hospital-his-wechat-callback
-          uri: lb://hospital-his
+        # --- 药房（ADR-019）---
+        - id: hospital-pharmacy
+          uri: lb://hospital-pharmacy
           predicates:
-            - Path=/api/v1/callback/wechat/**
+            - Path=/api/v1/pharmacy/**
           filters:
             - StripPrefix=0
 

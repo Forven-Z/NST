@@ -131,7 +131,7 @@ async function onConfirm() {
       </el-table-column>
     </el-table>
 
-    <p class="hint">ADR-015：医生编辑草稿后点击「确认提交」才会开立医嘱（status=10）。</p>
+    <p class="hint">请核对草稿内容后点击「确认提交」，确认后将正式开立医嘱并生成待缴账单。</p>
 
     <template #footer>
       <el-button @click="onClose">取消</el-button>

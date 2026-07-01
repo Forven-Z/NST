@@ -13,7 +13,7 @@ public class AiStubService {
         return Map.of(
                 "stub", true,
                 "sessionId", sessionId != null ? sessionId : UUID.randomUUID().toString(),
-                "delta", "【占位】您好，请先完成挂号后就诊。" + (message != null ? "" : "")
+                "delta", "您好，请先完成挂号后再咨询导诊问题。"
         );
     }
 
@@ -21,7 +21,7 @@ public class AiStubService {
         return Map.of(
                 "stub", true,
                 "registerId", registerId,
-                "delta", "【占位】AI 助理未启用，请依据病历人工判断。"
+                "delta", "AI 助理暂未启用，请依据病历与诊疗规范人工判断。"
         );
     }
 
@@ -32,7 +32,7 @@ public class AiStubService {
                 "suggestions", List.of(),
                 "needCheck", true,
                 "needInspection", false,
-                "reason", "AI module disabled"
+                "reason", "AI 服务暂未启用"
         );
     }
 }

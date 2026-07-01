@@ -5,7 +5,7 @@
 > **数据库**：PostgreSQL 15+（业务库 `hospital`）；向量扩展见 **§十**。  
 > **状态枚举**：§1.5；与 `BUSINESS_FLOW.md` §八、【态】及 `PROJECT_REQUIREMENTS.md` §2.4 一致。  
 > **微服务表写归属**：§1.4（与 [MICROSERVICES.md](./MICROSERVICES.md) §二 一致）  
-> **版本**：v1.15 | 2026-06
+> **版本**：v1.16 | 2026-07
 
 ---
 
@@ -45,11 +45,11 @@
 | C. 挂号就诊 | 3 | `register`, `medical_record`, `medical_record_disease` |
 | D. 医技医嘱 | 3 | `check_request`, `inspection_request`, `disposal_request` |
 | E. 处方 | 3 | `prescription`, `prescription_item`, `ai_prescription_draft` |
-| F. 收费支付 | 4 | `bill`, `payment_record`, `payment_bill`, `refund_record` |
+| F. 收费支付 | 5 | `bill`, `payment_record`, `payment_bill`, `refund_record`, `clinical_sync_task` |
 | G. 影像 AI | 2 | `imaging_study`, `ai_chat_session` |
 | H. 向量/RAG | — | 见 **§十**（由 Spring AI 管理，本文仅说明） |
 
-**合计：26 张核心业务关系表 + 2 张扩展表**（`patient_family_link`、`scheduling_leave_request`；不含向量表）。
+**合计：27 张核心业务关系表 + 2 张扩展表**（`patient_family_link`、`scheduling_leave_request`；不含向量表）。
 
 ### 1.4 微服务与表写归属矩阵
 
@@ -58,11 +58,11 @@
 | 表名 | 主写服务 | 说明 |
 |------|----------|------|
 | `sys_user` | hospital-auth | 员工登录账号 |
-| `patient`, `patient_wechat`, `patient_family_link` | hospital-his | 患者主数据、微信绑定与家属关系 |
-| `register`, `medical_record`, `medical_record_disease` | hospital-his | 挂号与病历 |
-| `prescription`, `prescription_item`, `ai_prescription_draft` | hospital-his | 处方（开立、发药状态由 his 协调） |
+| `patient`, `patient_wechat`, `patient_family_link` | hospital-patient | 患者主数据、微信绑定与家属关系 |
+| `register`, `medical_record`, `medical_record_disease` | hospital-his / hospital-patient | 挂号与病历（挂号写 patient；病历写 his） |
+| `prescription`, `prescription_item`, `ai_prescription_draft` | hospital-his / hospital-pharmacy | 处方开立 his；发药/驳回 pharmacy |
 | `disposal_request` | hospital-his + hospital-disposal | **his**：开立与 status 10/20/50；**disposal**：执行与结果 30/40（ADR-017） |
-| `bill`, `payment_record`, `payment_bill`, `refund_record` | hospital-his | 待缴与支付流水 |
+| `bill`, `payment_record`, `payment_bill`, `refund_record`, `clinical_sync_task` | hospital-patient | 账单、支付流水与 clinical 同步任务 |
 | `inspection_request` | hospital-lis | 全生命周期写；**开立字段**由 his 创建时写入 |
 | `check_request`, `imaging_study` | hospital-pacs | 检查单与影像任务；开立由 his Feign 触发 |
 | `department`, `employee`, `regist_level`, `settle_category`, `scheduling`, `scheduling_leave_request`, `drug_info`, `disease`, `medical_technology` | hospital-management | 字典、排班与请假 |
@@ -782,10 +782,36 @@ disease ──N:M── medical_record (medical_record_disease)
 
 ---
 
+### 8.4.1 `clinical_sync_task` — patient→clinical 同步任务（ADR-019 · Outbox）
+
+> **写归属**：**hospital-patient** 独占。  
+> **用途**：患者支付/退费成功后，与 `bill` / `refund_record` 同一本地事务入队；commit 后异步 Feign clinical `POST /internal/orders/on-bill-paid|on-refund`，失败退避重试。  
+> **DDL**：已并入 **`docs/sql/schema.sql`**；旧库增量见 **`docs/sql/patch-clinical-sync-task.sql`**。
+
+| 字段名 | 数据类型 | 空 | 默认值 | 键 | 业务说明 |
+|--------|----------|----|--------|-----|----------|
+| id | BIGSERIAL | N | — | PK | 任务主键。 |
+| biz_type | VARCHAR(32) | N | — | UK | 账单业务类型，与 `bill.biz_type` 一致（如 `INSPECTION`、`PRESCRIPTION`）。 |
+| biz_id | BIGINT | N | — | UK | 业务单 id，与 `bill.biz_id` 一致。 |
+| action | VARCHAR(32) | N | — | UK | 同步动作：`ON_BILL_PAID` / `ON_REFUND`。 |
+| status | VARCHAR(16) | N | `PENDING` | IX | `PENDING` 待投递 · `DONE` 成功 · `FAILED` 待重试 · `DEAD` 放弃。 |
+| retry_count | INT | N | 0 | — | 已重试次数。 |
+| max_retries | INT | N | 10 | — | 最大重试次数，超限标记 `DEAD`。 |
+| next_retry_at | TIMESTAMPTZ | Y | NULL | IX | 下次重试时间（指数退避）。 |
+| last_error | TEXT | Y | NULL | — | 最近一次 Feign/clinical 失败原因。 |
+| create_time | TIMESTAMPTZ | N | NOW() | — | 入队时间（与支付/退费同事务）。 |
+| update_time | TIMESTAMPTZ | N | NOW() | — | 最后状态更新时间。 |
+
+**建议唯一**：`UK (biz_type, biz_id, action)`，同一笔业务同一动作仅一条任务。
+
+**不适用 bizType**：`REGISTER`、`MEDICAL_BOOK` 由 patient 本地 `VisitLifecycleCoordinator` 处理，**不入队**。
+
+---
+
 ### 8.5 费用/支付流水 — 可见范围与接口约束
 
 > **已定稿（2026-05）**，与 `PROJECT_REQUIREMENTS.md` §2.3.1、`BUSINESS_FLOW.md`「费用记录查询」一致。  
-> 流水表：`bill`、`payment_record`、`payment_bill`、`refund_record`。
+> 流水表：`bill`、`payment_record`、`payment_bill`、`refund_record`；同步任务表 **`clinical_sync_task`**（patient 内部，不对患者/医生展示）。
 
 #### 8.5.1 角色可见矩阵
 
@@ -982,7 +1008,7 @@ disease ──N:M── medical_record (medical_record_disease)
 | 阶段 | 建议优先落地的表 |
 |------|------------------|
 | P1 | patient, patient_wechat, department, regist_level, employee, sys_user, scheduling, scheduling_leave_request, register, bill, payment_record, payment_bill, medical_record |
-| P2 | medical_technology, check_request, inspection_request, disposal_request, refund_record |
+| P2 | medical_technology, check_request, inspection_request, disposal_request, refund_record, **clinical_sync_task**（ADR-019 三拆后） |
 | P3 | drug_info, prescription, prescription_item, ai_prescription_draft |
 | P4 | imaging_study, ai_chat_session + 向量扩展 |
 
@@ -1008,7 +1034,8 @@ disease ──N:M── medical_record (medical_record_disease)
 | v1.13 | 2026-06 | 移除 **`bill_no`**、**`payment_no`**、**`refund_no`**；费用/支付/退款业务标识统一为各表 **`id`**（§八 约定） |
 | v1.14 | 2026-06 | **表结构定稿不再改动**；§1.1 业务标识、§2 ER 脚注、§8.5 展示字段、§11 对照与 v1.4～v1.13 对齐；**`docs/sql/schema.sql` 已重写对齐**；§4.3 补全 **`patient_family_link`** 字段说明 |
 | v1.15 | 2026-06 | 新增 **`scheduling_leave_request`**（§3.9、§1.5 `leave_request_status`）；§3.5 请假关联说明；§1.3 A′ 排班扩展、§1.4 写归属、§2 ER；**`docs/sql/schema.sql`** 与 **`patch-scheduling-leave.sql`** 已对齐 |
+| v1.16 | 2026-07 | 新增 **`clinical_sync_task`**（§8.4.1、§1.3 F、§1.4）；patient→clinical Outbox；**并入 `schema.sql`**；旧库 **`patch-clinical-sync-task.sql`** |
 
 ---
 
-*本文档 **v1.15** 为业务表设计权威说明（非建表脚本）。建表脚本见 **`docs/sql/schema.sql`**（含 `scheduling_leave_request`、`patient_family_link`）；旧库升级见 **`docs/sql/patch-scheduling-leave.sql`**。*
+*本文档 **v1.16** 为业务表设计权威说明（非建表脚本）。建表脚本见 **`docs/sql/schema.sql`**（含 `clinical_sync_task`、`scheduling_leave_request`、`patient_family_link`）；旧库升级见 **`docs/sql/patch-*.sql`**。*

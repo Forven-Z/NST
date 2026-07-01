@@ -177,7 +177,7 @@ export function mockDiagnosisSuggestForRegister(registerId, recordOverride) {
       needCheck: true,
       needInspection: true,
       needDisposal: false,
-      reason: '【Mock·头痛路径】结合主诉的辅助检查建议，请医生确认后开单',
+      reason: '结合主诉的辅助检查建议，请医生确认后开单',
     })
   }
   if (isFever) {
@@ -188,7 +188,7 @@ export function mockDiagnosisSuggestForRegister(registerId, recordOverride) {
       needCheck: true,
       needInspection: true,
       needDisposal: false,
-      reason: '【Mock·发热路径】初诊感染筛查建议',
+      reason: '初诊感染筛查建议，请医生确认后开单',
     })
   }
   return mockResult({
@@ -198,7 +198,7 @@ export function mockDiagnosisSuggestForRegister(registerId, recordOverride) {
     needCheck: false,
     needInspection: true,
     needDisposal: false,
-    reason: '【Mock】通用初诊建议；请结合病史与查体',
+    reason: '通用初诊建议；请结合病史与查体确认',
   })
 }
 

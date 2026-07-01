@@ -61,8 +61,8 @@ function mockAiSubstituteSuggest(params) {
     suggestions: buildLeaveAwareSuggestions(list),
     pendingLeaveCount: pendingLeave,
     message: pendingLeave
-      ? `【Mock】检测到 ${pendingLeave} 条待审批请假，已优先生成替班建议`
-      : '【Mock】暂无需要替班的已批准请假',
+      ? `检测到 ${pendingLeave} 条待审批请假；已优先生成替班建议`
+      : '暂无需要替班的已批准请假',
   })
 }
 
@@ -131,7 +131,7 @@ function mockAiWeekSuggest(params) {
     suggestions: [],
     riskItems: [],
     warnings,
-    message: `【Mock】AI 已生成 ${changes.length} 条周排班草稿，请检查后保存`,
+    message: `AI 已生成 ${changes.length} 条周排班草稿，请检查后保存`,
   })
 }
 

@@ -1,9 +1,9 @@
 # 数据库脚本说明
 
 > **业务库**：PostgreSQL 15+，库名 `hospital`  
-> **设计依据**：[`DATABASE_DESIGN.md`](../DATABASE_DESIGN.md) **v1.14**  
+> **设计依据**：[`DATABASE_DESIGN.md`](../DATABASE_DESIGN.md) **v1.16**  
 > **执行顺序**：`schema.sql` → `seed-dict.sql`（P1 联调必跑 seed）  
-> **说明**：`patient_family_link` 已并入 `schema.sql`（小程序家属）；`patch-family-link.sql` 仅用于旧库增量升级。
+> **说明**：`patient_family_link`、`clinical_sync_task` 已并入 `schema.sql`；`patch-family-link.sql`、`patch-clinical-sync-task.sql` 仅用于旧库增量升级。
 
 ---
 
@@ -21,7 +21,7 @@ cd /d C:\Users\你的用户名\Desktop\NST
 REM 0. 创建库（已存在可跳过）
 psql -U postgres -h localhost -c "CREATE DATABASE hospital ENCODING 'UTF8';"
 
-REM 1. 建表（26 张核心表 + patient_family_link）
+REM 1. 建表（27 张核心表 + patient_family_link + clinical_sync_task）
 psql -U postgres -d hospital -f docs\sql\schema.sql
 
 REM 2. 灌入 P1 字典与测试账号（ADR-012）
@@ -87,7 +87,7 @@ docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT id, us
 docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT u.username, e.real_name, e.role_type FROM sys_user u JOIN employee e ON e.id = u.employee_id ORDER BY u.id;"
 ```
 
-期望：表数量约 **26～28**；`sys_user` 含 `doctor01`、`lab01`、`check01`、`admin` 等。
+期望：表数量约 **27～29**；`sys_user` 含 `doctor01`、`lab01`、`check01`、`admin` 等；存在表 **`clinical_sync_task`**。
 
 **v1.14 相对旧库的主要 DDL 变更**（须 **DROP SCHEMA 重建** 或自行写 migration，勿直接覆盖旧表）：
 
@@ -107,10 +107,11 @@ docker exec -it hospital-postgres psql -U postgres -d hospital -c "SELECT u.user
 
 | 文件 | 用途 | 阶段 |
 |------|------|------|
-| `schema.sql` | 全量 DDL（26 表 + `patient_family_link` + 索引） | P0.5 必跑 |
+| `schema.sql` | 全量 DDL（含 `clinical_sync_task`、27 核心表 + 扩展表 + 索引） | P0.5 必跑 |
 | `seed-dict.sql` | 科室、号别、员工、排班、测试登录 | P1 联调 |
 | `seed-demo-patients.sql` | 演示患者 `MR202606040100` + 今日内科挂号 | P1 可选 |
 | `seed-demo-check.sql` | 影像演示：检查申请 #62001（赵大爷 · 头部 CT） | P3/P4 可选 |
+| `patch-clinical-sync-task.sql` | 旧库补 Outbox 表（**新环境勿单独跑**） | 增量 |
 | `patch-family-link.sql` | 旧库补家属表（新环境勿单独跑） | 增量 |
 | `patch-patient-phone-unique.sql` | 旧库：`phone` 部分唯一索引 `ux_patient_phone` | 增量 |
 | `vector.sql` | RAG 向量表（待 Spring AI 版本确定） | P4 |
@@ -163,3 +164,4 @@ psql -U postgres -d hospital -f docs/sql/seed-dict.sql
 | v1.11 | 2026-06-04 | 新增科室「信息科」`INFO_CENTER`(id=8)；`admin` 由挂号处迁至信息科 |
 | v1.12 | 2026-06-24 | 扩展药品 20 种、医技 34 项、疾病 5 条；对齐 RAG 与 DEMO_MEDICAL_RECORD_SAMPLES |
 | v1.13 | 2026-06-04 | 新增 `inspection_result_item` 检验明细表；增量脚本 `migration-inspection-result-item.sql` |
+| v1.14 | 2026-07 | **`clinical_sync_task` 并入 `schema.sql`**（DATABASE_DESIGN v1.16）；`patch-clinical-sync-task.sql` 改旧库增量 |

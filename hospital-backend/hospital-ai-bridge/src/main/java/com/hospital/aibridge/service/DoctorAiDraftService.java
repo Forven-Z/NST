@@ -180,7 +180,7 @@ public class DoctorAiDraftService {
         Map<String, Object> response = toResponse(draft);
         response.put("hisSubmitResult", hisSubmitResult);
         saveAiAuditSession("ASSISTANT", draft.getRegisterId(), authorization, draft.getDraftType() + "_CONFIRM", response);
-        response.put("message", "AI 草稿已确认，请由 HIS/医生端据此创建正式医嘱或处方。");
+        response.put("message", "医嘱已确认开立，请通知患者缴费。");
         return response;
     }
 

@@ -6,6 +6,9 @@ const accountStore = require('../../utils/account-store')
 const tripCard = require('../../utils/trip-card')
 const reportNav = require('../../utils/report-nav')
 
+/** 切 Tab 回首页时短时间去重，避免 onShow 连续打满 Gateway */
+var HOME_RELOAD_MS = 5000
+
 Page({
   data: {
     loggedIn: false,
@@ -24,8 +27,13 @@ Page({
     var loggedIn = isLoggedIn()
     this.setData({ loggedIn: loggedIn })
     if (loggedIn) {
-      this.loadData()
+      var now = Date.now()
+      if (!this._lastLoadAt || now - this._lastLoadAt >= HOME_RELOAD_MS) {
+        this._lastLoadAt = now
+        this.loadData()
+      }
     } else {
+      this._lastLoadAt = 0
       this.setData({
         currentAccountName: '未登录',
         currentMedicalRecordNo: '登录后可切换就诊账户',
@@ -37,6 +45,7 @@ Page({
   },
 
   loadData() {
+    this._lastLoadAt = Date.now()
     var that = this
     Promise.all([
       this.loadProfile(),

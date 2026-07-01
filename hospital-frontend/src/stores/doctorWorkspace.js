@@ -16,7 +16,7 @@ function formatDraftMessage(type, draft) {
     return `· ${name}${extra}`
   })
   const body = lines.length ? lines.join('\n') : '（暂无具体项目）'
-  return `【AI ${label}草稿已生成】\n${draft.aiReason || ''}\n${body}\n\n请在弹窗中编辑并「确认提交」（ADR-015 三步流程）。`
+  return `【AI ${label}草稿已生成】\n${draft.aiReason || ''}\n${body}\n\n请在弹窗中编辑并「确认提交」后正式开单。`
 }
 
 export const useDoctorWorkspaceStore = defineStore('doctorWorkspace', () => {

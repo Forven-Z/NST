@@ -6,9 +6,9 @@ import com.hospital.common.constant.InspectionRequestStatus;
 import com.hospital.common.constant.VisitState;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.his.dto.doctor.CreateInspectionRequest;
+import com.hospital.his.client.PatientBillBridge;
 import com.hospital.his.order.MedTechOrderKind;
 import com.hospital.his.order.state.OrderStatusCoordinator;
-import com.hospital.his.repository.BillRepository;
 import com.hospital.his.repository.MedicalTechnologyRepository;
 import com.hospital.his.repository.RegisterRepository;
 import com.hospital.his.security.AuthContextHolder;
@@ -26,17 +26,17 @@ public abstract class AbstractMedicalOrderHandler implements MedicalOrderHandler
 
     protected final RegisterRepository registerRepository;
     protected final MedicalTechnologyRepository medicalTechnologyRepository;
-    protected final BillRepository billRepository;
+    protected final PatientBillBridge patientBillBridge;
     protected final OrderStatusCoordinator orderStatusCoordinator;
 
     protected AbstractMedicalOrderHandler(
             RegisterRepository registerRepository,
             MedicalTechnologyRepository medicalTechnologyRepository,
-            BillRepository billRepository,
+            PatientBillBridge patientBillBridge,
             OrderStatusCoordinator orderStatusCoordinator) {
         this.registerRepository = registerRepository;
         this.medicalTechnologyRepository = medicalTechnologyRepository;
-        this.billRepository = billRepository;
+        this.patientBillBridge = patientBillBridge;
         this.orderStatusCoordinator = orderStatusCoordinator;
     }
 
@@ -102,7 +102,7 @@ public abstract class AbstractMedicalOrderHandler implements MedicalOrderHandler
 
         long orderId = insertOrder(request, patientId, doctorId, price, item);
 
-        long billId = billRepository.insertBill(
+        long billId = patientBillBridge.createBill(
                 patientId,
                 request.getRegisterId(),
                 bizType(),

@@ -9,7 +9,7 @@ const props = defineProps({
   editableDoctor: { type: Boolean, default: false },
   aiSectionTitle: { type: String, default: '诊断印象' },
   doctorSectionTitle: { type: String, default: '医师意见' },
-  aiPlaceholder: { type: String, default: '点击「生成 AI 报告」后，LLM 将根据上方检查数据归纳诊断印象…' },
+  aiPlaceholder: { type: String, default: '点击「生成 AI 报告」后，将根据上方检查数据归纳诊断印象…' },
   doctorPlaceholder: { type: String, default: '在 AI 报告基础上补充签阅意见…' },
 })
 

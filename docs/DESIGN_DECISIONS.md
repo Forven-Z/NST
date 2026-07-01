@@ -2,7 +2,7 @@
 
 > **文档性质**：已拍板的技术与实现选择；编码与评审以本文为准。  
 > **文档索引**：[README.md](./README.md)  
-> **版本**：v1.6 | 2026-06
+> **版本**：v2.5 | 2026-07-01
 > **状态图例**：**已定稿** | **待定（P4+）**
 
 ---
@@ -29,6 +29,7 @@
 | ADR-016 | 就诊人/家属业务模型 | **已定稿** | **方案 A**：JWT=操作者；`visitPatientId`=当前就诊人；本人不进 link |
 | ADR-017 | 处置微服务拆分 | **已定稿** | 镜像 LIS/PACS：`hospital-disposal`（:9105）负责队列/执行/结果 |
 | ADR-018 | HIS 领域设计模式重构 | **实施中** | ①～④ **代码已落地**，待验收；详见 [REFACTORING v2.5](./REFACTORING_DESIGN_PATTERNS.md) |
+| ADR-019 | HIS 三拆（patient / clinical / pharmacy） | **已定稿** | 自 `hospital-his` 拆出 **patient + pharmacy**；缴费 **Feign 方案 A**；见 §七 |
 
 ---
 
@@ -38,7 +39,7 @@
 
 | 职责 | 服务 |
 |------|------|
-| 微信 `code` 换 `openid`、创建/更新 `patient` / `patient_wechat` | **hospital-his** |
+| 微信 `code` 换 `openid`、创建/更新 `patient` / `patient_wechat` | **hospital-patient**（ADR-019） |
 | **签发** 患者 JWT、医护 JWT、刷新 Token | **hospital-auth**（**唯一签发方**） |
 | JWT 解析、Gateway 校验、`userType` 约定 | **hospital-common**（或 auth 暴露校验接口） |
 
@@ -48,18 +49,18 @@
 
 ```text
 小程序  wx.login() → code
-    → POST /api/v1/patient/auth/wechat   （Gateway → his）
-    → his：调微信接口 + 落库 patient / patient_wechat
-    → his：Feign → auth  POST /internal/token/patient
+    → POST /api/v1/patient/auth/wechat   （Gateway → patient，ADR-019）
+    → patient：调微信接口 + 落库 patient / patient_wechat
+    → patient：Feign → auth  POST /internal/token/patient
     ← auth：accessToken（+ 可选 refreshToken）
-    ← his：将 Token 与 patientId、病历号等一并返回小程序
+    ← patient：将 Token 与 patientId、病历号等一并返回小程序
 ```
 
 ### 2.3 内部接口（不经 Gateway）
 
 | 调用方 | 被调方 | 方法与路径 | 说明 |
 |--------|--------|------------|------|
-| hospital-his | hospital-auth | `POST /internal/token/patient` | 请求体含 `patientId` 等；**仅内网**，服务间鉴权（如内部 Header / mTLS 后期可选） |
+| hospital-patient | hospital-auth | `POST /internal/token/patient` | 请求体含 `patientId` 等；**仅内网**，服务间鉴权（如内部 Header / mTLS 后期可选） |
 | hospital-auth | — | — | 校验 `sys_user` 后签发 **STAFF** Token（现有 `POST /auth/staff/login`） |
 
 ### 2.4 Token 载荷（与 `API.md` §2.1 一致）
@@ -71,17 +72,17 @@
 ### 2.5 网关白名单
 
 - `POST /api/v1/auth/staff/login` — 医护登录（auth）
-- `POST /api/v1/patient/auth/wechat` — 患者登录入口（**his**，见 `API.md` §4.0）
+- `POST /api/v1/patient/auth/wechat` — 患者登录入口（**patient**，见 `API.md` §4.0）
 - ~~`POST /api/v1/auth/patient/wechat/login`~~ — **废弃**（勿在 auth 上暴露患者微信登录）
 
 ### 2.6 故障与依赖
 
 - **auth 不可用**：患者无法完成登录（新会话）；已持有 Token 在过期前仍可由 Gateway 校验（若 Gateway 本地验签或缓存公钥）。
-- **his 不可用**：患者无法登录、无法办理挂号；医护 Token 若已签发不受影响。
+- **patient 不可用**：患者无法登录、无法办理挂号；医护 Token 若已签发不受影响。
 
 ### 2.7 答辩口径（一句话）
 
-**身份与档案在 HIS，令牌在认证中心 auth 统一签发；患者表仍由 his 独占写入。**
+**身份与档案在 patient（原 his 患者域），令牌在认证中心 auth 统一签发；患者表由 patient 独占写入。**
 
 ---
 
@@ -139,7 +140,7 @@
 ### ADR-009 微信支付
 
 - **开发/答辩**：`POST /patient/payments` 可走 **模拟成功** 或测试开关，直接推进 `payment_record` 与单据状态。
-- **生产**：`callback/wechat/pay` 路由至 **his**；需 HTTPS 与商户配置（`DEV_ENV_SETUP` 说明）。
+- **生产**：`callback/wechat/pay` 路由至 **patient**（ADR-019）；需 HTTPS 与商户配置（`DEV_ENV_SETUP` 说明）。
 
 ### ADR-010 AI 会话存储（P4）
 
@@ -159,7 +160,7 @@
 ### ADR-013 建表脚本
 
 - **定稿**：**P0.5 必须交付** `docs/sql/schema.sql`（由 `DATABASE_DESIGN.md` 导出，PostgreSQL 方言）。
-- **现状（2026-06）**：脚本已对齐 **DATABASE_DESIGN v1.14**；本地重建见 `docs/sql/README.md` §四。
+- **现状（2026-07）**：脚本已对齐 **DATABASE_DESIGN v1.16**（含 `clinical_sync_task`）；本地重建见 `docs/sql/README.md` §四。
 - 可选：`seed-dict.sql`、P4 `vector.sql`。
 
 ### ADR-014 项目命名（已定稿）
@@ -278,7 +279,7 @@ v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1
 | **步骤 ③** | `MedicalOrderHandler` + `MedicalOrderHandlerRegistry` | Handler（开单 + 缴费/退费一体） |
 | **步骤 ④** | `AbstractMedTechExecuteTemplate` + `AbstractMedTechOrderCoordinator` | 单模板 · LIS/PACS/Disposal 三子类 |
 | **处方库存** | 开立预扣 `stock_qty`；退费/驳回/退药回增；不足拒开 | 与 SM2 同事务；见 REFACTORING §4.3.1 |
-| **步骤 ⑧** | 拆 patient / pharmacy / clinical | ADR-019（**待 ①～④ 验收 ✅ 后**） |
+| **步骤 ⑧** | 拆 patient / pharmacy / clinical | **ADR-019 已编码落地**（2026-07）；验收脚本待重跑 |
 | **契约** | **不改** Gateway / `API.md` 字段 | |
 | **代码状态** | ①～④ **已落地**（2026-06-04） | 验收脚本待重跑 |
 | **延后** | 单测扩充（Coordinator/Handler/Execute） | 不阻塞当前代码合并 |
@@ -288,11 +289,154 @@ v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1
 
 - 就诊状态图：**已有** → `BUSINESS_FLOW.md` §8.1（State 模式将其代码化）  
 - 医嘱状态图：**已有** → §8.2～8.5（保持枚举 + 局部校验，**不**强行 State 类）  
-- 微服务边界：**暂不变** → `MICROSERVICES.md` §2.3；待 ADR-018 **①～④ 验收 ✅** 后再开 ADR-019「his 三拆」
+- 微服务边界：**ADR-019 已落地** → `MICROSERVICES.md` §2.3～§2.3b（patient :9108 · clinical :9102 · pharmacy :9109）
 
 ---
 
-## 七、修订记录
+## 七、ADR-019 HIS 三拆（patient / clinical / pharmacy）（已定稿）
+
+> **前置**：ADR-018 步骤 ①～④ 代码已落地；**对外 HTTP 路径与 `API.md` 字段不变**（仅 Gateway 后端 `lb://` 目标变化）。  
+> **关联**：[REFACTORING §九](./REFACTORING_DESIGN_PATTERNS.md#九阶段③--微服务拆分模式重构完成之后) · [MICROSERVICES §2.3～§2.3b](./MICROSERVICES.md)
+
+### 7.1 定稿结论（King · 2026-06-04）
+
+| 项 | 决策 |
+|----|------|
+| **拆分形态** | 自现有 `hospital-his` 拆为 **3 个 Java 进程** |
+| **`hospital-patient`** | 患者小程序 + **registrar 窗口** + 账单/支付/退费 + 定时关单 |
+| **`hospital-his`（临床）** | 门诊医生：叫号/finish、病历、医嘱开立（Handler） |
+| **`hospital-pharmacy`** | 药师：待发药、发药、退药、驳回 |
+| **registrar** | **并进 patient**（`/registrar/**`） |
+| **缴费驱动医嘱 status** | **方案 A**：patient 付完款 **Feign → clinical 内部 API** → Handler |
+| **AUTO_DAY_CLOSE** | **patient** 定时任务（`RegisterLifecycleService`） |
+| **数据库** | **仍共库 `hospital`**；按表 **写归属** 约束，不物理拆库 |
+| **lis / pacs / disposal** | **不并入** 本次拆分；边界与 ADR-017 不变 |
+| **答辩** | **全流程演示为主**；小概率单模块演示（见 §7.6） |
+
+### 7.2 三服务边界与写归属
+
+#### `hospital-patient`（:9108）
+
+| Gateway 前缀 | 职责 |
+|--------------|------|
+| `/api/v1/patient/**` | 微信登录/绑定、档案、家属、线上挂号、待缴、支付 |
+| `/api/v1/registrar/**` | 窗口挂号、窗口收费、窗口退费、退号 |
+| `/api/v1/callback/wechat/**` | 支付回调（生产） |
+
+**主写表**：`patient`、`patient_wechat`、`patient_family_link`、`register`（创建/占号/待支付/退号）、`bill`、`payment_record`、`payment_bill`、`refund_record`。
+
+**协调器**：`VisitLifecycleCoordinator` — **PAY_REGISTRATION**、**CANCEL_PENDING**、**EXPIRE_PENDING**、**CANCEL_REGISTERED**、**AUTO_DAY_CLOSE**。
+
+**服务**：`PaymentService`、`RefundService`、`RegisterLifecycleService`（含日结定时任务）。
+
+#### `hospital-his`（临床 · :9102，沿用端口）
+
+| Gateway 前缀 | 职责 |
+|--------------|------|
+| `/api/v1/doctor/**` | 队列、叫号、finish、病历、开检验/检查/处置/处方 |
+
+**主写表**：`medical_record`、`medical_record_disease`；医嘱 **开立**（insert + status=10）；`disposal_request` **开立侧**（10/20/50 经 Handler）；处方开立 **预扣库存**（`PrescriptionMedicalOrderHandler`）。
+
+**协调器**：`VisitLifecycleCoordinator` — **CALL**、**FINISH**；`OrderStatusCoordinator` — Handler 开单/内部 settle 触发。
+
+**保留**：`MedicalOrderHandler` + `MedicalOrderHandlerRegistry` 全族（ADR-018 步骤 ③）。
+
+#### `hospital-pharmacy`（:9109）
+
+| Gateway 前缀 | 职责 |
+|--------------|------|
+| `/api/v1/pharmacy/**` | 待发药、发药、退药、药师驳回 |
+
+**主写表（SM2 写侧）**：处方 status **20→30**（发药）、**30→40**（退药）、**20→15**（驳回）；驳回/退药路径 **回增** `drug_info.stock_qty`（与现 `PharmacyService` 一致）。
+
+**不做**：医生开处方、开立预扣（归 **clinical**）。
+
+### 7.3 跨服务协作（Feign · 方案 A）
+
+#### patient → clinical（缴费 / 退费 / 可退校验）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/internal/orders/on-bill-paid` | body: `{ bizType, bizId }` → `Registry.handler(bizType).onBillPaid(bizId)` |
+| POST | `/internal/orders/on-refund` | body: `{ bizType, bizId }` → `Handler.onRefund(bizId)` |
+| POST | `/internal/orders/assert-refundable` | body: `{ bizType, bizId }` → `Handler.assertBillRefundable(bizId)` |
+
+**调用时机**：`PaymentService` 在 `bill.markPaid` 与 **`clinical_sync_task` 入队** 同一事务内完成；commit 后 `ClinicalSyncService` 投递 Feign。`RefundService` 在写 `refund_record` 之后对医嘱类 bizType 入队 `ON_REFUND`（同上）。
+
+**Outbox 表**：`clinical_sync_task`（**hospital-patient** 主写；DDL 见 `docs/sql/schema.sql` §F、`DATABASE_DESIGN.md` §8.4.1）。仅用于 patient→clinical 支付/退费同步；其它 Feign 不建任务表。
+
+**幂等**：`on-bill-paid` 对已是 status=20 的医嘱应 **安全跳过或返回 409**；避免重复 Feign 双写。
+
+**鉴权**：`X-Internal-Service: hospital-patient`（或项目统一内部 Header）；**不经 Gateway 对外暴露**。
+
+#### pharmacy → patient（药师驳回退费）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/internal/refunds/prescription-pharmacy-reject` | body: `{ prescriptionId, reason, pharmacistId }`；等价现 `RefundService.refundPrescriptionBillForPharmacyReject` |
+
+**顺序**：**先 Feign 退费成功 → 再** `OrderStatusCoordinator.pharmacyReject` + 回库（跨服务无大事务；失败需可重试/补偿）。
+
+#### patient → auth（不变 · ADR-001）
+
+`POST /internal/token/patient` — 调用方由 his 改为 **patient**。
+
+#### lis / pacs / disposal → clinical / patient（不变 · ADR-005）
+
+- 共享库 **只读** `patient`、`register` 等仍允许；
+- Feign 读摘要 **可选**；**禁止 UPDATE** 他服务主写表。
+
+### 7.4 缴费链路（答辩必讲）
+
+```text
+POST /patient/payments  （Gateway → patient）
+  → PaymentService.mockPay @Transactional
+    → billRepository.markPaid
+    → settlePaidBillLocally:
+         REGISTER / MEDICAL_BOOK → patient 本地 Coordinator（不入队）
+         INSPECTION/CHECK/DISPOSAL/PRESCRIPTION
+                      → clinicalSyncTaskRepository.enqueue (ON_BILL_PAID)
+  → commit（bill + task 同一事务）
+  → afterCommit：ClinicalSyncService.processTaskIds
+                      → Feign clinical POST /internal/orders/on-bill-paid
+                        → Handler.onBillPaid → OrderStatusCoordinator → SM1/SM2
+  → 若 Feign 失败：task → FAILED，ClinicalSyncScheduler 退避重试（默认 30s）
+```
+
+### 7.5 迁移顺序与验收
+
+| 顺序 | 模块 | 说明 |
+|------|------|------|
+| 1 | **hospital-pharmacy** | 最小闭环；练 Feign → patient 驳回退费 |
+| 2 | **hospital-patient** | 搬 patient/registrar/Payment/Refund/定时关单 |
+| 3 | **瘦身 hospital-his** | 剩 doctor + Handler + 内部 API |
+| 4 | Gateway + `start-project.ps1` | 更新路由与启动脚本 |
+
+**每步完成后重跑**：`r-pharmacy` · `r-min` · `r-reversal` ·（P4）`r-full`。
+
+**编码前置**：ADR-018 ①～④ **验收脚本 ✅**。
+
+### 7.6 答辩演示
+
+| 模式 | 说明 |
+|------|------|
+| **全流程（主）** | 对外 URL 不变；PPT 标注 **patient ──Feign on-bill-paid──► clinical** |
+| **单模块（小概率）** | 药房：gateway + auth + **patient** + **pharmacy** + PG（驳回依赖退费）；医生：gateway + auth + **clinical** + management |
+
+### 7.7 与课件「HIS 一子系统」的关系
+
+- **运行形态**：HIS 逻辑拆为 **patient + clinical + pharmacy** 三 jar；**仍共库、仍一条门诊闭环**。
+- **答辩表述**：「课件 HIS 对应 **三个协作进程**，与 LIS/PACS/Disposal 执行侧拆分对称；Gateway 对外仍一套 API。」
+
+### 7.8 明确不做
+
+- 物理拆库、Seata、消息队列（答辩/demo 非必须）
+- 将 lis/pacs/disposal/management 并入本次拆分
+- 修改 `API.md` 对外路径或字段（仅内部 Feign 新增）
+
+---
+
+## 八、修订记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -306,5 +450,7 @@ v1.6～v1.7 曾采用「JWT=操作者、Query visitPatientId=就诊人」；**v1
 | v1.8 | 2026-06 | **ADR-016 修订**：病人账户登录 + QQ 式 `switch-account`；微信仅 bind 支付 |
 | v1.9 | 2026-06-04 | **ADR-018** 实施顺序：① visit → ② SM1/SM2 → ③ Strategy → ④ Execute Template |
 | v2.0 | 2026-06-30 | **ADR-018 修订**：③ Handler + Registry；④ 单模板三子类；叙述 2 层 / 实现 3 表 |
-| v2.2 | 2026-06-04 | **ADR-018 实施进度**：①～④ 代码已落地；验收待跑；单测/步骤⑧ 延后 |
+| v2.3 | 2026-06-04 | **ADR-019 定稿**：his 三拆 patient/clinical/pharmacy；缴费 Feign 方案 A；ADR-001/009 调用方同步 |
+| v2.5 | 2026-07-01 | **ADR-019 文档同步**：去除「实施前」；步骤⑧标已编码；patient `RegisterRepository` 临床死代码清理 |
+| v2.4 | 2026-07-01 | **ADR-019 §7.4 更新**：patient→clinical 落地 **`clinical_sync_task` Outbox**；DDL 并入 `schema.sql`（DATABASE v1.16） |
 | v2.1 | 2026-06-30 | **ADR-018 补充**：处方 SM2 与 `stock_qty` 联动（开立预扣、退费/退药/驳回回增、不足拒开） |

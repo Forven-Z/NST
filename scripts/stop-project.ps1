@@ -3,7 +3,7 @@
 # Usage: .\scripts\stop-project.ps1
 
 param(
-    [int[]]$Ports = @(9000, 9101, 9102, 9103, 9104, 9105, 9106, 9107, 9202, 5173)
+    [int[]]$Ports = @(9000, 9101, 9102, 9103, 9104, 9105, 9106, 9107, 9108, 9109, 9202, 5173)
 )
 
 $ErrorActionPreference = 'Continue'

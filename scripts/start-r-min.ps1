@@ -56,7 +56,7 @@ function Wait-GatewayLoginReady($seconds) {
         address   = ''
     } | ConvertTo-Json -Compress
 
-    Write-Host '... waiting Gateway -> HIS (Nacos 注册 + login 可用)' -ForegroundColor Yellow
+    Write-Host '... waiting Gateway -> patient (Nacos 注册 + login 可用)' -ForegroundColor Yellow
     for ($i = 0; $i -lt $seconds; $i++) {
         try {
             $r = Invoke-RestMethod -Uri $base -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 5
@@ -81,7 +81,7 @@ function Wait-GatewayLoginReady($seconds) {
 }
 
 Write-Host '========================================' -ForegroundColor Cyan
-Write-Host " R-min: auth + his + gateway + ai-bridge ($EnvProfile)" -ForegroundColor Cyan
+Write-Host " R-min: auth + his + patient + pharmacy + gateway + ai-bridge ($EnvProfile)" -ForegroundColor Cyan
 Write-Host ' Gateway http://127.0.0.1:9000/api/v1' -ForegroundColor Cyan
 Write-Host " DB_HOST=$env:DB_HOST" -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
@@ -119,9 +119,9 @@ if (-not (Test-Port 8848)) {
 }
 
 if (-not $SkipBuild) {
-    Write-Host '... mvn package auth his gateway ai-bridge' -ForegroundColor Yellow
+    Write-Host '... mvn package auth his patient pharmacy gateway ai-bridge' -ForegroundColor Yellow
     Push-Location $backend
-    mvn -q -pl hospital-auth,hospital-his,hospital-gateway -am package -DskipTests
+    mvn -q -pl hospital-auth,hospital-his,hospital-patient,hospital-pharmacy,hospital-gateway -am package -DskipTests
     if ($LASTEXITCODE -ne 0) {
         Pop-Location
         Write-Host 'FAIL  Maven build' -ForegroundColor Red
@@ -154,6 +154,8 @@ function Start-ServiceJar($name, $port, $module) {
 try {
     Start-ServiceJar 'hospital-auth' 9101 'hospital-auth'
     Start-ServiceJar 'hospital-his' 9102 'hospital-his'
+    Start-ServiceJar 'hospital-patient' 9108 'hospital-patient'
+    Start-ServiceJar 'hospital-pharmacy' 9109 'hospital-pharmacy'
     Start-ServiceJar 'hospital-ai-bridge' 9106 'hospital-ai-bridge'
     Start-ServiceJar 'hospital-gateway' 9000 'hospital-gateway'
     if (-not (Wait-GatewayLoginReady 90)) { exit 1 }

@@ -39,22 +39,41 @@ public class OrderStatusCoordinator {
 
     @Transactional
     public void payMedTechOrder(MedTechOrderKind kind, Long orderId) {
+        int from = currentMedTechStatus(kind, orderId);
+        if (from != InspectionRequestStatus.ORDERED) {
+            if (from == InspectionRequestStatus.PAID || from == InspectionRequestStatus.EXECUTED
+                    || from == InspectionRequestStatus.RESULT_READY) {
+                return;
+            }
+        }
         applyMedTechTransition(kind, orderId, MedTechOrderEvent.PAY, "仅已开立医嘱可缴费");
     }
 
     @Transactional
     public void refundMedTechOrder(MedTechOrderKind kind, Long orderId) {
+        int from = currentMedTechStatus(kind, orderId);
+        if (from == InspectionRequestStatus.REFUNDED) {
+            return;
+        }
         applyMedTechTransition(kind, orderId, MedTechOrderEvent.REFUND, "检验已执行或已退费，不可退款");
     }
 
     @Transactional
     public void payPrescription(Long prescriptionId) {
+        int from = currentPrescriptionStatus(prescriptionId);
+        if (from == PrescriptionStatus.PAID || from == PrescriptionStatus.DISPENSED
+                || from == PrescriptionStatus.RETURNED) {
+            return;
+        }
         applyPrescriptionTransition(prescriptionId, PrescriptionEvent.PAY, "仅已开立处方可缴费");
     }
 
     @Transactional
     public void refundPrescription(Long prescriptionId) {
         int from = currentPrescriptionStatus(prescriptionId);
+        if (from == PrescriptionStatus.REFUNDED) {
+            return;
+        }
         if (PrescriptionTransitions.restoreStockOnRefund(from)) {
             prescriptionInventorySupport.restorePrescription(prescriptionId);
         }
@@ -68,35 +87,6 @@ public class OrderStatusCoordinator {
         prescriptionInventorySupport.validateAndDeductPrescription(prescriptionId);
         if (prescriptionRepository.clearRejectFieldsAndSetOrdered(prescriptionId, totalAmount) == 0) {
             throw mismatchAfterStock(PrescriptionEvent.RESUBMIT, "仅药师驳回处方可重新提交");
-        }
-    }
-
-    @Transactional
-    public void pharmacyReject(Long prescriptionId, Long pharmacistId, String reason) {
-        int from = currentPrescriptionStatus(prescriptionId);
-        PrescriptionTransitions.assertTransition(from, PrescriptionEvent.PHARMACY_REJECT);
-        prescriptionInventorySupport.restorePrescription(prescriptionId);
-        if (prescriptionRepository.markPharmacyRejected(prescriptionId, pharmacistId, reason) == 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅已缴费未发药处方可拒绝");
-        }
-    }
-
-    @Transactional
-    public void dispensePrescription(Long prescriptionId, Long pharmacistId) {
-        int from = currentPrescriptionStatus(prescriptionId);
-        PrescriptionTransitions.assertTransition(from, PrescriptionEvent.DISPENSE);
-        if (prescriptionRepository.markDispensedIfCurrent(prescriptionId, from, pharmacistId) == 0) {
-            assertPrescriptionMismatch(from, PrescriptionEvent.DISPENSE, "仅已缴费处方可发药");
-        }
-    }
-
-    @Transactional
-    public void returnPrescriptionDrug(Long prescriptionId) {
-        int from = currentPrescriptionStatus(prescriptionId);
-        PrescriptionTransitions.assertTransition(from, PrescriptionEvent.RETURN_DRUG);
-        prescriptionInventorySupport.restorePrescription(prescriptionId);
-        if (prescriptionRepository.markReturnedIfCurrent(prescriptionId, from) == 0) {
-            assertPrescriptionMismatch(from, PrescriptionEvent.RETURN_DRUG, "仅已发药处方可退药");
         }
     }
 

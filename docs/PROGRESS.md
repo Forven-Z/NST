@@ -2,8 +2,8 @@
 
 > **更新频率**：建议 **每周** 或里程碑完成时更新。  
 > **状态**：⬜ 未开始 · 🟨 进行中 · ✅ 已完成 · ⏸ 阻塞  
-> **版本**：2026-06-04  
-> **数据模型对齐**：文档 + 后端 + 前端 Mock + 小程序 Mock 已同步 **DATABASE_DESIGN v1.14**（业务单号即表 `id`；药品 `drugFormat`/`drugDosage`/`drugType`）
+> **版本**：2026-07-01  
+> **数据模型对齐**：文档 + 后端 + 前端 Mock + 小程序 Mock 已同步 **DATABASE_DESIGN v1.16**（含 `clinical_sync_task`；业务单号即表 `id`）
 
 ---
 
@@ -23,7 +23,7 @@
 | 任务 | 状态 | 负责人 | 备注 |
 |------|------|--------|------|
 | PostgreSQL + 库 `hospital` | ✅ | | 联调已连通 |
-| `schema.sql` 已执行（**v1.14**） | 🟨 | | 本地若仍用旧表须 DROP SCHEMA 重建 |
+| `schema.sql` 已执行（**v1.16**，含 `clinical_sync_task`） | ✅ | | 新环境直接跑 `schema.sql`；旧库增量见 `patch-clinical-sync-task.sql` |
 | `seed-dict.sql` 已执行 | ✅ | | 排班含当日数据 |
 | Nacos 2.2.3 standalone | ✅ | | 8848 |
 | MinIO（P3 前可跳过） | ✅ | wsh | `C:\dev\minio`，社区版 `start-minio-community.bat` |
@@ -111,10 +111,10 @@
 | 2 | **②** SM1 + SM2 | ✅ | 🟨 待跑 | [REFACTORING §4.2～4.3](./REFACTORING_DESIGN_PATTERNS.md#42-图-2--medtechordertransitions--检验--检查--处置sm1) |
 | 3 | **③** MedicalOrderHandler + Registry | ✅ | 🟨 待跑 | [REFACTORING §五](./REFACTORING_DESIGN_PATTERNS.md#五handler-设计步骤-③) |
 | 4 | **④** AbstractMedTechExecuteTemplate | ✅ | 🟨 待跑 | [REFACTORING §六](./REFACTORING_DESIGN_PATTERNS.md#六template-method--医技执行步骤-④) |
-| 5 | **⑧** 拆微服务 | ⬜ | — | §八 + ADR-019（**待 ①～④ 验收 ✅ 后**） |
+| 5 | **⑧** 拆微服务（ADR-019） | ✅ | 🟨 待跑 | patient :9108 · clinical his :9102 · pharmacy :9109；Outbox `clinical_sync_task` |
 
-> **验收**：`r-min` · `r-reversal` · `r-lis` · `r-pacs` · `r-disposal` · `r-pharmacy`（重构后须重跑）。  
-> **延后**：Coordinator/Handler 层单测扩充；步骤 ⑧ 与 ADR-019。
+> **验收**：`r-min` · `r-reversal` · `r-lis` · `r-pacs` · `r-disposal` · `r-pharmacy`（ADR-018/019 重构后须重跑）。  
+> **延后**：Coordinator/Handler 层单测扩充。
 
 ---
 
@@ -130,7 +130,8 @@
 
 | 日期 | 说明 |
 |------|------|
-| 2026-06-04 | 文档精简：CNN→AI_CNN_INTEGRATION、RAG→RAG_GUIDE；删除 LUNG_* 过程文档；见 archive/README |
+| 2026-07-01 | **ADR-019 代码清理收尾**：patient 侧 Repository 只读化 + `RegisterRepository` 去临床死代码；文档同步步骤⑧ ✅ |
+| 2026-07-01 | **`clinical_sync_task` 并入 `schema.sql`**；DATABASE_DESIGN v1.16；DESIGN_DECISIONS §7.4 Outbox 同步 |
 | 2026-06-04 | API 文档合并为唯一 [API.md](./API.md) v2.0（路径定稿 + 实现状态） |
 | 2026-06-04 | UI Mock 完整版 + 接口契约（现并入 API.md） |
 | 2026-06-04 | 全库文档对齐 DATABASE **v1.14**（API 端口/字段、HIS 分包、进度表述） |

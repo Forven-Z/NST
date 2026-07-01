@@ -38,13 +38,15 @@
 | 路径前缀 | 服务 | 端口 |
 |----------|------|------|
 | `/auth/**` | hospital-auth | 9101 |
-| `/patient/**` `/doctor/**` `/registrar/**` `/pharmacy/**` | hospital-his | 9102 |
+| `/patient/**` `/registrar/**` | hospital-patient | 9108 |
+| `/doctor/**` | hospital-his | 9102 |
+| `/pharmacy/**` | hospital-pharmacy | 9109 |
 | `/lis/**` | hospital-lis | 9103 |
 | `/pacs/**` | hospital-pacs | 9104 |
 | `/disposal/**` | hospital-disposal | 9105 |
 | `/ai/**` | hospital-ai-bridge | 9106 |
 | `/admin/**` | hospital-management | 9107 |
-| `/callback/wechat/**` | hospital-his | 9102 |
+| `/callback/wechat/**` | hospital-patient | 9108 |
 | `/internal/**` | 各服务 | 不经 Gateway |
 
 ### 0.3 PC 前端（`hospital-frontend`）对齐说明

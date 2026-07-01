@@ -59,7 +59,7 @@ async function onSubmit() {
     <div class="login-card">
       <div class="brand">
         <h1>智慧云脑诊疗平台</h1>
-        <p>医护端登录 · Gateway :9000</p>
+        <p>医护端登录</p>
       </div>
 
       <el-alert
@@ -68,7 +68,7 @@ async function onSubmit() {
         :closable="false"
         show-icon
         title="后端未就绪"
-        description="Gateway :9000 无响应。联调登录需先启动：PostgreSQL → Nacos :8848 → auth :9101 → gateway :9000（详见 docs/RUNBOOK.md §四、§5.2）。若只想浏览界面，在 .env.development 设 VITE_USE_MOCK=true 后重启 npm run dev。"
+        description="无法连接服务端。请先启动数据库、Nacos、认证服务与网关（详见 docs/RUNBOOK.md）。若只想浏览界面，可在 .env.development 开启本地演示模式后重启 npm run dev。"
         class="status-alert"
       />
       <el-alert
@@ -76,8 +76,8 @@ async function onSubmit() {
         type="warning"
         :closable="false"
         show-icon
-        title="Mock 演示模式"
-        description="全链路本地 Mock：挂号→收费→叫号→开单→检验/检查/药房/处置均可演示，无需启动后端。密码均为 123456。"
+        title="本地演示模式"
+        description="全链路本地演示：挂号→收费→叫号→开单→检验/检查/药房/处置均可操作，无需启动后端。密码均为 123456。"
         class="status-alert"
       />
       <el-alert
@@ -85,7 +85,7 @@ async function onSubmit() {
         type="success"
         :closable="false"
         show-icon
-        title="Gateway 已连通"
+        title="服务端已连通"
         class="status-alert"
       />
 
@@ -108,10 +108,10 @@ async function onSubmit() {
         </el-button>
       </el-form>
 
-      <p class="hint">
+      <p v-if="mockMode" class="hint">
         开发账号（密码 123456）：doctor01～doctor06 · lab01 · lab02 · check01～check03 · pharmacy01 · registrar01 · disposal01 · admin
       </p>
-      <p class="hint sub">推荐演示：registrar01 挂号 → doctor 接诊开 CT → check01～03 影像队列 · lab01/lab02 检验 · disposal01 处置</p>
+      <p v-if="mockMode" class="hint sub">推荐演示：registrar01 挂号 → doctor 接诊开 CT → check01～03 影像队列 · lab01/lab02 检验 · disposal01 处置</p>
     </div>
   </div>
 </template>

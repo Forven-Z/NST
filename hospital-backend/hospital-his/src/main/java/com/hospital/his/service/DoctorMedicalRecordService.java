@@ -26,7 +26,6 @@ public class DoctorMedicalRecordService {
     private final RegisterRepository registerRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final MedicalRecordDiseaseRepository medicalRecordDiseaseRepository;
-    private final PatientFamilyService patientFamilyService;
 
     private static final Map<Integer, String> RECORD_STATUS_LABELS = Map.of(
             0, "书写中",
@@ -96,23 +95,6 @@ public class DoctorMedicalRecordService {
         return medicalRecordId;
     }
 
-    public Map<String, Object> getPatientMedicalRecord(Long registerId) {
-        Long operatorId = AuthContextHolder.require().getPatientId();
-        Map<String, Object> register = registerRepository.findDetailForOwner(registerId, operatorId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "无权查看该病历"));
-        Map<String, Object> record = medicalRecordRepository.findByRegisterId(registerId, true)
-                .map(this::enrichWithDiseases)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "病历不存在或未提交"));
-        record.put("visitDate", register.get("workDate"));
-        record.put("visitDateLabel", formatVisitDate(register.get("workDate")));
-        record.put("noonLabel", register.get("noonLabel"));
-        record.put("deptName", register.get("deptName"));
-        record.put("doctorName", register.get("doctorName"));
-        record.put("registLevelName", register.get("registLevelName"));
-        record.put("patientName", register.get("patientName"));
-        record.put("medicalRecordNo", register.get("medicalRecordNo"));
-        return record;
-    }
 
     /** 医生只读查阅患者某次就诊病历（含已保存未提交） */
     public Map<String, Object> getMedicalRecordForPatientVisit(Long registerId, Long patientId) {

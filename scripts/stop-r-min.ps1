@@ -2,7 +2,7 @@
 # Usage: .\scripts\stop-r-min.ps1
 
 param(
-    [int[]]$Ports = @(9000, 9101, 9102, 9106)
+    [int[]]$Ports = @(9000, 9101, 9102, 9106, 9108, 9109)
 )
 
 $ErrorActionPreference = 'Continue'
@@ -29,7 +29,7 @@ function Stop-PortListeners($port) {
 }
 
 Write-Host '========================================' -ForegroundColor Cyan
-Write-Host ' Stop R-min (9000 / 9101 / 9102 / 9106)' -ForegroundColor Cyan
+Write-Host ' Stop R-min (9000 / 9101 / 9102 / 9106 / 9108 / 9109)' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
 foreach ($port in $Ports) {

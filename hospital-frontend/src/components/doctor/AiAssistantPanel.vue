@@ -36,8 +36,8 @@ const FAQ = [
 ]
 
 const welcomeText = mockMode
-  ? '【AI 助理】ADR-015：草稿确认后摘要显示于此。联调后对接 SSE /ai/assistant/stream。可询问门诊流程、号别选择等。'
-  : 'AI 助理（SSE /ai/assistant/stream）将展示诊疗草稿与辅助信息。'
+  ? '您好，我是 AI 助理。可询问门诊流程、号别选择等；确认后的诊疗草稿摘要也会显示于此。'
+  : '诊疗草稿摘要将显示于此。智能问答功能即将开放，请先在左侧工作台使用 AI 辅助诊疗。'
 
 const chatMessages = ref([{ id: 'welcome', role: 'assistant', text: welcomeText }])
 
@@ -57,7 +57,7 @@ function reply(text) {
   for (const item of FAQ) {
     if (item.q.test(text)) return item.a
   }
-  return '【Mock】暂未匹配到知识库条目。可尝试问：普通号和专家号区别、门诊流程、检验检查顺序、如何取药退费。'
+  return '暂未找到相关说明。可尝试问：普通号和专家号区别、门诊流程、检验检查顺序、如何取药退费。'
 }
 
 async function onSend() {
@@ -82,7 +82,7 @@ function onQuick(q) {
     <div class="ai-header">
       <h3>AI 助理</h3>
       <el-tag size="small" :type="mockMode ? 'warning' : 'info'">
-        {{ mockMode ? 'Mock 问答' : '在线' }}
+        {{ mockMode ? '本地演示' : '在线' }}
       </el-tag>
     </div>
 
@@ -115,7 +115,7 @@ function onQuick(q) {
         发送
       </el-button>
     </div>
-    <p v-if="!mockMode" class="tip">关闭 Mock 后等待 Spring AI 接入</p>
+    <p v-if="!mockMode" class="tip">智能问答尚未开放；请在左侧使用 AI 辅助诊疗与草稿确认。</p>
   </div>
 </template>
 

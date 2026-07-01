@@ -44,6 +44,7 @@ logs/
 work/
 *.log
 docs/superpowers/
+docs/study/
 
 # 小程序本地联调配置（不提交）
 hospital-patient-miniapp/config.local.js
