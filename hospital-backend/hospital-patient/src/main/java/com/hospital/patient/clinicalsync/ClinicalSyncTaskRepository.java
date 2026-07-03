@@ -25,10 +25,6 @@ public class ClinicalSyncTaskRepository {
         Optional<Map<String, Object>> existing = findByKey(bizType, bizId, action);
         if (existing.isPresent()) {
             Map<String, Object> row = existing.get();
-            String status = (String) row.get("status");
-            if (ClinicalSyncTaskStatus.DONE.equals(status)) {
-                return ((Number) row.get("id")).longValue();
-            }
             long id = ((Number) row.get("id")).longValue();
             resetToPending(id);
             return id;
@@ -126,11 +122,10 @@ public class ClinicalSyncTaskRepository {
         jdbcClient.sql("""
                         UPDATE clinical_sync_task
                         SET status = :status, next_retry_at = NOW(), update_time = NOW()
-                        WHERE id = :id AND status <> :done
+                        WHERE id = :id
                         """)
                 .param("id", taskId)
                 .param("status", ClinicalSyncTaskStatus.PENDING)
-                .param("done", ClinicalSyncTaskStatus.DONE)
                 .update();
     }
 
