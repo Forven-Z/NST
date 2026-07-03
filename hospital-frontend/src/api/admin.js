@@ -112,6 +112,7 @@ export function publishAdminSchedule(schedulingId) {
   return request.post(`/admin/scheduling/${schedulingId}/publish`)
 }
 
+/** @param {{ deptId?, weekStart?, mode?, rulesText? }} params — rulesText 为前端扩展字段，后端暂未消费 */
 export function fetchAiSchedulingSuggest(params) {
   if (useMock()) return mockAiSchedulingSuggest(params)
   return request.post('/admin/scheduling/ai-suggest', params || {})

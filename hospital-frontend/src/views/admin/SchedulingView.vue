@@ -48,6 +48,25 @@ const weekStart = ref(getMondayIso(new Date()))
 const weekGrid = ref({ doctors: [], slots: [], draftCount: 0, publishedCount: 0 })
 const pendingChanges = ref([])
 const templateDrawerVisible = ref(false)
+const rulesDialogVisible = ref(false)
+const rulesDraft = ref('')
+
+const RULES_STORAGE_KEY = 'scheduling-ai-rules'
+const DEFAULT_RULES_TEXT = `1. 普通医生：每人每周休 1 天，其余天上、下午各 1 班，号额 30。
+2. 专家（主任/副主任/教授）：每周约 3 个半天，号额 15。
+3. 每个开诊半天至少 1 名医生；空档优先用普通医生补位。
+4. 替班：同科室、同类型（普通↔普通），且同日期同午别无冲突。`
+
+function loadRulesText() {
+  try {
+    const saved = localStorage.getItem(RULES_STORAGE_KEY)
+    return saved?.trim() ? saved : DEFAULT_RULES_TEXT
+  } catch {
+    return DEFAULT_RULES_TEXT
+  }
+}
+
+const rulesText = ref(loadRulesText())
 const gridSaving = ref(false)
 const copyingWeek = ref(false)
 const applyingTemplate = ref(false)
@@ -114,6 +133,36 @@ function addDaysIso(iso, days) {
   const d = new Date(`${iso}T12:00:00`)
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+function openRulesDialog() {
+  rulesDraft.value = rulesText.value
+  rulesDialogVisible.value = true
+}
+
+function saveRules() {
+  const text = rulesDraft.value.trim()
+  if (!text) {
+    ElMessage.warning('排班规则不能为空')
+    return
+  }
+  rulesText.value = text
+  try {
+    localStorage.setItem(RULES_STORAGE_KEY, text)
+  } catch {
+    ElMessage.warning('规则已生效，但未能写入本地缓存')
+  }
+  rulesDialogVisible.value = false
+  ElMessage.success('排班规则已保存')
+}
+
+function aiSuggestPayload(mode) {
+  return {
+    deptId: deptFilter.value || undefined,
+    weekStart: weekStart.value,
+    mode,
+    rulesText: rulesText.value || undefined,
+  }
 }
 
 const weekEndLabel = computed(() => addDaysIso(weekStart.value, 6))
@@ -464,11 +513,7 @@ async function onAiSuggest() {
   aiRiskItems.value = []
   aiWarnings.value = []
   try {
-    const res = await fetchAiSchedulingSuggest({
-      deptId: deptFilter.value || undefined,
-      weekStart: weekStart.value,
-      mode: 'WEEK',
-    })
+    const res = await fetchAiSchedulingSuggest(aiSuggestPayload('WEEK'))
     const changes = res.data?.changes ?? []
     for (const change of changes) {
       onGridChange(change)
@@ -490,11 +535,7 @@ async function onAiSubstituteSuggest() {
   aiRiskItems.value = []
   aiWarnings.value = []
   try {
-    const res = await fetchAiSchedulingSuggest({
-      deptId: deptFilter.value || undefined,
-      weekStart: weekStart.value,
-      mode: 'SUBSTITUTE',
-    })
+    const res = await fetchAiSchedulingSuggest(aiSuggestPayload('SUBSTITUTE'))
     aiSuggestions.value = res.data?.suggestions ?? []
     aiRiskItems.value = res.data?.riskItems ?? []
     aiWarnings.value = res.data?.warnings ?? []
@@ -780,9 +821,15 @@ function rowClassName({ row }) {
       />
     </el-card>
 
-    <el-card shadow="never">
+    <el-card shadow="never" class="list-card">
+      <template #header>
+        <div class="card-header">
+          <span>本周排班列表</span>
+          <el-button plain @click="openRulesDialog">排班规则</el-button>
+        </div>
+      </template>
+
       <div class="toolbar list-toolbar">
-        <span class="label">本周排班列表</span>
         <el-button type="primary" plain @click="openCreate">补录单条</el-button>
         <el-button type="primary" :loading="aiLoading" @click="onAiSuggest">
           获取 AI 周排班建议
@@ -1038,6 +1085,21 @@ function rowClassName({ row }) {
       :regist-levels="registLevels"
       @saved="loadWeekGrid"
     />
+
+    <el-dialog v-model="rulesDialogVisible" title="排班规则" width="560px" destroy-on-close>
+      <p class="rules-hint">以下规则会随 AI 排班请求一并提交；当前后端规则引擎尚未消费该字段，保存后仅在本机缓存。</p>
+      <el-input
+        v-model="rulesDraft"
+        type="textarea"
+        :rows="10"
+        placeholder="请输入排班规则说明"
+        resize="vertical"
+      />
+      <template #footer>
+        <el-button @click="rulesDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveRules">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -1093,8 +1155,19 @@ function rowClassName({ row }) {
   text-align: center;
 }
 
+.list-card {
+  border-radius: 10px;
+}
+
 .list-toolbar {
   margin-bottom: 12px;
+}
+
+.rules-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
 }
 
 .card-header {

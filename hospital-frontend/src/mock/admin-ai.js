@@ -49,10 +49,16 @@ export function mockAiSchedulingSuggest(params) {
   return mockAiWeekSuggest(params)
 }
 
+function rulesEchoWarning(params) {
+  const text = params?.rulesText?.trim()
+  return text ? `已附带自定义排班规则（${text.length} 字，Mock 演示不回写算法）` : null
+}
+
 function mockAiSubstituteSuggest(params) {
   let list = [...MOCK_SCHEDULES].filter((s) => (s.publishStatus ?? 1) !== 2)
   if (params?.deptId) list = list.filter((s) => s.deptId === Number(params.deptId))
   const pendingLeave = getPendingLeaveCount()
+  const rulesNote = rulesEchoWarning(params)
   return mockResult({
     stub: true,
     mode: 'SUBSTITUTE',
@@ -60,6 +66,7 @@ function mockAiSubstituteSuggest(params) {
     changes: [],
     suggestions: buildLeaveAwareSuggestions(list),
     pendingLeaveCount: pendingLeave,
+    warnings: rulesNote ? [rulesNote] : [],
     message: pendingLeave
       ? `检测到 ${pendingLeave} 条待审批请假；已优先生成替班建议`
       : '暂无需要替班的已批准请假',
@@ -130,7 +137,10 @@ function mockAiWeekSuggest(params) {
     changes,
     suggestions: [],
     riskItems: [],
-    warnings,
+    warnings: (() => {
+      const note = rulesEchoWarning(params)
+      return note ? [...warnings, note] : warnings
+    })(),
     message: `AI 已生成 ${changes.length} 条周排班草稿，请检查后保存`,
   })
 }
