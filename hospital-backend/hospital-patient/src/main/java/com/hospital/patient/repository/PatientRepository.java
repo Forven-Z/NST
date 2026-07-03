@@ -74,8 +74,9 @@ public class PatientRepository {
         jdbcClient.sql("""
                         INSERT INTO patient_wechat (patient_id, openid, last_login_time)
                         VALUES (:patientId, :openid, :now)
-                        ON CONFLICT (openid) DO UPDATE
-                        SET last_login_time = EXCLUDED.last_login_time,
+                        ON CONFLICT (patient_id) DO UPDATE
+                        SET openid = EXCLUDED.openid,
+                            last_login_time = EXCLUDED.last_login_time,
                             update_time = NOW()
                         """)
                 .param("patientId", patientId)
