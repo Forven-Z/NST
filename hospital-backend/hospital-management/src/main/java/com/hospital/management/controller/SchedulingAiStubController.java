@@ -25,7 +25,8 @@ public class SchedulingAiStubController {
         return Result.success(schedulingAiSuggestService.suggest(
                 deptId,
                 request == null ? null : request.getWeekStart(),
-                request == null ? null : request.getMode()));
+                request == null ? null : request.getMode(),
+                request == null ? null : request.getRulesText()));
     }
 
     @PostMapping("/{id}/ai-replace")

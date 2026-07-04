@@ -24,6 +24,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,11 +45,16 @@ public class SchedulingAiSuggestService {
     private final DictRepository dictRepository;
 
     public Map<String, Object> suggest(Long deptId, LocalDate weekStart, String mode) {
+        return suggest(deptId, weekStart, mode, null);
+    }
+
+    public Map<String, Object> suggest(Long deptId, LocalDate weekStart, String mode, String rulesText) {
         String normalizedMode = mode == null || mode.isBlank() ? MODE_WEEK : mode.trim().toUpperCase();
+        SchedulingRules rules = SchedulingRules.parse(rulesText);
         if (MODE_SUBSTITUTE.equals(normalizedMode)) {
-            return suggestSubstitutes(deptId);
+            return suggestSubstitutes(deptId, rules);
         }
-        return suggestWeek(deptId, weekStart);
+        return suggestWeek(deptId, weekStart, rules);
     }
 
     public Map<String, Object> replace(Long schedulingId, Map<String, Object> requestBody) {
@@ -102,7 +109,7 @@ public class SchedulingAiSuggestService {
         return updated;
     }
 
-    private Map<String, Object> suggestWeek(Long deptId, LocalDate requestedWeekStart) {
+    private Map<String, Object> suggestWeek(Long deptId, LocalDate requestedWeekStart, SchedulingRules rules) {
         if (deptId == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请先选择科室后再获取 AI 排班建议");
         }
@@ -142,23 +149,27 @@ public class SchedulingAiSuggestService {
 
         for (int doctorIndex = 0; doctorIndex < regularDoctors.size(); doctorIndex++) {
             Map<String, Object> doctor = regularDoctors.get(doctorIndex);
-            int restDay = doctorIndex % 7;
-            for (int day = 0; day < 7; day++) {
-                if (day == restDay) {
+            int restDay = rules.regularSessionsPerDoctor >= 12 && !rules.weekendOff ? doctorIndex % 7 : -1;
+            int added = 0;
+            for (int scan = 0; scan < 14 && added < rules.regularSessionsPerDoctor; scan++) {
+                int slotIndex = (doctorIndex * 2 + scan) % 14;
+                int day = slotIndex / 2;
+                if (day == restDay || rules.skipDay(day)) {
                     continue;
                 }
                 LocalDate workDate = weekStart.plusDays(day);
-                for (int noonType : List.of(1, 2)) {
-                    addChangeIfPossible(
-                            changes,
-                            occupied,
-                            doctor,
-                            workDate,
-                            noonType,
-                            normalLevelId,
-                            RegistLevelQuotaDefaults.defaultQuota(normalLevelId),
-                            today
-                    );
+                int noonType = slotIndex % 2 == 0 ? 1 : 2;
+                if (addChangeIfPossible(
+                        changes,
+                        occupied,
+                        doctor,
+                        workDate,
+                        noonType,
+                        normalLevelId,
+                        rules.normalQuota(RegistLevelQuotaDefaults.defaultQuota(normalLevelId)),
+                        today
+                )) {
+                    added++;
                 }
             }
         }
@@ -166,24 +177,34 @@ public class SchedulingAiSuggestService {
         for (int doctorIndex = 0; doctorIndex < expertDoctors.size(); doctorIndex++) {
             Map<String, Object> doctor = expertDoctors.get(doctorIndex);
             int start = doctorIndex * 3;
-            for (int session = 0; session < 3; session++) {
-                int slotIndex = (start + session * 5) % 14;
-                LocalDate workDate = weekStart.plusDays(slotIndex / 2);
+            int added = 0;
+            for (int scan = 0; scan < 14 && added < rules.expertSessionsPerDoctor; scan++) {
+                int slotIndex = (start + scan * 5) % 14;
+                int day = slotIndex / 2;
+                if (rules.skipDay(day)) {
+                    continue;
+                }
+                LocalDate workDate = weekStart.plusDays(day);
                 int noonType = slotIndex % 2 == 0 ? 1 : 2;
-                addChangeIfPossible(
+                if (addChangeIfPossible(
                         changes,
                         occupied,
                         doctor,
                         workDate,
                         noonType,
                         expertLevelId,
-                        RegistLevelQuotaDefaults.defaultQuota(expertLevelId),
+                        rules.expertQuota(RegistLevelQuotaDefaults.defaultQuota(expertLevelId)),
                         today
-                );
+                )) {
+                    added++;
+                }
             }
         }
 
         for (int day = 0; day < 7; day++) {
+            if (rules.skipDay(day)) {
+                continue;
+            }
             LocalDate workDate = weekStart.plusDays(day);
             for (int noonType : List.of(1, 2)) {
                 if (isSlotCovered(workDate, noonType, existing, changes)) {
@@ -194,6 +215,8 @@ public class SchedulingAiSuggestService {
                         .findFirst();
                 Optional<Map<String, Object>> filler = regularFiller.isPresent()
                         ? regularFiller
+                        : !rules.allowExpertFallback
+                        ? Optional.empty()
                         : expertDoctors.stream()
                         .filter(row -> !occupied.contains(slotKey(asLong(row.get("employeeId")), workDate, noonType)))
                         .findFirst();
@@ -208,7 +231,9 @@ public class SchedulingAiSuggestService {
                             workDate,
                             noonType,
                             registLevelId,
-                            RegistLevelQuotaDefaults.defaultQuota(registLevelId),
+                            expert
+                                    ? rules.expertQuota(RegistLevelQuotaDefaults.defaultQuota(registLevelId))
+                                    : rules.normalQuota(RegistLevelQuotaDefaults.defaultQuota(registLevelId)),
                             today
                     );
                     if (expert) {
@@ -226,6 +251,20 @@ public class SchedulingAiSuggestService {
                 }
             }
         }
+        ensureMinSlotCoverage(
+                weekStart,
+                existing,
+                changes,
+                occupied,
+                regularDoctors,
+                expertDoctors,
+                normalLevelId,
+                expertLevelId,
+                today,
+                rules,
+                warnings
+        );
+        warnings.addAll(rules.warnings());
 
         return Map.of(
                 "mode", MODE_WEEK,
@@ -239,7 +278,7 @@ public class SchedulingAiSuggestService {
         );
     }
 
-    private Map<String, Object> suggestSubstitutes(Long deptId) {
+    private Map<String, Object> suggestSubstitutes(Long deptId, SchedulingRules rules) {
         List<Map<String, Object>> schedules = listFrom(schedulingService.list(deptId, null, null, null));
         List<Map<String, Object>> leaveRequests = listFrom(leaveRequestService.listAdmin(1)).stream()
                 .filter(row -> deptId == null || Objects.equals(asLong(row.get("deptId")), deptId))
@@ -281,26 +320,26 @@ public class SchedulingAiSuggestService {
                 "riskItems", risks.stream()
                         .sorted(Comparator.comparing(row -> riskOrder((String) row.get("level"))))
                         .toList(),
-                "warnings", List.of(),
+                "warnings", rules.warnings(),
                 "message", suggestions.isEmpty() ? "当前没有待处理的请假替班记录" : "AI 已生成替班建议"
         );
     }
 
-    private void addChangeIfPossible(List<Map<String, Object>> changes,
-                                     Set<String> occupied,
-                                     Map<String, Object> doctor,
-                                     LocalDate workDate,
-                                     int noonType,
-                                     Long registLevelId,
-                                     int totalQuota,
-                                     LocalDate today) {
+    private boolean addChangeIfPossible(List<Map<String, Object>> changes,
+                                        Set<String> occupied,
+                                        Map<String, Object> doctor,
+                                        LocalDate workDate,
+                                        int noonType,
+                                        Long registLevelId,
+                                        int totalQuota,
+                                        LocalDate today) {
         if (workDate.isBefore(today)) {
-            return;
+            return false;
         }
         Long employeeId = asLong(doctor.get("employeeId"));
         String key = slotKey(employeeId, workDate, noonType);
         if (occupied.contains(key)) {
-            return;
+            return false;
         }
         Map<String, Object> change = new LinkedHashMap<>();
         change.put("employeeId", employeeId);
@@ -310,6 +349,7 @@ public class SchedulingAiSuggestService {
         change.put("totalQuota", totalQuota);
         changes.add(change);
         occupied.add(key);
+        return true;
     }
 
     private boolean isSlotCovered(LocalDate workDate,
@@ -328,6 +368,81 @@ public class SchedulingAiSuggestService {
                 Objects.equals(row.get("workDate"), workDate)
                         && asInt(row.get("noonType"), null) == noonType
         );
+    }
+
+    private long slotCoverage(LocalDate workDate,
+                              int noonType,
+                              List<Map<String, Object>> existing,
+                              List<Map<String, Object>> changes) {
+        long existingCovered = existing.stream().filter(row ->
+                Objects.equals(row.get("workDate"), workDate)
+                        && asInt(row.get("noonType"), null) == noonType
+                        && asInt(row.get("publishStatus"), 1) != 2
+        ).count();
+        long draftCovered = changes.stream().filter(row ->
+                Objects.equals(row.get("workDate"), workDate)
+                        && asInt(row.get("noonType"), null) == noonType
+        ).count();
+        return existingCovered + draftCovered;
+    }
+
+    private void ensureMinSlotCoverage(LocalDate weekStart,
+                                       List<Map<String, Object>> existing,
+                                       List<Map<String, Object>> changes,
+                                       Set<String> occupied,
+                                       List<Map<String, Object>> regularDoctors,
+                                       List<Map<String, Object>> expertDoctors,
+                                       Long normalLevelId,
+                                       Long expertLevelId,
+                                       LocalDate today,
+                                       SchedulingRules rules,
+                                       List<String> warnings) {
+        if (rules.minDoctorsPerSlot <= 1) {
+            return;
+        }
+        for (int day = 0; day < 7; day++) {
+            if (rules.skipDay(day)) {
+                continue;
+            }
+            LocalDate workDate = weekStart.plusDays(day);
+            for (int noonType : List.of(1, 2)) {
+                while (slotCoverage(workDate, noonType, existing, changes) < rules.minDoctorsPerSlot) {
+                    Optional<Map<String, Object>> regularFiller = regularDoctors.stream()
+                            .filter(row -> !occupied.contains(slotKey(asLong(row.get("employeeId")), workDate, noonType)))
+                            .findFirst();
+                    Optional<Map<String, Object>> filler = regularFiller.isPresent()
+                            ? regularFiller
+                            : rules.allowExpertFallback
+                            ? expertDoctors.stream()
+                            .filter(row -> !occupied.contains(slotKey(asLong(row.get("employeeId")), workDate, noonType)))
+                            .findFirst()
+                            : Optional.empty();
+                    if (filler.isEmpty()) {
+                        warnings.add("%s %s 无法满足至少 %d 名医生出诊，请人工补充排班".formatted(
+                                workDate,
+                                NoonTypeSupport.label(noonType),
+                                rules.minDoctorsPerSlot
+                        ));
+                        break;
+                    }
+
+                    boolean expert = isExpert(filler.get());
+                    Long registLevelId = expert ? expertLevelId : normalLevelId;
+                    addChangeIfPossible(
+                            changes,
+                            occupied,
+                            filler.get(),
+                            workDate,
+                            noonType,
+                            registLevelId,
+                            expert
+                                    ? rules.expertQuota(RegistLevelQuotaDefaults.defaultQuota(registLevelId))
+                                    : rules.normalQuota(RegistLevelQuotaDefaults.defaultQuota(registLevelId)),
+                            today
+                    );
+                }
+            }
+        }
     }
 
     private Map<String, Object> buildSubstituteSuggestion(Map<String, Object> schedule,
@@ -432,7 +547,11 @@ public class SchedulingAiSuggestService {
 
     private boolean isExpert(Map<String, Object> doctor) {
         String title = text(doctor.get("title"), "");
-        return title.contains("主任医师") || title.contains("副主任医师") || title.contains("教授");
+        return title.contains("主任医师")
+                || title.contains("副主任医师")
+                || title.contains("教授")
+                || title.contains("专家")
+                || title.toUpperCase().contains("EXPERT");
     }
 
     private boolean isExpertSchedule(Map<String, Object> schedule) {
@@ -529,5 +648,127 @@ public class SchedulingAiSuggestService {
             case "MEDIUM" -> 1;
             default -> 2;
         };
+    }
+
+    private static final class SchedulingRules {
+        private static final Pattern HALF_DAY_PATTERN = Pattern.compile("(\\d+)\\s*(?:个)?(?:半天|halfdays?|half-days?)", Pattern.CASE_INSENSITIVE);
+        private static final Pattern DAY_PATTERN = Pattern.compile("(\\d+)\\s*(?:天|days?)", Pattern.CASE_INSENSITIVE);
+        private static final Pattern QUOTA_PATTERN = Pattern.compile("(?:号额|号源|名额|限号|限额|quota)\\D{0,8}(\\d+)|(\\d+)\\s*(?:个)?号");
+        private static final Pattern MIN_DOCTOR_PATTERN = Pattern.compile("(?:至少|不少于|最低|最少)\\D{0,8}(\\d+)\\s*(?:名|个)?(?:医生|人)");
+
+        private int regularSessionsPerDoctor = 12;
+        private int expertSessionsPerDoctor = 3;
+        private Integer normalQuota;
+        private Integer expertQuota;
+        private int minDoctorsPerSlot = 1;
+        private boolean weekendOff;
+        private boolean allowExpertFallback = true;
+        private final List<String> warnings = new ArrayList<>();
+
+        static SchedulingRules parse(String rulesText) {
+            SchedulingRules rules = new SchedulingRules();
+            if (rulesText == null || rulesText.isBlank()) {
+                return rules;
+            }
+
+            String normalized = rulesText.replace('：', ':').replace('，', ',').trim();
+            for (String rawLine : normalized.split("[\\r\\n;；]+")) {
+                String line = rawLine.trim();
+                if (line.isBlank()) {
+                    continue;
+                }
+                rules.applyLine(line);
+            }
+            rules.warnings.add("已按管理员输入规则生成排班；可识别规则包括每周半天数、号额、每半天最少医生数、周末休息、专家兜底。");
+            return rules;
+        }
+
+        private void applyLine(String line) {
+            String lowerLine = line.toLowerCase();
+            boolean regularLine = line.contains("普通") || lowerLine.contains("regular") || lowerLine.contains("normal");
+            boolean expertLine = line.contains("专家") || line.contains("主任") || line.contains("教授") || lowerLine.contains("expert");
+
+            Integer sessions = extractSessions(line);
+            if (sessions != null) {
+                if (expertLine && !regularLine) {
+                    expertSessionsPerDoctor = clamp(sessions, 0, 14);
+                } else if (regularLine) {
+                    regularSessionsPerDoctor = clamp(sessions, 0, 14);
+                }
+            }
+
+            Integer quota = extractQuota(line);
+            if (quota != null) {
+                if (expertLine && !regularLine) {
+                    expertQuota = clamp(quota, 1, 500);
+                } else if (regularLine) {
+                    normalQuota = clamp(quota, 1, 500);
+                }
+            }
+
+            Integer minDoctors = extractFirst(line, MIN_DOCTOR_PATTERN);
+            if (minDoctors != null) {
+                minDoctorsPerSlot = clamp(minDoctors, 1, 20);
+            }
+
+            if ((line.contains("周末") || lowerLine.contains("weekend"))
+                    && (line.contains("休") || line.contains("不排") || line.contains("停诊") || lowerLine.contains("off"))) {
+                weekendOff = true;
+            }
+            if ((line.contains("不允许") || line.contains("禁止") || line.contains("不要"))
+                    && line.contains("专家")
+                    && (line.contains("兜底") || line.contains("补位") || line.contains("补班"))) {
+                allowExpertFallback = false;
+            }
+        }
+
+        private Integer extractSessions(String line) {
+            Matcher halfDayMatcher = HALF_DAY_PATTERN.matcher(line);
+            if (halfDayMatcher.find()) {
+                return Integer.parseInt(halfDayMatcher.group(1));
+            }
+            Matcher dayMatcher = DAY_PATTERN.matcher(line);
+            if (dayMatcher.find() && line.contains("每周")) {
+                return Integer.parseInt(dayMatcher.group(1)) * 2;
+            }
+            return null;
+        }
+
+        private Integer extractQuota(String line) {
+            Matcher matcher = QUOTA_PATTERN.matcher(line);
+            if (!matcher.find()) {
+                return null;
+            }
+            String value = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
+            return value == null ? null : Integer.parseInt(value);
+        }
+
+        private Integer extractFirst(String line, Pattern pattern) {
+            Matcher matcher = pattern.matcher(line);
+            if (!matcher.find()) {
+                return null;
+            }
+            return Integer.parseInt(matcher.group(1));
+        }
+
+        private boolean skipDay(int dayIndex) {
+            return weekendOff && dayIndex >= 5;
+        }
+
+        private int normalQuota(int fallback) {
+            return normalQuota == null ? fallback : normalQuota;
+        }
+
+        private int expertQuota(int fallback) {
+            return expertQuota == null ? fallback : expertQuota;
+        }
+
+        private List<String> warnings() {
+            return warnings;
+        }
+
+        private static int clamp(int value, int min, int max) {
+            return Math.max(min, Math.min(max, value));
+        }
     }
 }

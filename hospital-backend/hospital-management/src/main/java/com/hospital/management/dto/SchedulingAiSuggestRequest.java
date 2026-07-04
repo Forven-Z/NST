@@ -9,4 +9,5 @@ public class SchedulingAiSuggestRequest {
     private Long deptId;
     private LocalDate weekStart;
     private String mode;
+    private String rulesText;
 }

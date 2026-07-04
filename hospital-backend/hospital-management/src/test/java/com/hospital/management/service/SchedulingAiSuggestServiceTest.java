@@ -86,6 +86,41 @@ class SchedulingAiSuggestServiceTest {
     }
 
     @Test
+    void suggestWeek_appliesCustomRulesText() {
+        LocalDate targetDate = LocalDate.now().plusDays(14);
+        LocalDate monday = targetDate.minusDays((targetDate.getDayOfWeek().getValue() + 6) % 7);
+        mockRegistLevels();
+        when(employeeRepository.listEmployees(null, 1L, "OUTPATIENT_DOCTOR", 0, 1, 0, 200))
+                .thenReturn(List.of(
+                        doctor(1L, "doctor-a", "GENERAL"),
+                        doctor(2L, "doctor-b", "EXPERT")
+                ));
+        when(schedulingRepository.listWeekByDept(1L, monday, monday.plusDays(6)))
+                .thenReturn(weekdayCoverage(monday));
+
+        Map<String, Object> result = service.suggest(
+                1L,
+                monday,
+                "WEEK",
+                """
+                regular weekly 4 halfdays quota 25.
+                expert weekly 2 halfdays quota 10.
+                weekend off.
+                """
+        );
+        List<Map<String, Object>> changes = changes(result);
+
+        assertEquals(6, changes.size());
+        assertEquals(4, countByDoctor(changes, 1L));
+        assertEquals(2, countByDoctor(changes, 2L));
+        assertTrue(changes.stream().noneMatch(row -> ((LocalDate) row.get("workDate")).getDayOfWeek().getValue() >= 6));
+        assertTrue(changes.stream().filter(row -> row.get("employeeId").equals(1L))
+                .allMatch(row -> row.get("totalQuota").equals(25)));
+        assertTrue(changes.stream().filter(row -> row.get("employeeId").equals(2L))
+                .allMatch(row -> row.get("totalQuota").equals(10)));
+    }
+
+    @Test
     void suggestSubstitutes_doesNotRecommendOriginalOrBusyDoctor() {
         LocalDate date = LocalDate.now().plusDays(7);
         when(schedulingService.list(1L, null, null, null)).thenReturn(Map.of("list", List.of(
@@ -187,6 +222,17 @@ class SchedulingAiSuggestServiceTest {
                 Map.entry("usedQuota", 0),
                 Map.entry("publishStatus", 1)
         );
+    }
+
+    private List<Map<String, Object>> weekdayCoverage(LocalDate monday) {
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        long id = 100L;
+        for (int day = 0; day < 5; day++) {
+            for (int noonType : List.of(1, 2)) {
+                rows.add(schedule(id++, 99L, monday.plusDays(day), noonType));
+            }
+        }
+        return rows;
     }
 
     private Map<String, Object> expertSchedule(Long schedulingId, Long employeeId, LocalDate workDate, int noonType) {
