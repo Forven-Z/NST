@@ -1087,7 +1087,7 @@ function rowClassName({ row }) {
     />
 
     <el-dialog v-model="rulesDialogVisible" title="排班规则" width="560px" destroy-on-close>
-      <p class="rules-hint">以下规则会随 AI 排班请求一并提交；当前后端规则引擎尚未消费该字段，保存后仅在本机缓存。</p>
+      <p class="rules-hint">以下规则会随 AI 排班请求一并提交；后端会解析可识别的排班约束，保存后也会在本机缓存。</p>
       <el-input
         v-model="rulesDraft"
         type="textarea"
