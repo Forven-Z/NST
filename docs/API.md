@@ -1,6 +1,6 @@
 # 智慧云脑诊疗平台 — API 接口文档（唯一契约）
 
-> **版本**：v2.10 | 2026-06-04 · **定稿交付**  
+> **版本**：v2.11 | 2026-07-06 · **定稿交付**  
 > **地位**：**唯一** HTTP 接口规格；前后端、Mock、联调均以此为准。  
 > **Base URL**：`http://{host}:9000/api/v1`（经 Gateway，禁止前端直连微服务端口）  
 > **数据模型**：[DATABASE_DESIGN.md](./DATABASE_DESIGN.md) **v1.16**（业务 ID 即各表 `id`）  
@@ -64,6 +64,7 @@
 | `doctor.js` | 处方修改重提 | ✅ | `updatePrescription` / `resubmitPrescription` |
 | `admin.js` | 字典/员工/排班 | ✅ | 字典 GET ✅；科室/员工/排班 CRUD 路径 `/admin/scheduling/**` |
 | `scheduling.js` | `MyScheduleView`、`SchedulingView` | ✅ | §8.5 / §9.5 已联调；排班 AI（规则引擎）✅ |
+| `admin.js` | `fetchAiSchedulingSuggest` | ✅ | `POST /admin/scheduling/ai-suggest`；Body 含可选 `rulesText`（§9.2.1） |
 
 **图例**：✅ 关 Mock 可联调 · ⚠️ 路径或字段待改 · 🎭 仅 Mock · ⬜ 契约已定后端未实现
 
@@ -1079,17 +1080,105 @@ Mock 数据结构 **与本文件一致**。
 | ✅ GET | `/admin/scheduling/templates` | 模板列表（Query: `deptId?`, `employeeId?`） |
 | ✅ GET | `/admin/scheduling/templates/{employeeId}` | 某医生固定模板 |
 | ✅ PUT | `/admin/scheduling/templates/{employeeId}` | 整表替换某医生模板 |
-| ✅ | POST | `/admin/scheduling/ai-suggest` | 规则引擎：`mode=WEEK` 周排班草稿 / `SUBSTITUTE` 替班建议 |
-| ✅ | POST | `/admin/scheduling/{id}/ai-replace` | 规则引擎：对已审批请假的排班应用替班 |
+| ✅ | POST | `/admin/scheduling/ai-suggest` | 规则引擎：`mode=WEEK` 周排班草稿 / `SUBSTITUTE` 替班建议；Body 可选 `rulesText`（§9.2.1） |
+| ✅ | POST | `/admin/scheduling/{id}/ai-replace` | 规则引擎：对已审批请假的排班应用替班（§9.2.2） |
 | P5 | POST | `/admin/scheduling/solve` | Timefold 求解 |
 
-> **说明**：排班 AI 由 `SchedulingAiSuggestService`（management 规则引擎）实现，**不返回 50301**。ai-bridge 的 `POST /ai/scheduling/suggest`（LLM）存在但未接入管理端 UI。
+> **说明**：排班 AI 由 `SchedulingAiSuggestService`（management 规则引擎）实现，**不返回 50301**。ai-bridge 的 `POST /ai/scheduling/suggest`（LLM）存在但未接入管理端 UI。  
+> **规则文本**：无独立 `GET/PUT` 规则接口；`rulesText` 随 `ai-suggest` 请求提交，**不落库**（管理端 UI 可本地缓存）。详见 **§9.2.1**。
 
-> **前端**：`SchedulingView.vue` 以周排班网格为主编辑区，下方保留本周列表与请假/AI 替班；关 Mock 可联调批量 API + 单条 CRUD。
+> **前端**：`SchedulingView.vue` 以周排班网格为主编辑区，下方保留本周列表与请假/AI 替班；「排班规则」弹窗编辑 `rulesText` 后，在点击 AI 建议时一并提交。
 
-**Query**：`workDate`, `deptId`, `employeeId`  
-**Request 示例**：`{ "deptId", "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  
+**Query**（`GET /admin/scheduling`）：`workDate`, `deptId`, `employeeId`, `publishStatus?`  
+**创建 Request 示例**（`POST /admin/scheduling`）：`{ "employeeId", "registLevelId", "workDate", "noonType", "totalQuota" }`  
 > `scheduling` 表不存 `dept_id`；出诊科室经 `employee.dept_id` 推导（DATABASE v1.14）。
+
+#### 9.2.1 POST `/admin/scheduling/ai-suggest` ✅ P4
+
+**实现**：`SchedulingAiStubController` → `SchedulingAiSuggestService`（`hospital-management`）。
+
+**Request Body**（`SchedulingAiSuggestRequest`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `deptId` | Long | `mode=WEEK` 时必填 | 科室 ID；`WEEK` 缺省抛 `400` |
+| `weekStart` | `YYYY-MM-DD` | 否 | 周一起始日；缺省为「含今天」所在周周一 |
+| `mode` | String | 否 | `WEEK`（默认）周排班草稿；`SUBSTITUTE` 替班建议 |
+| `rulesText` | String | 否 | 管理员自然语言排班规则；见下表。**仅 `mode=WEEK` 时影响生成算法**；`SUBSTITUTE` 时仅回显解析提示到 `warnings` |
+
+**`rulesText` 解析**（`SchedulingRules.parse`，按行拆分；中英文关键词均可）
+
+| 规则项 | 未传 `rulesText` 时默认 | 可识别写法示例 |
+|--------|-------------------------|----------------|
+| 普通医生每周班次数 | 12 个半天 | 含 `普通`/`regular`/`normal` + `4 个半天`、`weekly 4 halfdays`；或 `每周 2 天`（按天×2 换算半天） |
+| 专家每周班次数 | 3 个半天 | 含 `专家`/`主任`/`教授`/`expert` + 半天数 |
+| 普通号额 | 30 | `普通 … 号额 25`、`quota 25`（与「普通」同行） |
+| 专家号额 | 15 | `专家 … 号额 10`、`quota 10`（与「专家」同行） |
+| 每半天最少医生 | 1 | `至少 2 名医生`、`最少 2 人` |
+| 周末休息 | 否 | `周末休`、`weekend off` |
+| 禁止专家兜底补位 | 允许 | `不允许专家兜底`、`禁止专家补位` |
+
+解析成功时，`warnings` 会追加：`已按管理员输入规则生成排班；可识别规则包括每周半天数、号额、每半天最少医生数、周末休息、专家兜底。`
+
+**专家识别**（代码写死，**不可**通过 `rulesText` 修改）：职称含 `主任医师` / `副主任医师` / `教授` / `专家`，或 `EXPERT`（不区分大小写）。
+
+**Request 示例 — 周排班**
+
+```json
+{
+  "deptId": 1,
+  "weekStart": "2026-07-07",
+  "mode": "WEEK",
+  "rulesText": "普通医生每周 4 个半天，号额 25。\n专家每周 2 个半天，号额 10。\n周末休息。"
+}
+```
+
+**Response `data` — `mode=WEEK`**
+
+| 字段 | 说明 |
+|------|------|
+| `mode` | `"WEEK"` |
+| `weekStart` / `weekEnd` | 本周一 / 周日（`YYYY-MM-DD`） |
+| `changes[]` | 待合并到周网格的草稿变更；**不自动落库**，需 `POST /admin/scheduling/batch-upsert` 或单条 CRUD 保存 |
+| `suggestions` | 空数组 `[]` |
+| `riskItems` | 空数组 `[]` |
+| `warnings` | 字符串数组（含规则解析提示、空档补位、专家兜底等） |
+| `message` | 如 `AI 已生成本周排班草稿，请确认后保存` |
+
+**`changes[]` 元素**：`employeeId`, `workDate`, `noonType`（1 上午 / 2 下午）, `registLevelId`, `totalQuota`
+
+**Response `data` — `mode=SUBSTITUTE`**
+
+| 字段 | 说明 |
+|------|------|
+| `mode` | `"SUBSTITUTE"` |
+| `changes` | 空数组 `[]` |
+| `suggestions[]` | 每条已批准请假对应一项替班建议 |
+| `riskItems[]` | 风险项（`level`, `type`, `schedulingId`, `title`, `description`, `suggestion`） |
+| `warnings` | 含 `rulesText` 解析提示（若有）；**替班匹配逻辑不受 `rulesText` 参数化** |
+| `message` | 如 `AI 已生成替班建议` 或 `当前没有待处理的请假替班记录` |
+
+**`suggestions[]` 元素**：`schedulingId`, `leaveRequestId`, `workDate`, `noonLabel`, `employeeName`, `leaveDriven`, `replaceable`, `confidence`, `suggestion`, `reason`, `warnings[]`, `proposedSchedule`（`employeeId?`, `totalQuota`）
+
+**替班匹配规则**（写死）：同科室门诊医生、同医生类型（普通↔普通、专家↔专家）、非请假本人、目标日期午别无冲突。
+
+#### 9.2.2 POST `/admin/scheduling/{id}/ai-replace` ✅ P4
+
+对已**审批通过**请假的排班应用替班（更新 `employeeId`）。
+
+**Path**：`id` = `schedulingId`
+
+**Request Body**（均可选）
+
+| 字段 | 说明 |
+|------|------|
+| `leaveRequestId` | 指定请假单；缺省取该排班最新已批准请假 |
+| `employeeId` | 管理员指定替班医生；缺省由引擎自动推荐 |
+| `proposedSchedule.employeeId` | 与 `employeeId` 等价（兼容 AI 建议结构） |
+
+**成功 Response `data`**：更新后的排班对象（同 `PUT /admin/scheduling/{id}`）+ `message`（`AI 替班已应用`）+ `aiSuggestion`
+
+**失败**：`400` — 无已批准请假、找不到替班医生、跨类型替班、时段冲突等（见 `SchedulingAiSuggestService.validateSubstituteDoctor`）
 
 ### 9.5 排班请假审批 · `/admin/leave-requests/**` ✅ P1
 
@@ -1237,6 +1326,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | P3 | patient | 真微信支付 `POST /callback/wechat/**` |
 | P5 | ai-bridge | `POST /ai/scheduling/suggest` 接入管理端 UI（现 §9.2 规则引擎） |
 | P5 | mgmt | `POST /admin/scheduling/solve`（Timefold） |
+| P5 | mgmt | `GET/PUT /admin/scheduling/ai-rules` 规则服务端持久化（现 `rulesText` 随请求提交、不落库） |
 
 ---
 
@@ -1267,6 +1357,8 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 | `pacs.js` | `savePacsResult` | `POST /pacs/requests/{id}/result` | ✅ POST | ✅ POST |
 | `disposal.js` | `saveDisposalResult` | `POST /disposal/requests/{id}/result` | ✅ POST | ✅ POST |
 | `admin.js` | `fetchAdminSchedules` 等 | `/admin/scheduling/**` | ✅ `/admin/scheduling/**` | ✅ |
+| `admin.js` | `fetchAiSchedulingSuggest` | `POST /admin/scheduling/ai-suggest` | ✅ Body 含 `rulesText?` | ✅ §9.2.1 |
+| `admin.js` | `applyAiSchedulingReplace` | `POST /admin/scheduling/{id}/ai-replace` | ✅ | ✅ §9.2.2 |
 | `scheduling.js` | 全部 | §8.5、§9.5 | ✅ | ✅ |
 
 ---
@@ -1290,6 +1382,7 @@ pacs 内网回调：`POST http://hospital-pacs:9104/internal/imaging/callback`
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v2.11 | 2026-07-06 | §9.2.1～9.2.2：对齐 `SchedulingAiSuggestService` — `ai-suggest` 增加 `rulesText` 契约与解析规则说明；`ai-replace` 请求/响应定稿 |
 | v2.9 | 2026-06-04 | `GET /registrar/regist-levels` 落地（patient JDBC 只读）；`registrar.js` 对齐 |
 | v2.10 | 2026-06-04 | 定稿交付：§9.4 区分已实现 CRUD 与可选字典写；附录 E 改为「交付后可选扩展」 |
 | v2.7 | 2026-06-04 | 对齐代码：`triage/chat`、`diagnosis/suggest`、`/ai/doctor/**/ai-draft`、LIS/PACS result-detail/ai-report、imaging-studies/upload、admin 排班/员工/请假 ✅；肿瘤 CNN |
