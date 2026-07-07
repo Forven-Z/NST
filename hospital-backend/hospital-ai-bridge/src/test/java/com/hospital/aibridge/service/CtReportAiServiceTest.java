@@ -22,9 +22,9 @@ class CtReportAiServiceTest {
         HeadCtImpressionRequest request = new HeadCtImpressionRequest();
         request.setFindingsText(" ");
 
-        assertThatThrownBy(() -> service.generateHeadCtImpression(request))
+        assertThatThrownBy(() -> service.generateImagingImpression(request))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("CT 所见");
+                .hasMessageContaining("检查所见");
     }
 
     @Test
@@ -32,7 +32,7 @@ class CtReportAiServiceTest {
         HeadCtImpressionRequest request = new HeadCtImpressionRequest();
         request.setFindingsText("颅脑CT平扫未见明显异常。");
 
-        assertThatThrownBy(() -> service.generateHeadCtImpression(request))
+        assertThatThrownBy(() -> service.generateImagingImpression(request))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("未启用");
     }

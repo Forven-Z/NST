@@ -163,7 +163,7 @@ public class ImagingService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "检查申请不存在"));
         Map<String, Object> study = imagingStudyRepository.findByCheckRequestId(checkRequestId).orElse(null);
 
-        String aiText = aiBridgeReportClient.generateHeadCtImpression(context, findings);
+        String aiText = aiBridgeReportClient.generateImagingImpression(context, study, findings);
         pacsAiReportCache.put(checkRequestId, aiText, "READY");
 
         return enrichCheckReport(context, study, findings, aiText, null, "READY");

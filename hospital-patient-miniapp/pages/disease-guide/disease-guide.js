@@ -28,6 +28,7 @@ Page({
     recommendations: [],
     primaryRecommendation: null,
     showRecommendModal: false,
+    recommendModalDismissed: false,
     safetyNotice: '',
     emergency: false,
     scrollIntoView: '',
@@ -52,6 +53,7 @@ Page({
       recommendations: [],
       primaryRecommendation: null,
       showRecommendModal: false,
+      recommendModalDismissed: false,
       safetyNotice: '',
       emergency: false,
     })
@@ -111,7 +113,7 @@ Page({
         quickReplies: data.quickReplies || [],
         recommendations: recommendations,
         primaryRecommendation: recommendations[0] || null,
-        showRecommendModal: recommendations.length > 0,
+        showRecommendModal: recommendations.length > 0 && !that.data.recommendModalDismissed,
         safetyNotice: data.safetyNotice || that.data.safetyNotice,
         emergency: !!data.emergency,
         scrollIntoView: last ? last.id : '',
@@ -140,7 +142,10 @@ Page({
   },
 
   onCloseRecommend() {
-    this.setData({ showRecommendModal: false })
+    this.setData({
+      showRecommendModal: false,
+      recommendModalDismissed: true,
+    })
   },
 
   noop() {},

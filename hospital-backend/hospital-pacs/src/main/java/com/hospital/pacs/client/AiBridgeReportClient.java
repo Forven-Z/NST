@@ -22,10 +22,12 @@ public class AiBridgeReportClient {
     private final AiBridgeProperties aiBridgeProperties;
     private final RestTemplate restTemplate;
 
-    public String generateHeadCtImpression(Map<String, Object> context, String findingsText) {
+    public String generateImagingImpression(Map<String, Object> context, Map<String, Object> study, String findingsText) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("findingsText", findingsText);
         payload.put("itemName", context.get("itemName"));
+        payload.put("modality", study != null ? study.get("modality") : null);
+        payload.put("bodyPart", context.get("bodyPart"));
         payload.put("patientGender", context.get("gender"));
         payload.put("patientAge", context.get("age"));
         payload.put("clinicalDiagnosis", context.get("clinicalDiagnosis"));
@@ -34,7 +36,7 @@ public class AiBridgeReportClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         String url = aiBridgeProperties.getBaseUrl().replaceAll("/+$", "")
-                + "/api/v1/ai/reports/head-ct/impression";
+                + "/api/v1/ai/reports/imaging/impression";
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(
                     url,
@@ -46,6 +48,10 @@ public class AiBridgeReportClient {
         } catch (RestClientException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "调用 AI 报告生成服务失败: " + ex.getMessage());
         }
+    }
+
+    public String generateHeadCtImpression(Map<String, Object> context, String findingsText) {
+        return generateImagingImpression(context, null, findingsText);
     }
 
     @SuppressWarnings("unchecked")

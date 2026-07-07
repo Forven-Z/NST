@@ -26,6 +26,11 @@ public class AiReportController {
         return Result.success(ctReportAiService.generateHeadCtImpression(request));
     }
 
+    @PostMapping("/imaging/impression")
+    public Result<Map<String, Object>> imagingImpression(@RequestBody HeadCtImpressionRequest request) {
+        return Result.success(ctReportAiService.generateImagingImpression(request));
+    }
+
     @PostMapping("/lab/analysis")
     public Result<Map<String, Object>> labAnalysis(@RequestBody LabAnalysisRequest request) {
         return Result.success(labReportAiService.generateLabAnalysis(request));
