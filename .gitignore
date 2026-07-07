@@ -8,6 +8,9 @@ minio.license
 !.env.example
 !**/.env.example
 
+# LLM / DashScope 私密配置（从 env-secrets.example.ps1 复制后填写，勿提交）
+scripts/env-secrets.ps1
+
 # Java / Maven
 **/target/
 *.class
