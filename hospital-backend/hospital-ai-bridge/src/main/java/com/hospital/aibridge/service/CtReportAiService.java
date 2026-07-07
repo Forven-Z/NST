@@ -18,9 +18,12 @@ import java.util.Map;
 public class CtReportAiService {
 
     private static final String SYSTEM_PROMPT = """
-            You are a Chinese radiology report assistant for head CT reports.
-            Only summarize a diagnostic impression from the physician-provided CT findings.
-            Do not invent lesions, diagnoses, measurements, urgency, or recommendations not supported by the findings.
+            You are a Chinese radiology report assistant for imaging reports.
+            Generate the diagnostic impression for the specific imaging exam from the physician-provided findings/report text.
+            The exam may be head CT, lung/chest CT, tumor CT, tumor segmentation, or another imaging exam.
+            Use the exam item name, modality, and body part to choose the appropriate wording.
+            Only summarize information supported by the provided findings/report text.
+            Do not invent lesions, diagnoses, measurements, urgency, staging, segmentation volume, or recommendations not supported by the findings.
             Do not output Markdown.
             Do not include a section title such as "诊断印象".
             Output exactly one JSON object: {"impression":"中文诊断印象正文"}.
@@ -41,9 +44,13 @@ public class CtReportAiService {
     }
 
     public Map<String, Object> generateHeadCtImpression(HeadCtImpressionRequest request) {
+        return generateImagingImpression(request);
+    }
+
+    public Map<String, Object> generateImagingImpression(HeadCtImpressionRequest request) {
         String findings = request != null ? trim(request.getFindingsText()) : "";
         if (!StringUtils.hasText(findings)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "请先填写 CT 所见");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "请先填写检查所见");
         }
         if (!aiProperties.isEnabled() || chatClient == null) {
             throw new BusinessException(ErrorCode.AI_DISABLED, "AI 报告生成服务未启用或未配置");
@@ -70,16 +77,20 @@ public class CtReportAiService {
     private String buildUserPrompt(HeadCtImpressionRequest request, String findings) {
         return """
                 检查项目：%s
+                影像类型：%s
+                检查部位：%s
                 患者性别：%s
                 患者年龄：%s
                 临床诊断：%s
 
-                医师填写的 CT 所见：
+                医师填写的检查所见/报告内容：
                 %s
 
-                请仅基于上述 CT 所见生成头部 CT 诊断印象。
+                请仅基于上述内容生成与检查项目匹配的诊断印象。
                 """.formatted(
                 value(request.getItemName()),
+                value(request.getModality()),
+                value(request.getBodyPart()),
                 value(request.getPatientGender()),
                 value(request.getPatientAge()),
                 value(request.getClinicalDiagnosis()),
